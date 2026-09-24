@@ -560,6 +560,7 @@ biletflow/
 │   │   ├── core/               # конфиг, безопасность, JWT, HMAC для QR
 │   │   ├── db/                 # сессии, base, миграции Alembic
 │   │   ├── modules/
+            ├── users/
 │   │   │   ├── auth/           # router · service · schemas · models
 │   │   │   ├── events/
 │   │   │   ├── tickets/
