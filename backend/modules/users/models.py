@@ -21,10 +21,11 @@ class User(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     email: str = Field(max_length=320, unique=True, index=True)
     password_hash: str
-    full_name: str = Field(max_length=200)
-    is_platform_admin: bool = False
-    email_verify_token: str | None = Field(default=None, max_length=64, index=True)
     email_verified_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
+    phone: str | None = Field(default=None, max_length=32)
+    locale: str | None = Field(default=None, max_length=10)
+    is_platform_admin: bool = False
+    is_suspended: bool = False
     created_at: datetime = Field(default_factory=utcnow, sa_type=DateTime(timezone=True))
 
     def __repr__(self) -> str:

@@ -3,6 +3,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from slugify import slugify
+from sqlalchemy import func
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -12,6 +13,7 @@ from modules.auth.dependencies import get_current_user, get_optional_user
 from modules.events.models import Event, EventStatus, EventVisibility
 from modules.events.schemas import EventCreate, EventRead, EventUpdate
 from modules.users.models import OrganizerProfile, User
+from modules.venues.models import Venue
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -27,7 +29,7 @@ async def is_owner(session: AsyncSession, user: User | None, event: Event) -> bo
     if user.is_platform_admin:
         return True
     organizer = await get_organizer(session, user)
-    return organizer is not None and organizer.id == event.organizer_id
+    return organizer is not None and organizer.id == event.organizer_profile_id
 
 
 async def get_own_event(session: AsyncSession, user: User, event_id: uuid.UUID) -> Event:
@@ -35,6 +37,11 @@ async def get_own_event(session: AsyncSession, user: User, event_id: uuid.UUID) 
     if event is None or not await is_owner(session, user, event):
         raise HTTPException(404, "Event not found")
     return event
+
+
+async def check_venue(session: AsyncSession, venue_id: uuid.UUID | None) -> None:
+    if venue_id and await session.get(Venue, venue_id) is None:
+        raise HTTPException(422, "Venue not found")
 
 
 async def save(session: AsyncSession, event: Event) -> Event:
@@ -56,15 +63,15 @@ async def list_events(
     query = select(Event).where(
         Event.status == EventStatus.PUBLISHED.value,
         Event.visibility == EventVisibility.PUBLIC.value,
-        Event.ends_at > utcnow(),
+        func.coalesce(Event.event_end_at, Event.event_start_at) > utcnow(),
     )
     if city:
-        query = query.where(col(Event.city).ilike(city))
+        query = query.join(Venue).where(col(Venue.city).ilike(city))
     if category:
         query = query.where(Event.category == category)
     if q:
         query = query.where(col(Event.title).ilike(f"%{q}%"))
-    query = query.order_by(col(Event.starts_at)).offset(offset).limit(min(limit, 100))
+    query = query.order_by(col(Event.event_start_at)).offset(offset).limit(min(limit, 100))
     return (await session.exec(query)).all()
 
 
@@ -77,8 +84,9 @@ async def create_event(
     organizer = await get_organizer(session, user)
     if organizer is None:
         raise HTTPException(403, "Organizer profile is required")
+    await check_venue(session, data.venue_id)
     slug = f"{slugify(data.title, max_length=80) or 'event'}-{secrets.token_hex(3)}"
-    return await save(session, Event(**data.model_dump(), organizer_id=organizer.id, slug=slug))
+    return await save(session, Event(**data.model_dump(), organizer_profile_id=organizer.id, slug=slug))
 
 
 @router.get("/mine", response_model=list[EventRead])
@@ -86,7 +94,11 @@ async def my_events(user: User = Depends(get_current_user), session: AsyncSessio
     organizer = await get_organizer(session, user)
     if organizer is None:
         return []
-    query = select(Event).where(Event.organizer_id == organizer.id).order_by(col(Event.starts_at).desc())
+    query = (
+        select(Event)
+        .where(Event.organizer_profile_id == organizer.id)
+        .order_by(col(Event.event_start_at).desc())
+    )
     return (await session.exec(query)).all()
 
 
@@ -114,10 +126,11 @@ async def update_event(
     if event.status not in (EventStatus.DRAFT.value, EventStatus.PUBLISHED.value):
         raise HTTPException(409, "This event can no longer be edited")
     changes = data.model_dump(exclude_unset=True, exclude_none=True)
-    starts_at = as_utc(changes.get("starts_at", event.starts_at))
-    ends_at = as_utc(changes.get("ends_at", event.ends_at))
-    if ends_at <= starts_at:
-        raise HTTPException(422, "ends_at must be after starts_at")
+    await check_venue(session, changes.get("venue_id"))
+    start = changes.get("event_start_at", event.event_start_at)
+    end = changes.get("event_end_at", event.event_end_at)
+    if end and as_utc(end) <= as_utc(start):
+        raise HTTPException(422, "event_end_at must be after event_start_at")
     for field, value in changes.items():
         setattr(event, field, value)
     return await save(session, event)
@@ -130,10 +143,9 @@ async def publish_event(
     event = await get_own_event(session, user, event_id)
     if event.status != EventStatus.DRAFT.value:
         raise HTTPException(409, "Only draft events can be published")
-    if not event.venue_name:
+    if event.venue_id is None:
         raise HTTPException(422, "Venue is required")
     event.status = EventStatus.PUBLISHED.value
-    event.published_at = utcnow()
     return await save(session, event)
 
 
