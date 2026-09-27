@@ -1,68 +1,28 @@
-from fastapi import status, Depends, FastAPI, HTTPException
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from pydantic import BaseModel
-from datetime import datetime, timedelta
-from jose import JWSError, jwt 
-from passlib.context import CryptContext
+from fastapi import Depends, HTTPException
+from fastapi.security import OAuth2PasswordBearer
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from core.security import read_access_token
+from db.session import get_session
+from modules.users.models import User
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 
-SECRET_KEY = "a1165e173b5ad31079343c98ff5248807e36e877cb3b01bd7de3a9cd15d3ac43"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-
-
-fake_db = {
-    "tim": {
-        "username" : "tim",
-        "full_name" : "Tim Ruscica",
-        "email" : "pornhub@gmail.com",
-        "hashed_password": "",
-        "disabled" : False
-
-    }
-}
-
-class Token(BaseModel):
-    access_token : str
-    token_type : str
-
-class TokenData(BaseModel):
-    username : str | None = None
-
-class User(BaseModel):
-    username : str
-    email : str | None = None
-    full_name : str | None = None
-    disabled: bool | None = None
-
-class UserInDB(User):
-    hashed_password : str
-
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth_2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-app = FastAPI()
-
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-def get_password_hash(password):
-    return pwd_context.hash(password)
-
-
-def get_user(db, username: str):
-    if username in db:
-        user_data = db[username]
-        return UserInDB(**user_data)
-
-
-def authenticate_user(db, user_name: str, password : str):
-    user = get_user(db, username=user_name)
-    if not user:
-        return False
-    if not verify_password(password, user.hashed_password):
-        return False
+async def get_current_user(
+    token: str = Depends(oauth2_scheme), session: AsyncSession = Depends(get_session)
+) -> User:
+    user_id = read_access_token(token)
+    user = await session.get(User, user_id) if user_id else None
+    if user is None:
+        raise HTTPException(401, "Invalid token", headers={"WWW-Authenticate": "Bearer"})
     return user
+
+
+async def get_optional_user(
+    token: str | None = Depends(optional_oauth2_scheme), session: AsyncSession = Depends(get_session)
+) -> User | None:
+    if token is None:
+        return None
+    return await get_current_user(token, session)
