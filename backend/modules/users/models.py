@@ -23,8 +23,10 @@ class Attendee(SQLModel, table=True):
     first_name : str
     last_name : str
     role : UserRole = Field(sa_column=Column(pg.VARCHAR, nullable=False, server_default="attendee"))
-    is_verified : bool = Field(default=False)
+    is_suspended : bool = Field(default=False)
+    is_platform_admin : bool = Field(default=False)
     password_hash : str = Field(exclude=True)
+    email_verified_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, default=datetime.now))
     create_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, default=datetime.now))
     updated_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, default=datetime.now))
 
@@ -38,17 +40,19 @@ class OrganizerProfile(SQLModel, table=True):
     uid : uuid.UUID = Field(
         sa_column=Column(pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     )
-
+    
     user_uid : uuid.UUD = Field(foreign_key="users.uid")
-
-    is_verified : bool = Field(default=False)
-
+    display_name : str = ""
+    contact_email : str = ""
+    contact_phone : str = ""
+    verification_status : bool = Field(default=False)
+    payout_account_id : uuid.UUD = Field(foreign_key="organizers.uid")
     created_at: datetime = Field(
         sa_column=Column(pg.TIMESTAMP, default=datetime.now())
     )
 
-class EventAdminAssignment(SQLModel, table=True):
-    __tablename__ = "event_admin_profiles"
+class StaffAssignment(SQLModel, table=True):
+    __tablename__ = "staff_assignment"
 
     uid : uuid.UUID = Field(
         sa_column=Column(pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -56,7 +60,8 @@ class EventAdminAssignment(SQLModel, table=True):
     )
     user_uid : uuid.UUID = Field(foreign_key="users.uid")
     event_uid : uuid.UUID = Field(foreign_key="events.uid")
-
+    role : UserRole = Field(sa_column=Column(pg.VARCHAR, nullable=False, server_default="attendee"))
+    assigned_by : uuid.UUID = Field(foreign_key="users.uid")
     created_at : datetime = Field(
         sa_column=Column(pg.TIMESTAMP, default=datetime.now())
     )
