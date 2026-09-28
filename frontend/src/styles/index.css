@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+:root {
+	--background: #F5F2EC;
+	--surface: #FBFAF7;
+	--surface-raised: #FFFFFF;
+	--border: #DED9D1;
+
+	--foreground: #18212C;
+	--muted: #68727D;
+
+	--accent: #C9685C;
+    --accent-foreground: #FFFFFF;
+
+    --error: #B94F49;
+
+	font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+	font-synthesis: none;
+	text-rendering: optimizeLegibility;
+}
+
+[data-theme="dark"] {
+	--background: #151C26;
+	--surface: #1B2531;
+	--surface-raised: #222E3B;
+	--border: #344252;
+
+	--foreground: #F3F1ED;
+	--muted: #AAB4C0;
+
+	--accent: #D9786A;
+    --accent-foreground: #18212C;
+
+    --error: #E07A70;
+}
+
+@theme inline {
+	--color-background: var(--background);
+	--color-surface: var(--surface);
+	--color-surface-raised: var(--surface-raised);
+	--color-border: var(--border);
+
+	--color-foreground: var(--foreground);
+	--color-muted: var(--muted);
+
+	--color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+
+    --color-error: var(--error);
+}
+
+body {
+	margin: 0;
+	min-width: 320px;
+	min-height: 100vh;
+	background: var(--background);
+	color: var(--foreground);
+}
+
+button,
+input,
+select {
+	font: inherit;
+}

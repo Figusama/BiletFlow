@@ -41,8 +41,8 @@ class OrganizerProfile(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow, sa_type=DateTime(timezone=True))
 
 
-class EventAdminAssignment(SQLModel, table=True):
-    __tablename__ = "event_admin_profiles"
+class StaffAssignment(SQLModel, table=True):
+    __tablename__ = "staff_assignment"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     user_id: uuid.UUID = Field(foreign_key="users.id", ondelete="CASCADE")

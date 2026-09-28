@@ -1,0 +1,67 @@
+import type { ButtonHTMLAttributes, ReactNode } from 'react'
+
+type ButtonVariant = 'primary' | 'secondary'
+type ButtonSize = 'sm' | 'md'
+
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+	children: ReactNode
+	variant?: ButtonVariant
+	size?: ButtonSize
+	fullWidth?: boolean
+}
+
+const Button = ({
+	children,
+	variant = 'primary',
+	size = 'md',
+	fullWidth = false,
+	className = '',
+	...props
+}: ButtonProps) => {
+	const baseStyles = `
+		inline-flex items-center justify-center
+		rounded-lg font-semibold
+		transition
+		disabled:cursor-not-allowed
+		disabled:opacity-40
+		focus-visible:outline-none
+		focus-visible:ring-2
+		focus-visible:ring-accent
+		focus-visible:ring-offset-2
+		focus-visible:ring-offset-background
+	`
+
+	const variantStyles = {
+		primary: `
+			bg-accent text-accent-foreground
+			hover:opacity-90
+		`,
+		secondary: `
+			border border-border
+			bg-surface text-foreground
+			hover:bg-surface-raised
+		`,
+	}
+
+	const sizeStyles = {
+		sm: 'px-3 py-2 text-sm',
+		md: 'px-4 py-3 text-sm',
+	}
+
+	return (
+		<button
+			className={`
+				${baseStyles}
+				${variantStyles[variant]}
+				${sizeStyles[size]}
+				${fullWidth ? 'w-full' : ''}
+				${className}
+			`}
+			{...props}
+		>
+			{children}
+		</button>
+	)
+}
+
+export default Button
