@@ -6,7 +6,7 @@ interface SelectOption<T extends string> {
 }
 
 interface SelectProps<T extends string> {
-	value: string
+	value: T
 	options: readonly SelectOption<T>[]
 	onValueChange: (value: T) => void
 	placeholder?: string

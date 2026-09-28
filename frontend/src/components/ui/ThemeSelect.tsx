@@ -1,4 +1,4 @@
-import { useTheme, type Theme } from '../../app/providers/ThemeProvider'
+import { useTheme, type Theme } from '../../app/providers/Theme'
 import Select from './Select'
 
 const themeOptions = [

@@ -12,6 +12,8 @@
 	--accent: #C9685C;
     --accent-foreground: #FFFFFF;
 
+    --error: #B94F49;
+
 	font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
 	font-synthesis: none;
 	text-rendering: optimizeLegibility;
@@ -28,6 +30,8 @@
 
 	--accent: #D9786A;
     --accent-foreground: #18212C;
+
+    --error: #E07A70;
 }
 
 @theme inline {
@@ -41,6 +45,8 @@
 
 	--color-accent: var(--accent);
     --color-accent-foreground: var(--accent-foreground);
+
+    --color-error: var(--error);
 }
 
 body {

@@ -1,23 +1,14 @@
 import {
-	createContext,
-	useContext,
 	useEffect,
 	useState,
 	type ReactNode,
 } from 'react'
 
-type Theme = 'light' | 'dark' | 'system'
-
-interface ThemeContextValue {
-	theme: Theme
-	setTheme: (theme: Theme) => void
-}
+import { ThemeContext, type Theme } from './Theme'
 
 interface ThemeProviderProps {
 	children: ReactNode
 }
-
-const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
 
 const getSystemTheme = (): 'light' | 'dark' => {
 	return window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -72,15 +63,4 @@ const ThemeProvider = ({ children }: ThemeProviderProps) => {
 	)
 }
 
-const useTheme = () => {
-	const context = useContext(ThemeContext)
-
-	if (!context) {
-		throw new Error('useTheme must be used within ThemeProvider')
-	}
-
-	return context
-}
-
-export { ThemeProvider, useTheme }
-export type { Theme }
+export default ThemeProvider

@@ -2,25 +2,40 @@ import { Link } from 'react-router-dom'
 
 const NotFoundPage = () => {
 	return (
-		<div className="mx-auto flex min-h-[70vh] max-w-6xl flex-col items-center justify-center px-6 text-center">
-			<p className="text-sm font-semibold text-gray-500">
-				404
-			</p>
+		<div className="min-h-[calc(100vh-4rem)] bg-background text-foreground">
+			<div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl items-center justify-center px-6 py-12">
+				<div className="max-w-md text-center">
+					<p className="text-sm font-semibold text-accent">
+						404
+					</p>
 
-			<h1 className="mt-3 text-3xl font-bold tracking-tight text-gray-900">
-				Page not found
-			</h1>
+					<h1 className="mt-3 text-3xl font-semibold tracking-tight">
+						Page not found
+					</h1>
 
-			<p className="mt-3 max-w-md text-gray-500">
-				The page you're looking for doesn't exist or isn't available yet.
-			</p>
+					<p className="mt-3 text-sm leading-6 text-muted">
+						The page you're looking for doesn't exist or may have been moved.
+					</p>
 
-			<Link
-				to="/"
-				className="mt-6 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-700"
-			>
-				Back to events
-			</Link>
+					<Link
+						to="/"
+						className="
+							mt-7 inline-flex items-center justify-center
+							rounded-lg bg-accent px-4 py-3
+							text-sm font-semibold text-accent-foreground
+							transition
+							hover:opacity-90
+							focus-visible:outline-none
+							focus-visible:ring-2
+							focus-visible:ring-accent
+							focus-visible:ring-offset-2
+							focus-visible:ring-offset-background
+						"
+					>
+						Back to events
+					</Link>
+				</div>
+			</div>
 		</div>
 	)
 }
