@@ -1,7 +1,6 @@
 import TicketCard from '../features/tickets/components/TicketCard'
 
 // TODO(API): Replace mock tickets with the authenticated user's tickets from the backend.
-// TODO(API): Replace mock tickets with the authenticated user's tickets from the backend.
 const mockTickets = [
 	{
 		id: 'ticket-1',
@@ -12,7 +11,7 @@ const mockTickets = [
 		ticketType: 'Standard',
 		attendeeName: 'Abay Pussyrmanov',
 		ticketCode: 'BF-2K7X4M',
-		status: 'Valid',
+		status: 'valid' as const,
 	},
 	{
 		id: 'ticket-2',
@@ -23,7 +22,7 @@ const mockTickets = [
 		ticketType: 'VIP',
 		attendeeName: 'Abay Pussyrmanov',
 		ticketCode: 'BF-7H3P9Q',
-		status: 'Checked in',
+		status: 'checked_in' as const,
 	},
 ]
 

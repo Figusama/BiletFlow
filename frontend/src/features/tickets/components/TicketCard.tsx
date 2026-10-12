@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import TicketStatusBadge, {
+	type TicketStatus,
+} from './TicketStatusBadge'
 
 interface TicketCardProps {
 	eventTitle: string
@@ -7,7 +10,7 @@ interface TicketCardProps {
 	ticketType: string
 	attendeeName: string
 	ticketCode: string
-	status: string
+	status: TicketStatus
 }
 
 const TicketCard = ({
@@ -40,15 +43,17 @@ const TicketCard = ({
 					</div>
 
 					<div className="flex shrink-0 items-center gap-3">
-						<span className="rounded-full border border-border px-3 py-1 text-xs font-medium text-foreground">
-							{status}
-						</span>
+						<TicketStatusBadge status={status} />
 
 						<button
 							type="button"
 							onClick={() => setIsExpanded((current) => !current)}
 							aria-expanded={isExpanded}
-							aria-label={isExpanded ? 'Hide ticket details' : 'Show ticket details'}
+							aria-label={
+								isExpanded
+									? 'Hide ticket details'
+									: 'Show ticket details'
+							}
 							className="
 								flex h-8 w-8 items-center justify-center
 								rounded-lg border border-border
@@ -85,6 +90,7 @@ const TicketCard = ({
 			{isExpanded && (
 				<div className="border-t border-dashed border-border bg-surface-raised p-5">
 					<div className="flex flex-col items-center">
+						{/* TODO(API): Replace this placeholder with the issued ticket QR data from the backend. */}
 						<div
 							className="
 								flex aspect-square w-40 items-center justify-center
@@ -117,13 +123,15 @@ const TicketCard = ({
 							</div>
 						</div>
 
+						{/* TODO(API): Connect this action to the ticket PDF download endpoint. */}
 						<button
 							type="button"
 							disabled
 							className="
 								mt-6 w-full rounded-lg border border-border
 								px-4 py-3 text-sm font-semibold text-muted
-								disabled:cursor-not-allowed disabled:opacity-50
+								disabled:cursor-not-allowed
+								disabled:opacity-50
 							"
 						>
 							Download PDF
