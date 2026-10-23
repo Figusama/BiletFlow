@@ -13,12 +13,11 @@ class UserRole(str, Enum):
 
 
 class Attendee(SQLModel, table=True):
-    __tablename__ = "Attendee"
-    uid : uuid.UUID = Field(
+    __tablename__ = "attendee"
+    id : uuid.UUID = Field(
         sa_column=Column(pg.UUID, nullable=False, primary_key=True, default=uuid.uuid4)
-
     )
-    username : str
+    public_id : str
     email : str
     first_name : str
     last_name : str
