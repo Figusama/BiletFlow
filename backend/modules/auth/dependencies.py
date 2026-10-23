@@ -41,10 +41,16 @@ class User(BaseModel):
 class UserInDB(User):
     hashed_password : str
 
+class UserCreate(User):
+    username : str
+    password : str
+    email : str
+    full_name : str
 
 oauth_2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 app = FastAPI()
+
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -124,3 +130,21 @@ async def read_users_me(current_user : User = Depends(get_current_active_user)):
 @app.get("/users/me/items")
 async def read_own_items(current_user : User = Depends(get_current_active_user)):
     return [{"item_id": 1, "owner" : current_user}]
+
+@app.post("/register", response_model=User, status_code=status.HTTP_201_CREATED)
+async def register(user_in: UserCreate):
+    if user_in.username in db:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail = "Username already registered"
+        )
+
+    db[user_in.username] = {
+        "id": len(db) + 1,
+        "username": user_in.username,
+        "email": user_in.email,
+        "full_name" : user_in.full_name,
+        "hashed_password": get_password_hash(user_in.password),
+        "disabled": False
+    }
+    return get_user(db, user_in.username)
