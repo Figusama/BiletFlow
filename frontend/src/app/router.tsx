@@ -6,6 +6,9 @@ import EventDetailsPage from '../pages/EventDetailsPage'
 import TicketSelectionPage from '../pages/TicketSelectionPage'
 import LoginPage from '../pages/LoginPage'
 import RegisterPage from '../pages/RegisterPage'
+import ForgotPasswordPage from '../pages/ForgotPasswordPage'
+import ResetPasswordPage from '../pages/ResetPasswordPage'
+import MyTicketsPage from '../pages/MyTicketsPage'
 
 export const router = createBrowserRouter([
     {
@@ -32,6 +35,18 @@ export const router = createBrowserRouter([
 				path: 'register',
 				element: <RegisterPage />
 			},
+            {
+                path: 'forgot-password',
+                element: <ForgotPasswordPage />,
+            },
+            {
+                path: 'reset-password',
+                element: <ResetPasswordPage />,
+            },
+            {
+                path: 'tickets',
+                element: <MyTicketsPage />,
+            },
             {
                 path: '*',
                 element: <NotFoundPage />,
