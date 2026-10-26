@@ -4,6 +4,7 @@ import uuid
 from sqlmodel import SQLModel, Field, Column
 from enum import Enum
 import sqlalchemy as sa
+import secrets
 
 class Role(str, Enum):
     USER = "USER"
@@ -23,11 +24,11 @@ class users(SQLModel, table=True):
     )
 
     public_id : str = Field(
-        sa_column=Column(sa.String, unique=True, nullable=False)
+        sa_column=Column(sa.String, default=lambda: secrets.token_urlsafe(8), unique=True, nullable=False, index=True)
     )
     email : str = Field(sa_column=Column(pg.CITEXT, unique=True, nullable=False))
     password_hash : str = Field(sa_column=Column(pg.TEXT, nullable=False))
-    personal_role : Role = Field(default=Role.USER, sa_column=Column(pg.ENUM(Role, "personal_value"), nullable=False, server_default=Role.USER.value))
+    personal_role : Role = Field(default=Role.USER, sa_column=Column(pg.ENUM(Role, name="personal_value"), nullable=False, server_default=Role.USER.value))
     is_suspended : bool = Field(default=False, sa_column=Column(pg.BOOLEAN, nullable=False, server_default=sa.false()))
     created_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, default=datetime.now))
     updated_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, default=datetime.now))
