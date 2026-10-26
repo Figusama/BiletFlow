@@ -1,5 +1,7 @@
 venv
 .DS_Store
-__pycache__/
-.pytest_cache/
 .env
+/backend/modules/auth/config.py
+__pycache__/
+postman/
+.postman
