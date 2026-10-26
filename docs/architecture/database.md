@@ -1,13 +1,9 @@
 # BiletFlow Database & Backend Architecture --- Source of Truth
 
-**Document version:** 0.1\
-**Status:** In development --- authoritative for all sections marked
-**FINAL**\
-**Last updated:** 2026-10-12\
-**Scope of this version:** Identity/authentication, roles, event
-applications and approval, events, moderated changes, venues and seating
-foundation, ticket types, inventory reservations, orders, promo-code
-checkout boundary, and asynchronous payment boundary.
+**Document version:** 0.2 — approved architecture specification
+**Status:** APPROVED / FINAL for the explicitly finalized architecture and business rules in this version; PROVISIONAL provider-dependent contracts and DEFERRED modules remain outside this approval.
+**Last updated:** 2026-10-27
+**Scope of this version:** Original v0.1 foundation plus approved payment DMS, webhook, protected inventory, reconciliation, and processing-fee decisions. Tickets, refunds, full activation and other downstream modules remain pending.
 
 > **Authority rule.** This document is the authoritative source of truth
 > for the current BiletFlow database and backend domain architecture. If
@@ -20,6 +16,35 @@ checkout boundary, and asynchronous payment boundary.
 > document. If implementation exposes a missing requirement or
 > contradiction, the team must update and approve this document first,
 > then implement the change.
+
+## Change summary — v0.1 → v0.2
+
+**Authority:** This revision retains v0.1 as the baseline. Where the v0.2 addenda below explicitly supersede a v0.1 rule, the v0.2 rule controls. This is an architecture specification, **not** a claim that all services have been implemented or end-to-end tested.
+
+**Approval boundary (v0.2):** Approved business rules, state combinations, data ownership and safety invariants are binding for implementation. `OPEN`, `PROVISIONAL`, and `DEFERRED` statements are expressly **not** finalized technical contracts. Production DDL, provider sandbox verification, integration/concurrency testing and deferred domains remain acceptance gates before deployment. This document does not certify production readiness.
+
+| Section | Change | Classification |
+|---|---|---|
+| §30, §32 | Add `PROTECTED` Reservation and include it in Assigned Seating / GA inventory and capacity calculations | CHANGED |
+| §37, §40 | Separate Order creation from Payment creation; clarify retry, cancellation, promo-hold and late AUTH behavior | CHANGED |
+| §42 | Creation of Payment is final paid-sales permission check for ordinary suspension; emergency/event cancellation is separate | CHANGED |
+| §49–51 | Extend Reservation enum and update pending-domain boundary; Payment FSM is new in §56 | CHANGED |
+| Part XVIII | Payment attempt, DMS AUTH/CAPTURE/CANCEL, reconciliation, idempotency and backend implementation invariants | NEW |
+| Part XIX | Webhook journal, trust/processing state, safe payload and recovery rules | NEW |
+| Part XX | Estimated processing fee paid by Organizer, reporting rules, validation/test scope and open external dependencies | NEW |
+| §39–40 | Clarify own promo-hold allocation and approve expiry-before-first-Payment handling (P01) | CHANGED |
+| §52–54 | Correct version roadmap and architecture checkpoint wording | CLARIFIED |
+| §55–60 | Consolidate approved payment/webhook field contracts, recovery decision table and provider-dependent OPEN items | CLARIFIED |
+| Document metadata / approval boundary | Approve v0.2 architecture with explicit limits on provider assumptions, DDL and deferred modules | CLARIFIED |
+
+**Change labels:** `CHANGED` = existing v0.1 rule changed; `NEW` = added architecture; `CLARIFIED` = existing rule explained without changing meaning. **Approval labels:** `APPROVED` = agreed business rule; `PROVISIONAL` = provider-dependent or not yet validated; `DEFERRED` = later module. These are separate classifications. The sections below carry local change markers for review.
+
+**Commit summary suggestion:** `docs(database): extend v0.1 with approved payment DMS, webhook, protected inventory and fee rules`.
+
+
+**Change-control policy:** Do not silently implement provisional bank assumptions or not-yet-designed Tickets/Refunds as finalized schema.
+
+---
 
 ------------------------------------------------------------------------
 
@@ -1262,13 +1287,15 @@ available and frontend refreshes the map.
 
 ## 30. `reservations` --- FINAL
 
+> **[CHANGED v0.2]** Adds `PROTECTED` and revises expiry semantics; original v0.1 statuses otherwise retained.
+
 ``` text
 reservations
 - id            UUID PK
 - event_id      UUID FK -> events NOT NULL
 - user_id       UUID FK -> users NOT NULL
 - expires_at    TIMESTAMPTZ NOT NULL
-- status        ACTIVE | CONVERTED | RELEASED NOT NULL
+- status        ACTIVE | PROTECTED | CONVERTED | RELEASED NOT NULL
 - created_at    TIMESTAMPTZ NOT NULL
 - converted_at  TIMESTAMPTZ NULL
 - released_at   TIMESTAMPTZ NULL
@@ -1277,19 +1304,20 @@ reservations
 `EXPIRED` is computed:
 
 ``` text
-status = ACTIVE AND expires_at <= now()
+status = ACTIVE AND expires_at <= current database time
 ```
 
 No scheduled status update is required merely to mark expiration.
 
 Meaning:
 
--   `ACTIVE`: inventory is temporarily held;
+-   `ACTIVE`: inventory is temporarily held until `expires_at`;
+-   `PROTECTED`: timely AUTH was accepted; inventory remains held beyond original `expires_at` until safe financial resolution;
 -   `CONVERTED`: successful checkout/order confirmation converted
     inventory into issued tickets;
 -   `RELEASED`: hold explicitly released before expiry.
 
-The exact reservation TTL is configuration, not schema.
+The exact reservation TTL is configuration, not schema. An `ACTIVE` hold is computed expired by time; a `PROTECTED` hold is **not** released merely because the original TTL has passed.
 
 ------------------------------------------------------------------------
 
@@ -1345,7 +1373,7 @@ When confirming selected seats:
     equivalent ordered locking strategy).
 3.  Verify every seat is enabled.
 4.  Verify no issued ticket already owns the seat.
-5.  Verify no non-expired active reservation item currently holds the
+5.  Verify no non-expired `ACTIVE` or any `PROTECTED` reservation item currently holds the
     seat.
 6.  Create reservation + items.
 7.  Commit.
@@ -1360,7 +1388,7 @@ When reserving quantity:
 1.  Begin transaction.
 2.  Lock the General Admission `ticket_type` row.
 3.  Calculate committed/issued quantity plus quantities in non-expired
-    active reservations.
+    `ACTIVE` reservations that have not expired, plus all `PROTECTED` reservations.
 4.  Ensure requested quantity fits within `quantity_total`.
 5.  Create reservation + item.
 6.  Commit.
@@ -1370,8 +1398,7 @@ This prevents overselling the final tickets under concurrent requests.
 ### 32.3 Quantity changes while holds exist
 
 For General Admission, Organizer cannot reduce `quantity_total` below
-already issued inventory plus inventory currently held by active
-non-expired reservations.
+already issued inventory plus inventory currently held by non-expired `ACTIVE` and all `PROTECTED` reservations.
 
 ------------------------------------------------------------------------
 
@@ -1504,6 +1531,8 @@ confirmation.
 
 ## 37. Paid checkout --- FINAL boundary
 
+> **[CHANGED v0.2]** Order creation and Payment creation are separate operations; the latter occurs only when the buyer starts payment.
+
 For paid checkout:
 
 1.  Revalidate reservation/inventory.
@@ -1511,10 +1540,10 @@ For paid checkout:
 3.  Freeze backend-calculated subtotal/discount/total in Order.
 4.  Create `Order(PENDING)` and immutable `order_items`.
 5.  Create any required `promo_hold`.
-6.  Create `Payment(PENDING)`.
-7.  Commit this short database transaction.
+6.  Commit Order and any promo hold; **Payment is not created until the buyer explicitly starts payment**.
+7.  On Pay, revalidate Order/Reservation/paid-sales permission and create `Payment(PENDING)` in a separate short transaction.
 8.  Perform asynchronous provider/sandbox payment flow.
-9.  Process provider result/webhook idempotently.
+9.  Process provider result/webhook idempotently under the DMS rules in Part XVIII.
 
 A failed payment attempt does not necessarily expire the Order if the
 inventory reservation is still valid. The buyer may make another payment
@@ -1532,8 +1561,7 @@ Order
 After reservation expiry, an unconfirmed Order becomes `EXPIRED`,
 inventory is released, and any active promo hold is released.
 
-Detailed payment/webhook tables are the next architecture block and are
-**not yet finalized**.
+The approved payment and webhook **business rules** are recorded in Parts XVIII–XX; bank-dependent API details and any not-fully-enumerated physical columns remain provisional.
 
 ------------------------------------------------------------------------
 
@@ -1597,13 +1625,24 @@ Before starting a paid payment, backend revalidates:
 -   redemption limit still has capacity;
 -   order/reservation is still valid.
 
-If the promo is exhausted at final confirmation, payment is not started
-at the discounted amount. Frontend informs the user and refreshes the
-total.
+For a checkout that already owns an effective `promo_hold`, revalidation must recognize **that Order's own allocation** rather than subtracting it again as competing demand. Other Orders' effective holds continue to consume availability. An existing hold does not by itself authorize a Payment: the Order, Reservation and relevant sales permissions still require validation.
+
+> **[CHANGED v0.2 | APPROVED P01]** Promo allocation at the first Payment boundary:
+>
+> - If the Order's own promo hold remains **effective**, the frozen discount is honored; do not treat that hold as competing demand or require a second free slot. All independent Order, Reservation, and sales-permission checks still apply.
+> - If the hold has expired or is otherwise no longer effective **and is not protected by an unresolved bank operation**, do **not** create Payment for the old discounted Order. Close the old checkout through the approved cancellation/release flow and require a **new Reservation/Order** for a newly calculated price. Never silently reprice an immutable Order.
+> - If an unfinished bank operation requires protection, preserve the hold until safe financial resolution. Do not release it solely because its nominal expiry or promo validity window has passed.
+> - The decision and relevant resource changes must be serialized/transactional with Payment creation, so a concurrent expiry/release cannot invalidate an accepted payment attempt.
+>
+> A previously allocated, still-effective hold represents the Order's reserved discount; current availability for **new** Orders must not be used to deny that same allocation. The precise locking implementation remains a backend concern.
+
+If a new checkout has no valid allocation and the promo is exhausted, payment is not started at the discounted amount; frontend must show that the checkout cannot proceed under the old quote. An immutable existing Order is never silently repriced.
 
 ------------------------------------------------------------------------
 
 ## 40. Async promo hold --- FINAL architectural decision
+
+> **[CHANGED v0.2]** Promo holds survive retryable failed AUTH attempts and remain effective while bank resolution protects the checkout.
 
 Because paid payment is asynchronous, a discount must be guaranteed
 after BiletFlow starts a payment for a specific discounted amount.
@@ -1628,7 +1667,7 @@ No explicit status is required if derived from timestamps:
 ``` text
 consumed_at != NULL -> CONSUMED
 released_at != NULL -> RELEASED
-expires_at <= now() -> EXPIRED
+expires_at <= current database time AND no unresolved bank operation requires protecting the hold -> EXPIRED
 otherwise            -> ACTIVE
 ```
 
@@ -1637,11 +1676,13 @@ Available limited promo capacity is conceptually:
 ``` text
 max_redemptions
 - successful redemption_count
-- active non-expired promo_holds
+- effective promo_holds (unexpired active holds **plus holds protected by unresolved bank operations**, counted once)
 ```
 
 Creation of the hold must be concurrency-safe by locking/atomically
 checking the relevant promo row.
+
+**[CLARIFIED v0.2]** Effective promo capacity is computed from successful redemptions plus effective holds belonging to *other* Orders when deciding whether a new allocation can be made. The same hold must not be counted twice during its owner's retry. Locking and revalidation must serialize allocation decisions.
 
 ### 40.1 Success
 
@@ -1657,7 +1698,7 @@ On successful payment webhook, in one short transaction:
 
 ### 40.2 Failure/expiry
 
-Failed/expired payment releases the promo hold. No `promo_redemption` is
+A failed individual AUTH attempt does **not** release the promo hold while the Order and Reservation remain valid and retryable. Final Order cancellation/expiry releases the hold; successful payment consumes it. No `promo_redemption` is
 created and successful redemption count does not increase.
 
 ------------------------------------------------------------------------
@@ -1680,7 +1721,7 @@ tracking, while `promo_redemptions` is the audit/history source showing
 which orders actually used the promo.
 
 Repeated provider callbacks must never create duplicate redemptions;
-webhook/payment idempotency will enforce this in the next architecture
+approved webhook/payment idempotency rules in Parts XVIII–XIX govern this
 block.
 
 ------------------------------------------------------------------------
@@ -1853,13 +1894,13 @@ DRAFT -> PENDING -> APPROVED
 Stored:
 
 ``` text
-ACTIVE | CONVERTED | RELEASED
+ACTIVE | PROTECTED | CONVERTED | RELEASED
 ```
 
 Computed:
 
 ``` text
-EXPIRED = ACTIVE and expires_at <= now()
+EXPIRED = ACTIVE and expires_at <= current database time; PROTECTED does not expire by original TTL
 ```
 
 ### 49.5 Order
@@ -1954,9 +1995,9 @@ Backend implementation must preserve all of the following:
 The following areas are **not final in this version** and backend
 developers must not invent a conflicting schema without team review:
 
-1.  `payments` final fields/statuses.
+1.  `payments` business rules and FSM are specified in Part XVIII; remaining exact provider/API-dependent fields and final integrated production migration require verification.
 2.  Payment provider/sandbox request lifecycle.
-3.  `payment_webhook_events` / webhook idempotency implementation.
+3.  `payment_webhook_events` business rules and minimal state model are specified in Part XIX; final provider mapping and production migration require verification.
 4.  Final Paid Sales Activation tables, identity verification, payout
     account, activation-fee payment, rejection/reactivation.
 5.  `tickets` final schema and QR payload/signature strategy.
@@ -2036,7 +2077,7 @@ Suggested version progression:
 
 ``` text
 v0.1  current covered architecture
-v0.2  payments + tickets + check-in
+v0.2  payments/webhooks business architecture; Tickets + check-in remain pending
 v0.3  activation + cancellation/refunds + invitations/promotions
 v1.0  complete reviewed schema aligned with SRS
 ```
@@ -2045,8 +2086,9 @@ v1.0  complete reviewed schema aligned with SRS
 
 ## 54. Current architecture checkpoint
 
-As of v0.1, the team has a coherent end-to-end foundation through the
-paid-checkout boundary:
+> **[CLARIFIED v0.2]** Checkpoint updated for payment/webhook scope; Tickets and Check-in remain pending.
+
+The v0.1 checkpoint established the foundation through the paid-checkout boundary; v0.2 adds the approved payment/webhook rules in Parts XVIII–XX:
 
 ``` text
 Verified User
@@ -2064,3 +2106,202 @@ Verified User
 
 This document should be consulted before backend implementation or
 database migration work in any covered domain.
+
+
+------------------------------------------------------------------------
+
+# Part XVIII --- Payments, Halyk DMS and Reconciliation (v0.2 addendum)
+
+## 55. Payment attempt — APPROVED business model
+
+> **[NEW v0.2 | APPROVED]**
+
+- Paid `Order` may have **zero** Payments until Pay is pressed, and multiple **historical** attempts; never more than one unfinished attempt at a time.
+- Payment belongs to exactly one Order (`order_id UUID NOT NULL FK`). Do not duplicate `event_id`/`reservation_id` on Payment solely for lookup; follow the Order relation.
+- A retry of the *same* payment creation operation returns the existing attempt or its current state, never a new attempt. A new attempt is permitted only after prior attempt is conclusively terminal and Order/Reservation still allow retry.
+- Immutable Order amounts and composition remain authoritative. Payment amount is taken from the frozen Order, not recalculated from current ticket prices.
+- `provider_invoice_id` is the unique invoice/correlation reference used for bank status lookup; `provider_payment_id` may be NULL until known. Provider-specific mapping must be validated in Halyk integration.
+- Payment `status`: `PENDING | AUTHORIZED | CAPTURING | SUCCEEDED | FAILED | CANCELLED`.
+- `pending_operation`: `NULL | CAPTURE | CANCEL`; `cancellation_reason`: `NULL | USER_REQUESTED | RESERVATION_EXPIRED | CAPTURE_FAILED` for the approved cases below.
+- No Payment record for FREE checkout.
+
+### 55.1 Payment field contract — consolidated from approved decisions
+
+> **[CLARIFIED v0.2]** This is a **logical field contract**, not executable production DDL. Do not invent additional columns or provider semantics from this list.
+
+| Field | Type / rule supported by approved decisions | Purpose / boundary |
+|---|---|---|
+| `id` | UUID PK (global convention) | Payment attempt identity |
+| `order_id` | UUID NOT NULL FK → `orders` | Single owning Order; no duplicate event/reservation FK |
+| `status` | NOT NULL, bounded six-value enum | Internal financial FSM |
+| `pending_operation` | nullable, `CAPTURE` / `CANCEL` | Durable bank-operation intent |
+| `cancellation_reason` | nullable, `USER_REQUESTED` / `RESERVATION_EXPIRED` / `CAPTURE_FAILED` | Reason for cancelling authorization |
+| `provider_invoice_id` | unique correlation reference; exact SQL type/creation timing **PROVISIONAL** | Halyk invoice/status lookup |
+| `provider_payment_id` | nullable provider reference; exact SQL type/uniqueness policy **PROVISIONAL** | Optional bank identifier |
+| `provider_status` | last known bank status; exact value set/type **PROVISIONAL** | Provider observation, not internal FSM |
+| `amount_minor` | amount from frozen Order, integer minor units; exact physical column contract **OPEN** | Gross amount of this attempt |
+| `next_check_at` | TIMESTAMPTZ; required for unfinished, NULL for terminal | Recovery schedule |
+| `check_failure_count` | INTEGER NOT NULL DEFAULT 0, non-negative | Consecutive status-query failures |
+| `processing_fee_minor` | BIGINT NULL, non-negative; snapshot calculated on success | Estimated bank fee borne by Organizer |
+
+**[OPEN — physical DDL]** Exact defaults, timestamp columns, uniqueness/index details for bank references, provider-response mapping, and full column-by-column migration remain to be reviewed. These omissions are *not* approval to improvise. A unique `provider_invoice_id` must not be replaced by a unique `order_id`; historical attempts remain valid.
+
+## 56. Approved payment state combinations — FSM snapshot
+
+> **[NEW v0.2 | APPROVED]**
+
+The following is the **approved state-combination matrix**, not a complete substitute for transition validation. Values are `(status, pending_operation, cancellation_reason)`:
+
+| status | pending_operation | cancellation_reason |
+|---|---|---|
+| PENDING | NULL | NULL |
+| PENDING | NULL | USER_REQUESTED |
+| PENDING | NULL | RESERVATION_EXPIRED |
+| AUTHORIZED | NULL | NULL |
+| AUTHORIZED | CANCEL | USER_REQUESTED |
+| AUTHORIZED | CANCEL | RESERVATION_EXPIRED |
+| AUTHORIZED | CANCEL | CAPTURE_FAILED |
+| CAPTURING | CAPTURE | NULL |
+| FAILED | NULL | NULL |
+| FAILED | NULL | CAPTURE_FAILED |
+| CANCELLED | NULL | USER_REQUESTED |
+| CANCELLED | NULL | RESERVATION_EXPIRED |
+| SUCCEEDED | NULL | NULL |
+
+`AUTHORIZED + CAPTURE` and `CAPTURING + CANCEL` are **INVALID**. A confirmed CAPTURE refusal followed by pending bank CANCEL is `AUTHORIZED / CANCEL / CAPTURE_FAILED`; after confirmed CANCEL it is `FAILED / NULL / CAPTURE_FAILED`. Unknown CAPTURE outcome stays `CAPTURING / CAPTURE / NULL` pending reconciliation. No terminal state may retain a pending bank operation. The backend must independently enforce valid *transitions* (e.g., no `SUCCEEDED -> PENDING`), which a row CHECK alone cannot enforce.
+
+**Implementation requirement:** use a PostgreSQL CHECK whose complete expression is explicitly `IS TRUE` (or equivalent NULL-safe logic) and enforce `status NOT NULL` plus bounded enum values. A partial unique index on `payments(order_id)` applies to `status IN ('PENDING','AUTHORIZED','CAPTURING')`. A normal unique constraint on `order_id` is incorrect because historical retries are allowed.
+
+## 57. Payment, Order, Reservation and cancellation — APPROVED
+
+> **[NEW v0.2 | APPROVED]**
+
+- Reservation becomes `PROTECTED` only when AUTH is confirmed **and** the Reservation remains `ACTIVE` and unexpired at the atomic decision point. The original `expires_at` does not automatically release `PROTECTED` inventory.
+- The transition `ACTIVE -> PROTECTED` must validate the **current PostgreSQL clock after acquiring required locks**, using `clock_timestamp()` or equivalent current-time predicate. `now()` / `transaction_timestamp()` is not suitable as the only deadline check after lock waits.
+- Record the decision to CAPTURE atomically as `CAPTURING / CAPTURE` **before** making the external request. If cancellation wins the serialized decision, CAPTURE is prohibited. Never hold a DB transaction open across an Halyk HTTP request.
+- User cancellation while AUTH is still unknown may close the Order and release an unprotected Reservation/promo hold, but Payment remains unfinished until bank result is established. A late AUTH must lead to CANCEL, never CAPTURE or restoration of released inventory.
+- Cancellation after timely AUTH and before CAPTURE requires safe bank CANCEL confirmation before releasing a `PROTECTED` Reservation. If CAPTURE was already initiated, the ordinary user cancellation cannot overtake it.
+- Definitively failed AUTH may permit a fresh Payment attempt for the **same valid Order**; a definitively failed CAPTURE followed by confirmed bank CANCEL ends the checkout (`Order CANCELLED`, `Reservation RELEASED`) and requires a **new Order** for another purchase.
+- If CAPTURE outcome is unknown, do not treat timeout as rejection, do not free protected inventory and do not blindly repeat CAPTURE.
+- Order expiration must check actual Reservation time even if a background process has not yet updated stored `Order.status`.
+- Final Order/Reservation/promo-hold changes are transactional and idempotent. A late bank `CHARGE` contradicting an already cancelled Order is a **financial incident**, not permission to issue tickets; persist evidence and verify independently, with settlement/refund process deferred.
+
+## 58. Reconciliation — APPROVED core, provider recovery PROVISIONAL
+
+> **[NEW v0.2 | APPROVED core / PROVISIONAL Halyk guarantees]**
+
+- Every unfinished Payment (`PENDING`, `AUTHORIZED`, `CAPTURING`) must have `next_check_at TIMESTAMPTZ NOT NULL`; terminal Payment (`FAILED`, `CANCELLED`, `SUCCEEDED`) must have `next_check_at NULL`.
+- `check_failure_count INTEGER NOT NULL DEFAULT 0 CHECK (check_failure_count >= 0)` counts consecutive failed Status API checks, not legitimate bank declines; reset after a successful status lookup.
+- Reconciliation selects due unfinished attempts, preferably using a partial index on `next_check_at` for unfinished statuses. Webhook and reconciliation must converge on the same idempotent Payment Service and serialize updates to the same Payment.
+- For an unknown CAPTURE/CANCEL result, query Halyk Status API by supported provider correlation reference before any retry. A returned AUTH alone does not prove CAPTURE was never sent.
+- The safe reissue/recovery guarantees of Halyk CAPTURE/CANCEL and exact status/error mapping are **PROVISIONAL**, pending official provider documentation and sandbox tests. Never assume idempotent financial calls without evidence.
+- No extra `last_error_code` / `last_error_message` fields are required for the approved MVP FSM; technical diagnostic logging is implementation responsibility, with sensitive data redacted.
+
+### 58.1 Recovery decision table — approved outcomes vs provider-dependent operations
+
+> **[CLARIFIED v0.2]** Recovery must serialize with webhook processing on the Payment and related Order/Reservation before committing state changes. Bank HTTP calls occur outside the DB transaction.
+
+| Observed condition | Approved internal response | Remaining dependency |
+|---|---|---|
+| AUTH conclusively declined | `FAILED` attempt; Order may remain retryable if Reservation is valid | Exact provider decline mapping PROVISIONAL |
+| AUTH outcome unknown | Keep `PENDING`, schedule status query; do not assume failure | Status API mapping PROVISIONAL |
+| AUTH confirmed before reservation deadline | Under locks, protect Reservation and decide CAPTURE or CANCEL | Timely-authority proof/provider timestamps PROVISIONAL |
+| AUTH confirmed too late / Order already cancelled | Never CAPTURE; initiate safe CANCEL path | Provider cancellation API PROVISIONAL |
+| CAPTURE intent committed, result unknown | Keep `CAPTURING/CAPTURE`, reconcile before any retry | CAPTURE status/reissue guarantees PROVISIONAL |
+| CAPTURE conclusively declined | `AUTHORIZED/CANCEL/CAPTURE_FAILED` until CANCEL confirmed | Provider decline and cancel mapping PROVISIONAL |
+| CANCEL confirmed after CAPTURE failure | `FAILED/NULL/CAPTURE_FAILED`; cancel Order and release protected inventory atomically | Confirmed provider cancellation evidence |
+| CANCEL result unknown | Keep unfinished `AUTHORIZED/CANCEL` with reason; reconcile, do not release protected inventory | CANCEL status/reissue guarantees PROVISIONAL |
+| Confirmed successful charge on eligible checkout | Idempotent success transaction; issue Tickets once | Ticket uniqueness/issuance schema DEFERRED |
+| Late CHARGE for already cancelled Order | Record financial incident; never issue tickets automatically | Incident/refund handling DEFERRED |
+
+**[OPEN — not previously finalized]** Exact recovery behavior when Status API cannot distinguish an already-sent CAPTURE from an untouched AUTH is provider-dependent. A successful AUTH observation alone must never trigger a blind second CAPTURE.
+
+## 59. Inventory, paid-sales activation and promo coordination — APPROVED
+
+> **[NEW v0.2 | APPROVED]** Consolidates changed rules from earlier sections.
+
+- Availability for Assigned Seating and General Admission subtracts issued inventory, non-expired `ACTIVE` holds, and **all `PROTECTED` holds**; capacity reductions cannot cut below this total.
+- New Order creation and creation of a new Payment each check relevant ticket sales window/permission; for ordinary paid-sales suspension, **creation of Payment is the final permission boundary**. An attempt already created may safely finish. Emergency stop and event cancellation are separate, pending architecture blocks.
+- Race between suspension and Payment creation must be serialized so that whichever decision commits first controls acceptance.
+- Promo Hold belongs to Order, not an individual Payment attempt; preserve it across definitively failed AUTH attempts while Order remains retryable. Consume once on successful checkout or release on final cancellation/expiry, with Promo Redemption and redemption counter updated atomically.
+- Ticket issuance after confirmed CHARGE is idempotent; detailed Ticket uniqueness and refund constraints are deferred to the Ticket/Refund modules.
+
+------------------------------------------------------------------------
+
+# Part XIX --- Payment webhook journal (v0.2 addendum)
+
+## 60. `payment_webhook_events` — APPROVED conceptual model
+
+> **[NEW v0.2 | APPROVED conceptual / PROVISIONAL provider mapping]**
+
+Minimal agreed logical fields (physical naming/provider mapping still to be reviewed with integration):
+
+```text
+id                  UUID PK
+payment_id          UUID FK -> payments NULL
+provider_invoice_id nullable correlation identifier
+payload             JSONB (sanitized, never secrets/card data)
+verification_status PENDING | VALID | INVALID
+processing_status   PENDING | PROCESSED | IGNORED | REJECTED
+received_at         TIMESTAMPTZ
+processed_at        TIMESTAMPTZ NULL
+```
+
+**[CLARIFIED v0.2] Field constraints:** `id` is required; `payment_id` is nullable by design; `payload` must be sanitized before persistence; `verification_status` and `processing_status` require non-null bounded values, with a NULL-safe pair CHECK. `received_at` is required; `processed_at` may be NULL while processing is pending. The exact physical `provider_invoice_id` type and whether terminal rows require `processed_at` are **OPEN**, not implicit approvals.
+
+Approved status pairs:
+
+| verification_status | processing_status | Meaning |
+|---|---|---|
+| PENDING | PENDING | Received, not yet verified |
+| VALID | PENDING | Verified, not yet applied |
+| VALID | PROCESSED | Bank result independently confirmed and applied |
+| VALID | IGNORED | Duplicate or irrelevant notification |
+| INVALID | REJECTED | Authenticity check failed; no trusted financial action |
+
+- A webhook can be logged even if no Payment matches (`payment_id NULL`). Multiple notifications per Payment are allowed; the journal is not itself the financial source of truth.
+- Reject untrusted financial effects, preserve sanitized evidence, and verify bank state through the trusted Status API where required.
+- Repeated or out-of-order notifications cannot reapply financial success, promo redemption, or ticket issuance.
+- Reconciliation is responsible for recovery; a separate webhook `FAILED` processing status was **not** added to the approved minimal model.
+- PostgreSQL status-pair CHECK must be NULL-safe and tested. A successful database CHECK does not prove correct signature validation or bank API behavior.
+
+------------------------------------------------------------------------
+
+# Part XX --- Financial reporting, validation and remaining dependencies (v0.2 addendum)
+
+## 61. Processing fees — APPROVED MVP estimate
+
+> **[NEW v0.2 | APPROVED estimate / PROVISIONAL actual bank fees]**
+
+- Bank processing fee is borne by **Organizer**, not added to the buyer's ticket price.
+- A reusable backend function calculates an **estimated** fee from a configurable rate. Do not hardcode a percentage in the business function; no actual Halyk tariff has been approved.
+- Add one new historical snapshot field to Payment: `processing_fee_minor BIGINT NULL` (estimated, non-negative; `NULL` until calculated, `0` for no fee). Require non-negative values via database CHECK; compute once on confirmed successful payment, not on every analytics render.
+- Existing Payment amount remains the gross payment amount; estimated Organizer proceeds = gross successful Payments minus estimated processing fees, subject to later refunds and other approved accounting adjustments.
+- Analytics API aggregates authoritative stored values; frontend displays results and does not independently compute fee accounting. The estimate must not be presented as a verified actual bank deduction or real-money payout.
+- Actual bank fees, payout routing and settlement behavior remain dependent on the bank contract. SRS academic MVP does not require production organizer payouts.
+
+## 62. Verification evidence and limitations
+
+> **[NEW v0.2 | CLARIFIED test evidence]**
+
+- SQL constraint tests were executed by the project owner in an isolated Supabase PostgreSQL project; reported PASS for Payment FSM/null handling, provider identifier/FK checks, partial unique behavior, and webhook state pairs. These are **constraint-level tests on test structures**, not an executed end-to-end production migration.
+- A `23505` unique-violation was observed when attempting a second unfinished Payment for the same Order. This confirms uniqueness enforcement; concurrent blocking/serialization across two sessions was **not independently demonstrated**.
+- Webhook test reported PASS for 30 state combinations, NULL handling, and nullable Payment link. Bank signature verification and webhook delivery were not integration-tested.
+- Production DDL, exact provider response mapping, transactional concurrency under load, complete Ticket/Refund issuance and reversal, and Halyk recovery guarantees remain to be verified during implementation.
+
+### 62.1 Pre-implementation acceptance checklist — review gates
+
+> **[CLARIFIED v0.2]** This list is a verification plan, not evidence of tests already run.
+
+- [x] P01 business policy approved: ineffective unprotected hold blocks Payment and requires a new checkout; implement and test the atomic boundary before deployment.
+- [ ] Validate Halyk invoice/payment identifiers, status meanings and safe recovery semantics against official contract and sandbox.
+- [ ] Produce full `payments` / `payment_webhook_events` production DDL and rerun FSM, FK, NULL and unique tests on those exact tables.
+- [ ] Exercise actual two-connection concurrent Payment creation and authorization/cancellation races.
+- [ ] Validate reconciliation restart after committed intent and before/after HTTP call, including duplicate webhook arrivals.
+- [ ] Confirm ticket issuance and refund integration only when those deferred modules are designed.
+
+## 63. Deferred domains (not silently FINAL)
+
+> **[NEW v0.2 | DEFERRED]**
+
+Tickets/attendees/QR/PDF, check-in, Refunds, financial incident resolution, activation workflow tables, campaign QR attribution, notifications, support, full audit history, full analytics and deployment/non-functional tests remain future modules as already noted in §51. SRS compatibility review found no direct contradiction in the covered checkout/payment design; it does **not** establish full requirement-by-requirement traceability for the entire MVP.
