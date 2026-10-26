@@ -3,10 +3,17 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from core.config import settings
+from core.errors import register_error_handlers
+from core.storage import media_root
 from db.session import create_tables
+from modules.admin.router import router as admin_router
+from modules.categories.router import router as categories_router
+from modules.event_applications.router import router as event_applications_router
 from modules.events.router import router as events_router
+from modules.venues.router import router as venues_router
 
 logging.basicConfig(level=logging.INFO)
 
@@ -25,4 +32,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+register_error_handlers(app)
+
+media_root().mkdir(parents=True, exist_ok=True)
+app.mount("/media", StaticFiles(directory=media_root()), name="media")
+
+app.include_router(categories_router)
+app.include_router(venues_router)
 app.include_router(events_router)
+app.include_router(event_applications_router)
+app.include_router(admin_router)
