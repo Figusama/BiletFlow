@@ -54,4 +54,4 @@ class event_user_roles(SQLModel, table=True):
     user_id : uuid.UUID = Field(
             sa_column=Column(pg.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, nullable=False)
         )
-    event_role : EventRole
+    event_role : EventRole  
