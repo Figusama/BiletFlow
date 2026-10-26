@@ -2,49 +2,71 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import DateTime
+from sqlalchemy import DateTime, Index, text
+from sqlalchemy.dialects.postgresql import CITEXT
 from sqlmodel import Field, SQLModel
 
 from core.timeutils import utcnow
 
 
-class UserRole(str, Enum):
-    ATTENDEE = "attendee"
-    ORGANIZER = "organizer"
-    EVENT_ADMIN = "event_admin"
-    PLATFORM_ADMIN = "platform_admin"
+class PersonalRole(str, Enum):
+    USER = "USER"
+    PLATFORM_ADMIN = "PLATFORM_ADMIN"
+
+
+class EventRole(str, Enum):
+    ORGANIZER = "ORGANIZER"
+    EVENT_ADMIN = "EVENT_ADMIN"
 
 
 class User(SQLModel, table=True):
     __tablename__ = "users"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    email: str = Field(max_length=320, unique=True, index=True)
+    public_id: str = Field(unique=True, max_length=20)
+    email: str = Field(sa_type=CITEXT, unique=True, index=True)
     password_hash: str
-    email_verified_at: datetime | None = Field(default=None, sa_type=DateTime(timezone=True))
-    phone: str | None = Field(default=None, max_length=32)
-    locale: str | None = Field(default=None, max_length=10)
-    is_platform_admin: bool = False
+    personal_role: PersonalRole = Field(default=PersonalRole.USER)
     is_suspended: bool = False
     created_at: datetime = Field(default_factory=utcnow, sa_type=DateTime(timezone=True))
+    updated_at: datetime = Field(
+        default_factory=utcnow, sa_type=DateTime(timezone=True), sa_column_kwargs={"onupdate": utcnow}
+    )
+
+    @property
+    def is_platform_admin(self) -> bool:
+        return self.personal_role == PersonalRole.PLATFORM_ADMIN
 
     def __repr__(self) -> str:
-        return f"<User {self.email}>"
+        return f"<User {self.public_id} {self.email}>"
 
 
-class OrganizerProfile(SQLModel, table=True):
-    __tablename__ = "organizer_profiles"
+class Profile(SQLModel, table=True):
+    __tablename__ = "profiles"
 
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    user_id: uuid.UUID = Field(foreign_key="users.id", unique=True, ondelete="CASCADE")
-    is_verified: bool = False
+    user_id: uuid.UUID = Field(foreign_key="users.id", primary_key=True, ondelete="CASCADE")
+    full_name: str
+    phone: str = Field(max_length=16)
+    avatar_url: str | None = None
+    locale: str = Field(default="ru", max_length=10)
     created_at: datetime = Field(default_factory=utcnow, sa_type=DateTime(timezone=True))
+    updated_at: datetime = Field(
+        default_factory=utcnow, sa_type=DateTime(timezone=True), sa_column_kwargs={"onupdate": utcnow}
+    )
 
 
-class StaffAssignment(SQLModel, table=True):
-    __tablename__ = "staff_assignment"
+class EventUserRole(SQLModel, table=True):
+    __tablename__ = "event_user_roles"
+    __table_args__ = (
+        Index(
+            "uq_event_user_roles_single_organizer",
+            "event_id",
+            unique=True,
+            postgresql_where=text("event_role = 'ORGANIZER'"),
+        ),
+    )
 
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    user_id: uuid.UUID = Field(foreign_key="users.id", ondelete="CASCADE")
-    event_id: uuid.UUID = Field(foreign_key="events.id", ondelete="CASCADE")
+    event_id: uuid.UUID = Field(foreign_key="events.id", primary_key=True, ondelete="CASCADE")
+    user_id: uuid.UUID = Field(foreign_key="users.id", primary_key=True, index=True, ondelete="CASCADE")
+    event_role: EventRole
     created_at: datetime = Field(default_factory=utcnow, sa_type=DateTime(timezone=True))
