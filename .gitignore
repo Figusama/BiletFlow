@@ -4,3 +4,4 @@ venv
 /backend/modules/auth/config.py
 __pycache__/
 postman/
+.postman
