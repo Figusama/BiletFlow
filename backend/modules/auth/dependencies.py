@@ -7,11 +7,12 @@ from backend.modules.auth.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPI
 from sqlmodel import Session, select
 from datetime import timezone
 from database.database import get_session
-from backend.modules.users.user_model import users
+from backend.modules.users.user_model import users, pending_registrations
+import hashlib
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth_2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth_2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
 def verify_password(plain_password : str, hashed_password : str):
     return pwd_context.verify(plain_password, hashed_password)
@@ -23,6 +24,14 @@ def get_password_hash(password : str):
 
 def get_user(session: Session, email: str) -> users | None:
     return session.exec(select(users).where(users.email == email)).first()
+
+
+def get_pending_registration(session: Session, email: str) -> pending_registrations | None:
+    return session.exec(select(pending_registrations).where(pending_registrations.email == email)).first()
+
+
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 def authenticate_user(session : Session, email: str, password : str) -> users | None:
@@ -52,10 +61,9 @@ async def get_current_user(token: str = Depends(oauth_2_scheme), session: Sessio
     user = get_user(session, email=email)
     if user is None:
         raise credential_exception
+    if user.is_suspended:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is suspended")
     return user
 
 async def get_current_active_user(current_user : users = Depends(get_current_user)):
-    if current_user.disabled:
-        raise HTTPException(status_code=400, detail="Inactive user")
-
     return current_user

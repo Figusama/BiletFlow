@@ -47,6 +47,22 @@ class profiles(SQLModel, table=True):
     created_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, default=datetime.now))
     updated_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, default=datetime.now))
 
+class pending_registrations(SQLModel, table=True):
+    __tablename__ = "pending_registrations"
+
+    id : uuid.UUID = Field(
+        sa_column=Column(pg.UUID, nullable=False, primary_key=True, default=uuid.uuid4)
+    )
+    email : str = Field(sa_column=Column(pg.CITEXT, unique=True, nullable=False))
+    password_hash : str = Field(sa_column=Column(pg.TEXT, nullable=False))
+    full_name : str = Field(sa_column=Column(pg.TEXT, nullable=False))
+    phone : str = Field(sa_column=Column(pg.TEXT, nullable=False))
+    locale : str = Field(sa_column=Column(pg.TEXT, nullable=False))
+    verification_hash : str = Field(sa_column=Column(pg.TEXT, unique=True, nullable=False))
+    expires_at : datetime = Field(sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False))
+    created_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, default=datetime.now))
+    updated_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, default=datetime.now, onupdate=datetime.now))
+
 class event_user_roles(SQLModel, table=True):
     __tablename__ = "event_user_roles"
     
