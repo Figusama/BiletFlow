@@ -4,7 +4,7 @@ from backend.modules.users.user_model import Role
 from enum import Enum
 
 class UserCreate(BaseModel):
-    email : str
+    email : EmailStr
     password : str = Field(min_length=8)
     full_name : str
     phone : str
@@ -24,6 +24,10 @@ class Token(BaseModel):
     token_type : str
 
 
+class Message(BaseModel):
+    detail : str
+
+
 class ProfileUpdate(BaseModel):
     full_name : str | None = None
     phone : str | None = None
@@ -31,4 +35,5 @@ class ProfileUpdate(BaseModel):
 
 
 class PasswordChange(BaseModel):
+    current_password : str
     new_password : str = Field(min_length=8)
