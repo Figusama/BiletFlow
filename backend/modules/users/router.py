@@ -55,7 +55,11 @@ def delete_me(session: Session = Depends(get_session), current_user: users = Dep
     if profile:
         session.delete(profile)
     session.delete(current_user)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "Account with reservations, orders or tickets cannot be deleted")
 
 @router.get("/", response_model=list[UserPublic])
 def list_users(session: Session = Depends(get_session), admin: users = Depends(require_admin)):

@@ -303,12 +303,13 @@ def simulate_bank(session: Session, payment_id: uuid.UUID, outcome: SimulatedOut
     return process_webhook(session, journal, capture_outcome=capture)
 
 
-def reconcile_due(session: Session) -> int:
+def reconcile_due(session: Session) -> tuple[int, list[list[tickets]]]:
     from backend.modules.orders.service import expire_if_stale
 
     now = db_now(session)
     due = session.exec(select(payments.id).where(payments.status.in_(UNFINISHED_PAYMENT_STATUSES), payments.next_check_at <= now)).all()
     handled = 0
+    issued_batches: list[list[tickets]] = []
     for payment_id in due:
         payment = session.get(payments, payment_id)
         order = session.get(orders, payment.order_id)
@@ -323,4 +324,9 @@ def reconcile_due(session: Session) -> int:
                     session.add(payment)
             session.commit()
             handled += 1
-    return handled
+        elif payment.status == PaymentStatus.CAPTURING and payment.is_simulated:
+            issued = run_capture(session, payment_id, SimulatedOutcome.APPROVE)
+            if issued:
+                issued_batches.append(issued)
+            handled += 1
+    return handled, issued_batches

@@ -1,4 +1,5 @@
 import io
+import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -13,7 +14,9 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
 from backend.core.clock import as_aware
+from backend.core.config import TICKET_PDF_FONT, TICKET_PDF_FONT_BOLD
 
+logger = logging.getLogger(__name__)
 
 _FONT = "Helvetica"
 _FONT_BOLD = "Helvetica-Bold"
@@ -22,11 +25,18 @@ _FONT_BOLD = "Helvetica-Bold"
 def _register_unicode_font() -> None:
     global _FONT, _FONT_BOLD
     candidates = [
+        (TICKET_PDF_FONT, TICKET_PDF_FONT_BOLD),
         ("C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/arialbd.ttf"),
         ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+        ("/usr/share/fonts/dejavu/DejaVuSans.ttf", "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf"),
+        ("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"),
+        ("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"),
+        ("/System/Library/Fonts/Supplemental/Arial.ttf", "/System/Library/Fonts/Supplemental/Arial Bold.ttf"),
         ("/Library/Fonts/Arial Unicode.ttf", "/Library/Fonts/Arial Unicode.ttf"),
     ]
     for regular, bold in candidates:
+        if not regular:
+            continue
         try:
             pdfmetrics.registerFont(TTFont("BFRegular", regular))
             pdfmetrics.registerFont(TTFont("BFBold", bold))
@@ -34,6 +44,7 @@ def _register_unicode_font() -> None:
             return
         except Exception:
             continue
+    logger.warning("No Unicode font found for ticket PDFs, non-Latin text will not render. Set TICKET_PDF_FONT to a .ttf file.")
 
 
 _register_unicode_font()

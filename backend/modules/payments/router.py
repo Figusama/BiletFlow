@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 
 from backend.core.clock import db_now
-from backend.core.config import ACTIVATION_FEE_MINOR, FRONTEND_URL
+from backend.core.config import ACTIVATION_FEE_MINOR, FRONTEND_URL, PAYMENT_SIMULATOR_ENABLED
 from backend.modules.auth.dependencies import get_current_user
 from backend.modules.events.access import get_event_or_404, require_organizer
 from backend.modules.orders.models import orders
@@ -21,8 +21,15 @@ from database.database import get_session
 router = APIRouter(tags=["payments"])
 
 
+def require_simulator() -> None:
+    if not PAYMENT_SIMULATOR_ENABLED:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Payment simulator is disabled")
+
+
 @router.post("/orders/{order_id}/payments", response_model=PaymentPublic, status_code=status.HTTP_201_CREATED)
 def start_payment(order_id: uuid.UUID, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
+    if not PAYMENT_SIMULATOR_ENABLED:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "No payment provider is configured")
     return service.to_public(service.start_payment(session, order_id, current_user))
 
 
@@ -48,6 +55,7 @@ async def payment_webhook(request: Request, background: BackgroundTasks, x_signa
 
 @router.get("/payments/simulator/{payment_id}", response_class=HTMLResponse)
 def simulator_page(payment_id: uuid.UUID, session: Session = Depends(get_session)):
+    require_simulator()
     payment = session.get(payments, payment_id)
     if payment is None or not payment.is_simulated:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Payment not found")
@@ -67,6 +75,7 @@ def simulator_page(payment_id: uuid.UUID, session: Session = Depends(get_session
 
 @router.post("/payments/simulator/{payment_id}")
 def simulator_submit(payment_id: uuid.UUID, background: BackgroundTasks, outcome: SimulatedOutcome = Form(...), session: Session = Depends(get_session)):
+    require_simulator()
     payment = session.get(payments, payment_id)
     if payment is None or not payment.is_simulated:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Payment not found")
@@ -77,6 +86,7 @@ def simulator_submit(payment_id: uuid.UUID, background: BackgroundTasks, outcome
 
 @router.post("/payments/simulator/{payment_id}/decision", response_model=PaymentPublic)
 def simulator_decision(payment_id: uuid.UUID, data: SimulatorDecision, background: BackgroundTasks, session: Session = Depends(get_session)):
+    require_simulator()
     issued = service.simulate_bank(session, payment_id, data.outcome)
     queue_ticket_email(background, session, issued)
     session.expire_all()
@@ -120,6 +130,8 @@ def request_activation(event_id: uuid.UUID, data: ActivationRequest, session: Se
 @router.post("/events/{event_id}/paid-sales/pay-fee", response_model=ActivationPublic)
 def pay_activation_fee(event_id: uuid.UUID, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
     require_organizer(session, event_id, current_user)
+    if not PAYMENT_SIMULATOR_ENABLED:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "No payment provider is configured")
     get_event_or_404(session, event_id, for_update=True)
     activation = get_activation(session, event_id, lock=True)
     if activation is None or activation.status != ActivationStatus.FEE_PENDING:
@@ -169,6 +181,9 @@ def resume_paid_sales(event_id: uuid.UUID, session: Session = Depends(get_sessio
 
 
 @router.post("/admin/payments/reconcile")
-def reconcile(session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
+def reconcile(background: BackgroundTasks, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
     _require_admin(current_user)
-    return {"handled": service.reconcile_due(session)}
+    handled, issued_batches = service.reconcile_due(session)
+    for issued in issued_batches:
+        queue_ticket_email(background, session, issued)
+    return {"handled": handled}

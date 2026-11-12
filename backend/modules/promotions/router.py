@@ -11,7 +11,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
-from backend.core.clock import db_now
+from backend.core.clock import as_aware, db_now
 from backend.core.config import FRONTEND_URL, PUBLIC_API_URL
 from backend.modules.auth.dependencies import get_current_user
 from backend.modules.events.access import get_event_or_404, require_organizer
@@ -102,7 +102,7 @@ def update_promo_code(event_id: uuid.UUID, promo_id: uuid.UUID, data: PromoCodeU
         in_use = promo.redemption_count + service.effective_holds_count(session, promo.id, db_now(session))
         if changes["max_redemptions"] < in_use:
             raise HTTPException(status.HTTP_409_CONFLICT, f"Limit cannot be lower than {in_use} already used or held")
-    if "valid_until" in changes and changes["valid_until"] is not None and changes["valid_until"] <= promo.valid_from:
+    if "valid_until" in changes and changes["valid_until"] is not None and changes["valid_until"] <= as_aware(promo.valid_from):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "valid_until must be after valid_from")
     for key, value in changes.items():
         setattr(promo, key, value)
@@ -158,8 +158,11 @@ def toggle_campaign(event_id: uuid.UUID, campaign_id: uuid.UUID, is_active: bool
     campaign = session.get(promotional_campaigns, campaign_id)
     if campaign is None or campaign.event_id != event_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Campaign not found")
+    promo = session.get(promo_codes, campaign.promo_code_id)
     campaign.is_active = is_active
+    promo.is_active = is_active
     session.add(campaign)
+    session.add(promo)
     session.commit()
     session.refresh(campaign)
     return campaign_to_public(session, campaign)

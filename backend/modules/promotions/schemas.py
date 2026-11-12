@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, Field, model_validator
 
 
 class DiscountType(str, Enum):
@@ -26,8 +26,8 @@ class PromoCodeCreate(BaseModel):
     discount_type: DiscountType
     discount_value: int = Field(gt=0)
     max_redemptions: int | None = Field(default=None, gt=0)
-    valid_from: datetime
-    valid_until: datetime
+    valid_from: AwareDatetime
+    valid_until: AwareDatetime
 
     @model_validator(mode="after")
     def check(self):
@@ -41,7 +41,7 @@ class PromoCodeCreate(BaseModel):
 class PromoCodeUpdate(BaseModel):
     is_active: bool | None = None
     max_redemptions: int | None = Field(default=None, gt=0)
-    valid_until: datetime | None = None
+    valid_until: AwareDatetime | None = None
 
 
 class PromoCodePublic(BaseModel):

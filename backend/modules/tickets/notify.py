@@ -15,11 +15,11 @@ def queue_ticket_email(background: BackgroundTasks, session: Session, issued: li
     order = session.get(orders, issued[0].order_id)
     event = session.get(events, order.event_id)
     buyer = session.get(users, order.buyer_user_id)
-    lines = [f"- {t.ticket_code} ({t.attendee_name}{', ' + t.seat_label if t.seat_label else ''}): {PUBLIC_API_URL}/tickets/{t.id}/pdf" for t in issued]
+    lines = [f"- {t.ticket_code} ({t.attendee_name}{', ' + t.seat_label if t.seat_label else ''})" for t in issued]
     body = (
         f"Your order {order.order_number} for \"{event.title}\" is confirmed.\n\n"
         f"Tickets:\n" + "\n".join(lines) + "\n\n"
-        f"All tickets are also in your account: {FRONTEND_URL}/tickets\n"
+        f"Sign in to view, download and print them: {FRONTEND_URL}/tickets\n"
         f"Add to calendar: {PUBLIC_API_URL}/events/{event.id}/calendar.ics\n"
     )
     background.add_task(send_email, buyer.email, f"BiletFlow: your tickets for {event.title}", body)

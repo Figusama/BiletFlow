@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
 
 
 class TicketKind(str, Enum):
@@ -41,8 +41,8 @@ class TicketTypeCreate(BaseModel):
     kind: TicketKind
     price_minor: int = Field(ge=0)
     quantity_total: int | None = Field(default=None, gt=0)
-    sales_start_at: datetime
-    sales_end_at: datetime
+    sales_start_at: AwareDatetime
+    sales_end_at: AwareDatetime
     max_per_order: int = Field(gt=0)
 
 
@@ -52,8 +52,8 @@ class TicketTypeUpdate(BaseModel):
     kind: TicketKind | None = None
     price_minor: int | None = Field(default=None, ge=0)
     quantity_total: int | None = Field(default=None, gt=0)
-    sales_start_at: datetime | None = None
-    sales_end_at: datetime | None = None
+    sales_start_at: AwareDatetime | None = None
+    sales_end_at: AwareDatetime | None = None
     max_per_order: int | None = Field(default=None, gt=0)
     sales_status: SalesStatus | None = None
     is_active: bool | None = None

@@ -113,10 +113,27 @@ def _check_type_on_sale(event: events, ticket_type: ticket_types, now: datetime,
         raise HTTPException(status.HTTP_409_CONFLICT, "Paid sales are not active for this event")
 
 
+def release_previous_holds(session: Session, event_id: uuid.UUID, user: users, now: datetime) -> None:
+    previous = session.exec(
+        select(reservations)
+        .where(reservations.event_id == event_id, reservations.user_id == user.id, effective_hold_clause(now))
+        .order_by(reservations.id).with_for_update().execution_options(populate_existing=True)
+    ).all()
+    for reservation in previous:
+        has_order = session.exec(select(orders.id).where(orders.reservation_id == reservation.id)).first() is not None
+        if has_order or reservation.status == ReservationStatus.PROTECTED:
+            raise HTTPException(status.HTTP_409_CONFLICT, "You already have a checkout in progress for this event. Finish or cancel it first")
+        reservation.status = ReservationStatus.RELEASED
+        reservation.released_at = now
+        session.add(reservation)
+    session.flush()
+
+
 def create_reservation(session: Session, event_id: uuid.UUID, user: users, data: ReservationCreate) -> reservations:
     event = get_event_or_404(session, event_id, for_update=True)
     ensure_on_sale(event)
     now = db_now(session)
+    release_previous_holds(session, event.id, user, now)
 
     if event.seating_mode == SeatingMode.GENERAL_ADMISSION:
         if not data.items:

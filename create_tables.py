@@ -45,6 +45,10 @@ UPGRADES = [
     EXCEPTION WHEN duplicate_object THEN NULL; END $$""",
 ]
 
+ENABLE_RLS = """DO $$ BEGIN
+    ALTER TABLE "{table}" ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN insufficient_privilege THEN NULL; END $$"""
+
 
 def main() -> None:
     with engine.begin() as conn:
@@ -54,6 +58,8 @@ def main() -> None:
     with engine.begin() as conn:
         for statement in UPGRADES:
             conn.execute(text(statement))
+        for table in SQLModel.metadata.tables:
+            conn.execute(text(ENABLE_RLS.format(table=table)))
     print("Tables:", ", ".join(sorted(SQLModel.metadata.tables)))
 
 
