@@ -65,9 +65,11 @@ class pending_registrations(SQLModel, table=True):
 
 class event_user_roles(SQLModel, table=True):
     __tablename__ = "event_user_roles"
-    
-    event_id : uuid.UUID
+
+    event_id : uuid.UUID = Field(
+            sa_column=Column(pg.UUID(as_uuid=True), sa.ForeignKey("events.id", ondelete="CASCADE"), primary_key=True, nullable=False)
+        )
     user_id : uuid.UUID = Field(
             sa_column=Column(pg.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, nullable=False)
         )
-    event_role : EventRole  
+    event_role : EventRole = Field(sa_column=Column(pg.ENUM(EventRole, name="eventrole"), nullable=False))

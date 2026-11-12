@@ -6,7 +6,7 @@ from sqlalchemy import Column, func, UniqueConstraint
 from sqlmodel import Field, SQLModel
 from sqlalchemy.dialects import postgresql as pg
 import sqlalchemy as sa
-from backend.modules.events.schemas import Visibility, EventStatus, SeatingMode, EventChangeField
+from backend.modules.events.schemas import Visibility, EventStatus, EventLifecycleStatus, SeatingMode, EventChangeField
 import secrets
 
 class event_applications(SQLModel, table=True):
@@ -87,14 +87,15 @@ class events(SQLModel, table=True):
     description : str = Field(sa_column=Column(pg.TEXT, nullable=False))
 
     venue_id : UUID = Field(sa_column=Column(pg.UUID, sa.ForeignKey('venues.id', ondelete='CASCADE'), nullable=False))
-    venue_layout_id : UUID = Field(sa_column=Column(pg.UUID, sa.ForeignKey('venue_layouts.id', ondelete='CASCADE'), nullable=False))
-    
-    starts_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, nullable=False))
-    ends_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, nullable=False))
+    venue_layout_id : UUID | None = Field(default=None, sa_column=Column(pg.UUID, sa.ForeignKey('venue_layouts.id', ondelete='CASCADE'), nullable=True))
+
+    starts_at : datetime = Field(sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False))
+    ends_at : datetime = Field(sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False))
     timezone : str = Field(sa_column=Column(pg.TEXT, nullable=False))
 
     visibility : Visibility = Field(sa_column=Column(pg.ENUM(Visibility, name="visibility"), nullable=False))
     seating_mode : SeatingMode = Field(sa_column=Column(pg.ENUM(SeatingMode, name="seatingmode"), nullable=False))
+    ga_capacity : int | None = Field(default=None, sa_column=Column(pg.INTEGER, sa.CheckConstraint("ga_capacity IS NULL OR ga_capacity > 0", name="ck_events_ga_capacity_positive"), nullable=True))
 
     responsible_name : str= Field(sa_column=Column(pg.TEXT, nullable=False))
     responsible_email : str = Field(sa_column=Column(pg.CITEXT, nullable=False))
@@ -104,13 +105,13 @@ class events(SQLModel, table=True):
     public_contact_email : str = Field(sa_column=Column(pg.CITEXT, nullable=True))
     public_contact_phone : str = Field(sa_column=Column(pg.TEXT, nullable=True))
 
-    status : EventStatus = Field(sa_column=Column(pg.ENUM(EventStatus, name="eventstatus"), nullable=False))
-    published_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, nullable=True))
-    cancelled_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, nullable=True))
-    completed_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, nullable=True))
+    status : EventLifecycleStatus = Field(default=EventLifecycleStatus.DRAFT, sa_column=Column(pg.ENUM(EventLifecycleStatus, name="event_lifecycle_status"), nullable=False))
+    published_at : datetime | None = Field(default=None, sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=True))
+    cancelled_at : datetime | None = Field(default=None, sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=True))
+    completed_at : datetime | None = Field(default=None, sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=True))
 
-    created_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, nullable=False))
-    updated_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, nullable=False))
+    created_at : datetime = Field(default_factory=lambda: datetime.now(timezone.utc), sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False, server_default=func.now()))
+    updated_at : datetime = Field(default_factory=lambda: datetime.now(timezone.utc), sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=lambda: datetime.now(timezone.utc)))
 
 class event_change_requests(SQLModel, table=True):
     __tablename__ = "event_change_requests"
