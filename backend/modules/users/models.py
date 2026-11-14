@@ -3,61 +3,69 @@ from datetime import datetime
 import uuid
 from sqlmodel import SQLModel, Field, Column
 from enum import Enum
+import sqlalchemy as sa
+import secrets
 
-class UserRole(str, Enum):
-    ATTENDEE = "attendee"
-    ORGANIZER = "organizer"
-    EVENT_ADMIN = "event_admin"
-    PLATFORM_ADMIN = "platform_admin"
+class Role(str, Enum):
+    USER = "USER"
+    PLATFORM_ADMIN = "PLATFORM_ADMIN"
 
 
+class EventRole(str, Enum):
+    ORGANIZER = "ORGANIZER"
+    EVENT_ADMIN = "EVENT_ADMIN"
 
-class Attendee(SQLModel, table=True):
-    __tablename__ = "Attendee"
-    uid : uuid.UUID = Field(
+
+class users(SQLModel, table=True):
+    __tablename__ = "users"
+
+    id : uuid.UUID = Field(
         sa_column=Column(pg.UUID, nullable=False, primary_key=True, default=uuid.uuid4)
-
     )
-    username : str
-    email : str
-    first_name : str
-    last_name : str
-    role : UserRole = Field(sa_column=Column(pg.VARCHAR, nullable=False, server_default="attendee"))
-    is_verified : bool = Field(default=False)
-    password_hash : str = Field(exclude=True)
-    create_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, default=datetime.now))
+
+    public_id : str = Field(
+        sa_column=Column(sa.String, default=lambda: secrets.token_urlsafe(8), unique=True, nullable=False, index=True)
+    )
+    email : str = Field(sa_column=Column(pg.CITEXT, unique=True, nullable=False))
+    password_hash : str = Field(sa_column=Column(pg.TEXT, nullable=False))
+    personal_role : Role = Field(default=Role.USER, sa_column=Column(pg.ENUM(Role, name="personal_value"), nullable=False, server_default=Role.USER.value))
+    is_suspended : bool = Field(default=False, sa_column=Column(pg.BOOLEAN, nullable=False, server_default=sa.false()))
+    created_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, default=datetime.now))
     updated_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, default=datetime.now))
 
-    def __repr__(self):
-        return f"<Attendee {self.username}>"
 
+class profiles(SQLModel, table=True):
+    __tablename__ = "profiles"
 
-class OrganizerProfile(SQLModel, table=True):
-    __tablename__ = "organizer_profiles"
-
-    uid : uuid.UUID = Field(
-        sa_column=Column(pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id : uuid.UUID = Field(
+        sa_column=Column(pg.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, nullable=False)
     )
+    full_name : str = Field(sa_column=Column(pg.TEXT, nullable=False))
+    phone : str = Field(sa_column=Column(pg.TEXT, nullable=False))
+    avatar_url : str = Field(sa_column=Column(pg.TEXT, nullable=True))
+    locale : str = Field(sa_column=Column(pg.TEXT, nullable=False))
+    created_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, default=datetime.now))
+    updated_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, default=datetime.now))
 
-    user_uid : uuid.UUD = Field(foreign_key="users.uid")
-
-    is_verified : bool = Field(default=False)
-
-    created_at: datetime = Field(
-        sa_column=Column(pg.TIMESTAMP, default=datetime.now())
-    )
-
-class EventAdminAssignment(SQLModel, table=True):
-    __tablename__ = "event_admin_profiles"
-
-    uid : uuid.UUID = Field(
-        sa_column=Column(pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+class event_user_roles(SQLModel, table=True):
+    __tablename__ = "event_user_roles"
     
-    )
-    user_uid : uuid.UUID = Field(foreign_key="users.uid")
-    event_uid : uuid.UUID = Field(foreign_key="events.uid")
+    event_id : uuid.UUID
+    user_id : uuid.UUID = Field(
+            sa_column=Column(pg.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, nullable=False)
+        )
+    event_role : EventRole 
 
-    created_at : datetime = Field(
-        sa_column=Column(pg.TIMESTAMP, default=datetime.now())
+class pending_registrations(SQLModel, table=True):
+    __tablename__ = "pending_registrations"
+    id : uuid.UUID = Field(
+        sa_column=Column(pg.UUID, nullable=False, primary_key=True, default=uuid.uuid4)
     )
-
+    email : str = Field(sa_column=Column(pg.CITEXT, unique=True, nullable=False))
+    password_hash : str = Field(sa_column=Column(pg.TEXT, nullable=False))
+    full_name : str = Field(sa_column=Column(pg.TEXT, nullable=False))
+    verification_hash : str = Field(sa_column=Column(pg.TEXT, unique=True, nullable=False))
+    expires_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, nullable=False))
+    created_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, default=datetime.now))
+    updated_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, default=datetime.now))
+    
