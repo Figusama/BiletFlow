@@ -18,16 +18,15 @@ def get_event_or_404(session: Session, event_id: uuid.UUID, for_update: bool = F
     return event
 
 
-def event_role_of(session: Session, event_id: uuid.UUID, user: users) -> EventRole | None:
-    row = session.get(event_user_roles, (event_id, user.id))
-    return row.event_role if row else None
+def event_roles(session: Session, event_id: uuid.UUID, user: users) -> set[EventRole]:
+    return set(session.exec(select(event_user_roles.event_role).where(event_user_roles.event_id == event_id, event_user_roles.user_id == user.id)).all())
 
 
-def require_event_role(session: Session, event_id: uuid.UUID, user: users, allowed: tuple[EventRole, ...] = (EventRole.ORGANIZER,)) -> events:
+def require_event_role(session: Session, event_id: uuid.UUID, user: users, allowed: tuple[EventRole, ...] = (EventRole.ORGANIZER,), allow_platform_admin: bool = True) -> events:
     event = get_event_or_404(session, event_id)
-    if user.personal_role == Role.PLATFORM_ADMIN:
+    if allow_platform_admin and user.personal_role == Role.PLATFORM_ADMIN:
         return event
-    if event_role_of(session, event_id, user) not in allowed:
+    if not event_roles(session, event_id, user) & set(allowed):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "You do not manage this event")
     return event
 
@@ -36,8 +35,8 @@ def require_organizer(session: Session, event_id: uuid.UUID, user: users) -> eve
     return require_event_role(session, event_id, user, (EventRole.ORGANIZER,))
 
 
-def require_checkin_staff(session: Session, event_id: uuid.UUID, user: users) -> events:
-    return require_event_role(session, event_id, user, (EventRole.ORGANIZER, EventRole.EVENT_ADMIN))
+def require_checkin_staff(session: Session, event_id: uuid.UUID, user: users, allow_platform_admin: bool = False) -> events:
+    return require_event_role(session, event_id, user, (EventRole.ORGANIZER, EventRole.EVENT_ADMIN), allow_platform_admin)
 
 
 def is_publicly_viewable(event: events) -> bool:
@@ -49,3 +48,5 @@ def ensure_on_sale(event: events) -> None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Event is cancelled")
     if event.status != EventLifecycleStatus.PUBLISHED:
         raise HTTPException(status.HTTP_409_CONFLICT, "Event is not on sale")
+    if event.is_suspended:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Event is suspended")

@@ -3,14 +3,15 @@ import hmac
 import json
 import secrets
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
 from backend.core.clock import as_aware, db_now
 from backend.core.config import PAYMENT_CHECK_INTERVAL_SECONDS, PAYMENT_WEBHOOK_SECRET, PROCESSING_FEE_RATE_BPS, PUBLIC_API_URL
-from backend.modules.events.access import get_event_or_404
+from backend.modules.audit import service as audit
+from backend.modules.events.access import ensure_on_sale, get_event_or_404
 from backend.modules.orders.models import orders, reservations
 from backend.modules.orders.schemas import OrderStatus, ReservationStatus
 from backend.modules.payments.activation import paid_sales_active
@@ -24,7 +25,11 @@ from backend.modules.tickets.models import tickets
 from backend.modules.users.user_model import users
 
 
-SIMULATED_PROVIDER = "SIMULATED"
+SIMULATED_INVOICE_PREFIX = "SIM-"
+
+
+def is_simulated(payment: payments) -> bool:
+    return (payment.provider_invoice_id or "").startswith(SIMULATED_INVOICE_PREFIX)
 
 
 def sign(body: bytes) -> str:
@@ -36,7 +41,7 @@ def estimate_processing_fee(amount_minor: int) -> int:
 
 
 def to_public(payment: payments) -> PaymentPublic:
-    unfinished = payment.status in UNFINISHED_PAYMENT_STATUSES
+    payable = payment.status == PaymentStatus.PENDING and payment.cancellation_reason is None
     return PaymentPublic(
         id=payment.id,
         order_id=payment.order_id,
@@ -45,8 +50,8 @@ def to_public(payment: payments) -> PaymentPublic:
         cancellation_reason=payment.cancellation_reason,
         amount_minor=payment.amount_minor,
         currency=payment.currency,
-        is_simulated=payment.is_simulated,
-        payment_url=f"{PUBLIC_API_URL}/payments/simulator/{payment.id}" if unfinished and payment.status == PaymentStatus.PENDING else None,
+        is_simulated=is_simulated(payment),
+        payment_url=f"{PUBLIC_API_URL}/payments/simulator/{payment.id}" if payable else None,
         created_at=payment.created_at,
     )
 
@@ -63,14 +68,17 @@ def _finish(payment: payments, status_: PaymentStatus, reason: CancellationReaso
     payment.pending_operation = None
     payment.cancellation_reason = reason
     payment.next_check_at = None
+    if status_ in (PaymentStatus.SUCCEEDED, PaymentStatus.FAILED, PaymentStatus.CANCELLED):
+        payment.finalized_at = datetime.now(timezone.utc)
 
 
-def cancel_unfinished_payment(session: Session, order: orders, reason: str, now: datetime) -> None:
+def request_payment_cancellation(session: Session, order: orders, reason: str, now: datetime) -> None:
     payment = unfinished_payment(session, order.id, lock=True)
     if payment is None:
         return
     if payment.status == PaymentStatus.PENDING:
-        _finish(payment, PaymentStatus.CANCELLED, CancellationReason(reason))
+        payment.cancellation_reason = CancellationReason(reason)
+        payment.next_check_at = now + timedelta(seconds=PAYMENT_CHECK_INTERVAL_SECONDS)
         session.add(payment)
     elif payment.status == PaymentStatus.AUTHORIZED and payment.pending_operation is None:
         payment.pending_operation = PendingOperation.CANCEL
@@ -81,15 +89,19 @@ def cancel_unfinished_payment(session: Session, order: orders, reason: str, now:
         session.add(payment)
 
 
-def start_payment(session: Session, order_id: uuid.UUID, user: users) -> payments:
-    from backend.modules.orders.service import expire_if_stale
+def start_payment(session: Session, order_id: uuid.UUID, user: users, idempotency_key: str | None = None) -> payments:
+    from backend.modules.orders.service import expire_if_stale, lock_order_chain
 
     order = session.get(orders, order_id)
     if order is None or order.buyer_user_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Order not found")
-    event = get_event_or_404(session, order.event_id, for_update=True)
-    order = session.exec(select(orders).where(orders.id == order_id).with_for_update().execution_options(populate_existing=True)).one()
-    reservation = session.exec(select(reservations).where(reservations.id == order.reservation_id).with_for_update().execution_options(populate_existing=True)).one()
+    if idempotency_key:
+        same = session.exec(select(payments).where(payments.idempotency_key == idempotency_key)).first()
+        if same is not None:
+            if same.order_id != order.id:
+                raise HTTPException(status.HTTP_409_CONFLICT, "Idempotency key was used for another order")
+            return same
+    event, order, reservation = lock_order_chain(session, order_id)
 
     if expire_if_stale(session, order):
         session.commit()
@@ -103,10 +115,11 @@ def start_payment(session: Session, order_id: uuid.UUID, user: users) -> payment
     if existing is not None:
         return existing
 
-    if event.status.value != "PUBLISHED":
-        raise HTTPException(status.HTTP_409_CONFLICT, "Event is not on sale")
-    if not paid_sales_active(session, event.id, lock=True):
+    ensure_on_sale(event)
+    if not paid_sales_active(session, event.id):
         raise HTTPException(status.HTTP_409_CONFLICT, "Paid sales are suspended for this event")
+    if order.purchase_terms_version != event.purchase_terms_version:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Event purchase terms changed; please start a new checkout")
 
     now = db_now(session)
     if reservation.status != ReservationStatus.ACTIVE or as_aware(reservation.expires_at) <= now:
@@ -119,9 +132,8 @@ def start_payment(session: Session, order_id: uuid.UUID, user: users) -> payment
 
     payment = payments(
         order_id=order.id,
-        provider=SIMULATED_PROVIDER,
-        is_simulated=True,
-        provider_invoice_id="SIM-" + secrets.token_hex(8).upper(),
+        provider_invoice_id=SIMULATED_INVOICE_PREFIX + secrets.token_hex(8).upper(),
+        idempotency_key=idempotency_key or str(uuid.uuid4()),
         amount_minor=order.total_minor,
         next_check_at=now + timedelta(seconds=PAYMENT_CHECK_INTERVAL_SECONDS),
     )
@@ -192,11 +204,10 @@ def _mark(session: Session, journal: payment_webhook_events, processing: Webhook
 
 
 def _lock_chain(session: Session, payment_id: uuid.UUID):
-    payment = session.get(payments, payment_id)
-    order = session.get(orders, payment.order_id)
-    get_event_or_404(session, order.event_id, for_update=True)
-    order = session.exec(select(orders).where(orders.id == order.id).with_for_update().execution_options(populate_existing=True)).one()
-    reservation = session.exec(select(reservations).where(reservations.id == order.reservation_id).with_for_update().execution_options(populate_existing=True)).one()
+    from backend.modules.orders.service import lock_order_chain
+
+    snapshot = session.get(payments, payment_id)
+    _, order, reservation = lock_order_chain(session, snapshot.order_id)
     payment = session.exec(select(payments).where(payments.id == payment_id).with_for_update().execution_options(populate_existing=True)).one()
     return order, reservation, payment
 
@@ -215,7 +226,6 @@ def apply_auth(session: Session, payment_id: uuid.UUID, approved: bool, provider
         session.commit()
         return True
 
-    payment.authorized_at = now
     reservation_live = reservation.status == ReservationStatus.ACTIVE and as_aware(reservation.expires_at) > now
     if payment.cancellation_reason is not None or order.status != OrderStatus.PENDING or not reservation_live:
         reason = payment.cancellation_reason or (CancellationReason.RESERVATION_EXPIRED if not reservation_live else CancellationReason.USER_REQUESTED)
@@ -263,9 +273,9 @@ def apply_capture(session: Session, payment_id: uuid.UUID, approved: bool) -> li
     now = db_now(session)
     if approved:
         _finish(payment, PaymentStatus.SUCCEEDED)
-        payment.succeeded_at = now
         payment.processing_fee_minor = estimate_processing_fee(payment.amount_minor)
         session.add(payment)
+        audit.record(session, action="PAYMENT_SUCCEEDED", entity_type="PAYMENT", entity_id=payment.id, event_id=order.event_id)
         issued: list[tickets] = []
         if order.status == OrderStatus.PENDING:
             issued = confirm_order(session, order, reservation, now)
@@ -290,7 +300,7 @@ def apply_capture(session: Session, payment_id: uuid.UUID, approved: bool) -> li
 
 def simulate_bank(session: Session, payment_id: uuid.UUID, outcome: SimulatedOutcome) -> list[tickets]:
     payment = session.get(payments, payment_id)
-    if payment is None or not payment.is_simulated:
+    if payment is None or not is_simulated(payment):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Payment not found")
     body = json.dumps({
         "invoice_id": payment.provider_invoice_id,
@@ -314,17 +324,18 @@ def reconcile_due(session: Session) -> tuple[int, list[list[tickets]]]:
         payment = session.get(payments, payment_id)
         order = session.get(orders, payment.order_id)
         if payment.status == PaymentStatus.PENDING:
-            get_event_or_404(session, order.event_id, for_update=True)
-            order = session.exec(select(orders).where(orders.id == order.id).with_for_update().execution_options(populate_existing=True)).one()
-            if not expire_if_stale(session, order):
-                payment = session.exec(select(payments).where(payments.id == payment_id).with_for_update().execution_options(populate_existing=True)).one()
-                if payment.status == PaymentStatus.PENDING:
+            order, _, payment = _lock_chain(session, payment_id)
+            if payment.status == PaymentStatus.PENDING:
+                bank_has_no_authorization = is_simulated(payment) and payment.cancellation_reason is not None
+                if bank_has_no_authorization:
+                    _finish(payment, PaymentStatus.CANCELLED, payment.cancellation_reason)
+                elif not expire_if_stale(session, order):
                     payment.next_check_at = now + timedelta(seconds=PAYMENT_CHECK_INTERVAL_SECONDS)
                     payment.check_failure_count = 0
-                    session.add(payment)
+                session.add(payment)
             session.commit()
             handled += 1
-        elif payment.status == PaymentStatus.CAPTURING and payment.is_simulated:
+        elif payment.status == PaymentStatus.CAPTURING and is_simulated(payment):
             issued = run_capture(session, payment_id, SimulatedOutcome.APPROVE)
             if issued:
                 issued_batches.append(issued)

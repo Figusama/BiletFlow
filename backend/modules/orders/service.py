@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from backend.core.clock import as_aware, db_now
 from backend.core.config import RESERVATION_TTL_MINUTES
+from backend.modules.audit import service as audit
 from backend.modules.events.access import ensure_on_sale, get_event_or_404
 from backend.modules.events.models import events, event_seats
 from backend.modules.events.schemas import SeatingMode
@@ -15,6 +16,7 @@ from backend.modules.orders.models import reservations, reservation_items, order
 from backend.modules.orders.schemas import ReservationCreate, ReservationStatus, OrderStatus
 from backend.modules.payments.activation import paid_sales_active
 from backend.modules.promotions import service as promo_service
+from backend.modules.promotions.schemas import PromoRejection
 from backend.modules.promotions.service import PricedLine, PROMO_MESSAGES
 from backend.modules.tickets import service as ticket_service
 from backend.modules.tickets.models import ticket_types, tickets
@@ -69,7 +71,7 @@ def taken_seat_ids(session: Session, event_id: uuid.UUID, now: datetime) -> set[
 
 
 def sale_state(event: events, ticket_type: ticket_types, now: datetime, available: int | None) -> str:
-    if event.status.value != "PUBLISHED":
+    if event.status.value != "PUBLISHED" or event.is_suspended:
         return "NOT_ON_SALE"
     if not ticket_type.is_active:
         return "DISABLED"
@@ -113,27 +115,10 @@ def _check_type_on_sale(event: events, ticket_type: ticket_types, now: datetime,
         raise HTTPException(status.HTTP_409_CONFLICT, "Paid sales are not active for this event")
 
 
-def release_previous_holds(session: Session, event_id: uuid.UUID, user: users, now: datetime) -> None:
-    previous = session.exec(
-        select(reservations)
-        .where(reservations.event_id == event_id, reservations.user_id == user.id, effective_hold_clause(now))
-        .order_by(reservations.id).with_for_update().execution_options(populate_existing=True)
-    ).all()
-    for reservation in previous:
-        has_order = session.exec(select(orders.id).where(orders.reservation_id == reservation.id)).first() is not None
-        if has_order or reservation.status == ReservationStatus.PROTECTED:
-            raise HTTPException(status.HTTP_409_CONFLICT, "You already have a checkout in progress for this event. Finish or cancel it first")
-        reservation.status = ReservationStatus.RELEASED
-        reservation.released_at = now
-        session.add(reservation)
-    session.flush()
-
-
 def create_reservation(session: Session, event_id: uuid.UUID, user: users, data: ReservationCreate) -> reservations:
     event = get_event_or_404(session, event_id, for_update=True)
     ensure_on_sale(event)
     now = db_now(session)
-    release_previous_holds(session, event.id, user, now)
 
     if event.seating_mode == SeatingMode.GENERAL_ADMISSION:
         if not data.items:
@@ -154,11 +139,11 @@ def create_reservation(session: Session, event_id: uuid.UUID, user: users, data:
         for ticket_type in locked:
             if ticket_type.quantity_total is not None and occupied.get(ticket_type.id, 0) + requested[ticket_type.id] > ticket_type.quantity_total:
                 raise HTTPException(status.HTTP_409_CONFLICT, f"Not enough '{ticket_type.name}' tickets left")
-        reservation = reservations(event_id=event.id, user_id=user.id, expires_at=now + timedelta(minutes=RESERVATION_TTL_MINUTES))
+        reservation = reservations(event_id=event.id, user_id=user.id, expires_at=now + timedelta(minutes=RESERVATION_TTL_MINUTES), purchase_terms_version=event.purchase_terms_version)
         session.add(reservation)
         session.flush()
         for ticket_type in locked:
-            session.add(reservation_items(reservation_id=reservation.id, ticket_type_id=ticket_type.id, quantity=requested[ticket_type.id]))
+            session.add(reservation_items(reservation_id=reservation.id, event_id=event.id, ticket_type_id=ticket_type.id, quantity=requested[ticket_type.id]))
     else:
         if not data.event_seat_ids:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Assigned seating requires seat selection")
@@ -182,11 +167,11 @@ def create_reservation(session: Session, event_id: uuid.UUID, user: users, data:
         taken = taken_seat_ids(session, event.id, now)
         if any(seat.id in taken for seat in seats):
             raise HTTPException(status.HTTP_409_CONFLICT, "One or more selected seats are no longer available")
-        reservation = reservations(event_id=event.id, user_id=user.id, expires_at=now + timedelta(minutes=RESERVATION_TTL_MINUTES))
+        reservation = reservations(event_id=event.id, user_id=user.id, expires_at=now + timedelta(minutes=RESERVATION_TTL_MINUTES), purchase_terms_version=event.purchase_terms_version)
         session.add(reservation)
         session.flush()
         for seat in seats:
-            session.add(reservation_items(reservation_id=reservation.id, ticket_type_id=seat.ticket_type_id, event_seat_id=seat.id, quantity=1))
+            session.add(reservation_items(reservation_id=reservation.id, event_id=event.id, ticket_type_id=seat.ticket_type_id, event_seat_id=seat.id, quantity=1))
 
     session.commit()
     session.refresh(reservation)
@@ -203,20 +188,14 @@ def get_own_reservation(session: Session, reservation_id: uuid.UUID, user: users
     return reservation
 
 
-def is_reservation_live(reservation: reservations, now: datetime) -> bool:
-    if reservation.status == ReservationStatus.PROTECTED:
-        return True
-    return reservation.status == ReservationStatus.ACTIVE and as_aware(reservation.expires_at) > now
-
-
 def priced_lines(session: Session, reservation: reservations) -> tuple[list[PricedLine], list[tuple[reservation_items, ticket_types]]]:
     rows = session.exec(
         select(reservation_items, ticket_types)
         .join(ticket_types, ticket_types.id == reservation_items.ticket_type_id)
         .where(reservation_items.reservation_id == reservation.id)
-        .order_by(reservation_items.created_at, reservation_items.id)
+        .order_by(reservation_items.id)
     ).all()
-    lines = [PricedLine(ticket_type.id, ticket_type.price_minor, item.quantity) for item, ticket_type in rows]
+    lines = [PricedLine(str(item.id), ticket_type.id, ticket_type.price_minor, item.quantity) for item, ticket_type in rows]
     return lines, list(rows)
 
 
@@ -225,9 +204,20 @@ def generate_order_number() -> str:
     return "BF-O-" + "".join(secrets.choice(alphabet) for _ in range(8))
 
 
+def _promo_error(rejection: PromoRejection) -> HTTPException:
+    return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, {"code": rejection.value, "message": PROMO_MESSAGES[rejection]})
+
+
 def create_order(session: Session, reservation_id: uuid.UUID, user: users, promo_code: str | None) -> tuple[orders, list[tickets]]:
     reservation = get_own_reservation(session, reservation_id, user)
+    existing = session.exec(select(orders).where(orders.reservation_id == reservation.id)).first()
+    if existing is not None:
+        return existing, []
+
     event = get_event_or_404(session, reservation.event_id, for_update=True)
+    promo = promo_service.find_promo(session, promo_code, for_update=True) if promo_code else None
+    if promo_code and promo is None:
+        raise _promo_error(PromoRejection.NOT_FOUND)
     reservation = get_own_reservation(session, reservation_id, user, for_update=True)
 
     existing = session.exec(select(orders).where(orders.reservation_id == reservation.id)).first()
@@ -238,23 +228,19 @@ def create_order(session: Session, reservation_id: uuid.UUID, user: users, promo
     now = db_now(session)
     if not (reservation.status == ReservationStatus.ACTIVE and as_aware(reservation.expires_at) > now):
         raise HTTPException(status.HTTP_409_CONFLICT, "Reservation has expired or is no longer active")
+    if reservation.purchase_terms_version != event.purchase_terms_version:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Event purchase terms changed; please start a new checkout")
 
     lines, rows = priced_lines(session, reservation)
     for _, ticket_type in rows:
         if sale_state(event, ticket_type, now, None) != "ON_SALE":
             raise HTTPException(status.HTTP_409_CONFLICT, f"Ticket type '{ticket_type.name}' is no longer on sale")
 
-    promo = None
-    if promo_code:
-        promo = promo_service.find_promo(session, promo_code, for_update=True)
-        if promo is None:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, {"code": "promo_not_found", "message": PROMO_MESSAGES[promo_service.PromoRejection.NOT_FOUND]})
-    quote = promo_service.quote(promo, event.id, lines, now)
+    quote = promo_service.quote(session, promo, event.id, lines, now)
     if quote.rejection:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, {"code": quote.rejection.value, "message": PROMO_MESSAGES[quote.rejection]})
+        raise _promo_error(quote.rejection)
     if promo is not None and not promo_service.has_capacity(session, promo, now):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, {"code": "promo_exhausted", "message": PROMO_MESSAGES[promo_service.PromoRejection.EXHAUSTED]})
-
+        raise _promo_error(PromoRejection.EXHAUSTED)
     if quote.total_minor > 0 and not paid_sales_active(session, event.id):
         raise HTTPException(status.HTTP_409_CONFLICT, "Paid sales are not active for this event")
 
@@ -267,24 +253,32 @@ def create_order(session: Session, reservation_id: uuid.UUID, user: users, promo
         discount_minor=quote.discount_minor,
         total_minor=quote.total_minor,
         promo_code_id=promo.id if promo else None,
+        purchase_terms_version=reservation.purchase_terms_version,
+        refund_policy_snapshot=dict(event.refund_policy or {}),
     )
     session.add(order)
     session.flush()
     for item, ticket_type in rows:
+        section, row, seat = ticket_service.seat_parts(session, item.event_seat_id)
         session.add(order_items(
             order_id=order.id,
+            event_id=event.id,
             ticket_type_id=ticket_type.id,
             event_seat_id=item.event_seat_id,
             ticket_type_name=ticket_type.name,
-            seat_label=ticket_service.seat_label(session, item.event_seat_id),
             unit_price_minor=ticket_type.price_minor,
             quantity=item.quantity,
+            line_subtotal_minor=ticket_type.price_minor * item.quantity,
+            line_discount_minor=quote.line_discounts.get(str(item.id), 0),
+            section_snapshot=section,
+            row_snapshot=row,
+            seat_snapshot=seat,
         ))
     session.flush()
 
     issued: list[tickets] = []
     if quote.total_minor == 0:
-        issued = confirm_order(session, order, reservation, now)
+        issued = confirm_order(session, order, reservation, now, actor_user_id=user.id)
     elif promo is not None:
         promo_service.place_hold(session, promo, order.id, reservation.expires_at)
 
@@ -293,7 +287,7 @@ def create_order(session: Session, reservation_id: uuid.UUID, user: users, promo
     return order, issued
 
 
-def confirm_order(session: Session, order: orders, reservation: reservations, now: datetime) -> list[tickets]:
+def confirm_order(session: Session, order: orders, reservation: reservations, now: datetime, actor_user_id: uuid.UUID | None = None) -> list[tickets]:
     if order.status == OrderStatus.CONFIRMED:
         return []
     order.status = OrderStatus.CONFIRMED
@@ -304,21 +298,31 @@ def confirm_order(session: Session, order: orders, reservation: reservations, no
     session.add(reservation)
     if order.promo_code_id is not None:
         promo_service.redeem(session, order.promo_code_id, order.id, order.discount_minor, now)
-    return ticket_service.issue_for_order(session, order)
+    issued = ticket_service.issue_for_order(session, order)
+    audit.record(session, action="ORDER_CONFIRMED", entity_type="ORDER", entity_id=order.id, event_id=order.event_id, actor_user_id=actor_user_id)
+    return issued
+
+
+def lock_order_chain(session: Session, order_id: uuid.UUID) -> tuple[events, orders, reservations]:
+    snapshot = session.get(orders, order_id)
+    event = get_event_or_404(session, snapshot.event_id, for_update=True)
+    if snapshot.promo_code_id is not None:
+        promo_service.lock_promo(session, snapshot.promo_code_id)
+    order = session.exec(select(orders).where(orders.id == order_id).with_for_update().execution_options(populate_existing=True)).one()
+    reservation = session.exec(select(reservations).where(reservations.id == order.reservation_id).with_for_update().execution_options(populate_existing=True)).one()
+    return event, order, reservation
 
 
 def expire_if_stale(session: Session, order: orders) -> bool:
     if order.status != OrderStatus.PENDING:
         return False
-    get_event_or_404(session, order.event_id, for_update=True)
-    order = session.exec(select(orders).where(orders.id == order.id).with_for_update().execution_options(populate_existing=True)).one()
-    reservation = session.exec(select(reservations).where(reservations.id == order.reservation_id).with_for_update().execution_options(populate_existing=True)).one()
+    _, order, reservation = lock_order_chain(session, order.id)
     if order.status != OrderStatus.PENDING:
         return False
     now = db_now(session)
     if reservation.status == ReservationStatus.ACTIVE and as_aware(reservation.expires_at) <= now:
-        from backend.modules.payments.service import cancel_unfinished_payment
-        cancel_unfinished_payment(session, order, reason="RESERVATION_EXPIRED", now=now)
+        from backend.modules.payments.service import request_payment_cancellation
+        request_payment_cancellation(session, order, reason="RESERVATION_EXPIRED", now=now)
         order.status = OrderStatus.EXPIRED
         order.expired_at = now
         session.add(order)
@@ -331,9 +335,7 @@ def cancel_order(session: Session, order_id: uuid.UUID, user: users) -> orders:
     order = session.get(orders, order_id)
     if order is None or order.buyer_user_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Order not found")
-    get_event_or_404(session, order.event_id, for_update=True)
-    order = session.exec(select(orders).where(orders.id == order_id).with_for_update().execution_options(populate_existing=True)).one()
-    reservation = session.exec(select(reservations).where(reservations.id == order.reservation_id).with_for_update().execution_options(populate_existing=True)).one()
+    _, order, reservation = lock_order_chain(session, order_id)
     if order.status == OrderStatus.CONFIRMED:
         raise HTTPException(status.HTTP_409_CONFLICT, "Confirmed orders can only be refunded, not cancelled")
     if order.status != OrderStatus.PENDING:
@@ -341,8 +343,8 @@ def cancel_order(session: Session, order_id: uuid.UUID, user: users) -> orders:
     if reservation.status == ReservationStatus.PROTECTED:
         raise HTTPException(status.HTTP_409_CONFLICT, "Payment is being processed and cannot be cancelled now")
     now = db_now(session)
-    from backend.modules.payments.service import cancel_unfinished_payment
-    cancel_unfinished_payment(session, order, reason="USER_REQUESTED", now=now)
+    from backend.modules.payments.service import request_payment_cancellation
+    request_payment_cancellation(session, order, reason="USER_REQUESTED", now=now)
     order.status = OrderStatus.CANCELLED
     order.cancelled_at = now
     if reservation.status == ReservationStatus.ACTIVE:

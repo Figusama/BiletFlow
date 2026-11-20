@@ -1,6 +1,6 @@
 import secrets
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from sqlalchemy import and_, exists, func, or_
@@ -9,8 +9,8 @@ from sqlmodel import Session, select
 from backend.core.clock import as_aware
 from backend.modules.orders.models import orders, reservations
 from backend.modules.orders.schemas import ReservationStatus
-from backend.modules.promotions.models import promo_codes, promo_holds, promo_redemptions
-from backend.modules.promotions.schemas import DiscountType, PromoRejection
+from backend.modules.promotions.models import promo_codes, promo_code_ticket_types, promo_holds, promo_redemptions
+from backend.modules.promotions.schemas import ApplicationScope, DiscountType, PromoRejection
 
 
 PROMO_MESSAGES = {
@@ -26,9 +26,14 @@ PROMO_MESSAGES = {
 
 @dataclass
 class PricedLine:
+    key: str
     ticket_type_id: uuid.UUID
     unit_price_minor: int
     quantity: int
+
+    @property
+    def subtotal(self) -> int:
+        return self.unit_price_minor * self.quantity
 
 
 @dataclass
@@ -36,6 +41,7 @@ class PromoQuote:
     subtotal_minor: int
     discount_minor: int
     rejection: PromoRejection | None = None
+    line_discounts: dict[str, int] = field(default_factory=dict)
 
     @property
     def total_minor(self) -> int:
@@ -54,34 +60,56 @@ def find_promo(session: Session, code: str, for_update: bool = False) -> promo_c
     return session.exec(query).first()
 
 
-def quote(promo: promo_codes | None, event_id: uuid.UUID, lines: list[PricedLine], now: datetime) -> PromoQuote:
-    subtotal = sum(line.unit_price_minor * line.quantity for line in lines)
+def selected_type_ids(session: Session, promo: promo_codes) -> set[uuid.UUID]:
+    return set(session.exec(select(promo_code_ticket_types.ticket_type_id).where(promo_code_ticket_types.promo_code_id == promo.id)).all())
+
+
+def allocate(total_discount: int, lines: list[PricedLine]) -> dict[str, int]:
+    base = sum(line.subtotal for line in lines)
+    if base <= 0 or total_discount <= 0:
+        return {line.key: 0 for line in lines}
+    shares = {}
+    remainders = []
+    for line in lines:
+        product = total_discount * line.subtotal
+        shares[line.key] = product // base
+        remainders.append((-(product % base), line.key))
+    left = total_discount - sum(shares.values())
+    for _, key in sorted(remainders)[:left]:
+        shares[key] += 1
+    return shares
+
+
+def quote(session: Session, promo: promo_codes | None, event_id: uuid.UUID, lines: list[PricedLine], now: datetime) -> PromoQuote:
+    subtotal = sum(line.subtotal for line in lines)
     if promo is None:
         return PromoQuote(subtotal, 0)
     rejection = None
-    if not promo.is_active:
+    if promo.event_id != event_id:
+        rejection = PromoRejection.WRONG_EVENT
+    elif not promo.is_active:
         rejection = PromoRejection.INACTIVE
     elif now < as_aware(promo.valid_from):
         rejection = PromoRejection.NOT_STARTED
     elif now >= as_aware(promo.valid_until):
         rejection = PromoRejection.EXPIRED
-    elif promo.event_id is not None and promo.event_id != event_id:
-        rejection = PromoRejection.WRONG_EVENT
     if rejection:
         return PromoQuote(subtotal, 0, rejection)
 
-    eligible = sum(
-        line.unit_price_minor * line.quantity
-        for line in lines
-        if promo.ticket_type_id is None or line.ticket_type_id == promo.ticket_type_id
-    )
-    if eligible <= 0:
+    if promo.application_scope == ApplicationScope.SELECTED_TICKET_TYPES:
+        allowed = selected_type_ids(session, promo)
+        eligible = [line for line in lines if line.ticket_type_id in allowed]
+    else:
+        eligible = list(lines)
+    base = sum(line.subtotal for line in eligible)
+    if base <= 0:
         return PromoQuote(subtotal, 0, PromoRejection.NOT_APPLICABLE)
     if promo.discount_type == DiscountType.PERCENTAGE:
-        discount = eligible * promo.discount_value // 100
+        discount = base * promo.percentage_bps // 10000
     else:
-        discount = min(promo.discount_value, eligible)
-    return PromoQuote(subtotal, discount)
+        discount = min(promo.fixed_amount_minor, base)
+    shares = allocate(discount, [line for line in eligible if line.subtotal > 0])
+    return PromoQuote(subtotal, discount, None, {line.key: shares.get(line.key, 0) for line in lines})
 
 
 def effective_holds_count(session: Session, promo_id: uuid.UUID, now: datetime, exclude_order_id: uuid.UUID | None = None) -> int:
@@ -132,3 +160,7 @@ def redeem(session: Session, promo_id: uuid.UUID, order_id: uuid.UUID, discount_
     promo.redemption_count += 1
     session.add(promo)
     session.add(promo_redemptions(promo_code_id=promo_id, order_id=order_id, discount_minor=discount_minor, redeemed_at=now))
+
+
+def lock_promo(session: Session, promo_id: uuid.UUID) -> promo_codes:
+    return session.exec(select(promo_codes).where(promo_codes.id == promo_id).with_for_update().execution_options(populate_existing=True)).one()

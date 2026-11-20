@@ -64,21 +64,3 @@ class PaymentPublic(BaseModel):
 
 class SimulatorDecision(BaseModel):
     outcome: SimulatedOutcome
-
-
-class ActivationRequest(BaseModel):
-    legal_name: str = Field(min_length=2, max_length=200)
-    payout_details_confirmed: bool
-
-
-class ActivationPublic(BaseModel):
-    event_id: uuid.UUID
-    status: ActivationStatus
-    activation_fee_minor: int
-    fee_paid_at: datetime | None
-    is_simulated: bool
-    checklist: dict[str, bool]
-
-
-class SuspendRequest(BaseModel):
-    reason: str = Field(min_length=3, max_length=500)

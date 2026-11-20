@@ -19,10 +19,6 @@ class TicketStatus(str, Enum):
     CANCELLED = "CANCELLED"
     REFUNDED = "REFUNDED"
 
-class CheckInAction(str, Enum):
-    SCAN = "SCAN"
-    UNDO = "UNDO"
-
 class ScanResult(str, Enum):
     ADMITTED = "admitted"
     ALREADY_USED = "already_used"
@@ -31,6 +27,8 @@ class ScanResult(str, Enum):
     INVALID = "invalid"
     WRONG_EVENT = "wrong_event"
     EVENT_CANCELLED = "event_cancelled"
+    EVENT_NOT_ACTIVE = "event_not_active"
+    EVENT_SUSPENDED = "event_suspended"
     CAMPAIGN_QR_NOT_ADMISSION = "campaign_qr_not_admission"
     UNDONE = "undone"
 
@@ -78,7 +76,7 @@ class TicketTypePublic(BaseModel):
 
 class TicketPublic(BaseModel):
     id: uuid.UUID
-    ticket_code: str
+    public_id: str
     event_id: uuid.UUID
     event_title: str
     event_starts_at: datetime
@@ -97,19 +95,19 @@ class TicketPublic(BaseModel):
     pdf_url: str
 
 
-class AttendeeUpdate(BaseModel):
-    attendee_name: str = Field(min_length=1, max_length=200)
-
-
 class ScanRequest(BaseModel):
     event_id: uuid.UUID
     payload: str = Field(min_length=1, max_length=2048)
 
 
+class UndoRequest(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+
+
 class ScanResponse(BaseModel):
     result: ScanResult
     ticket_id: uuid.UUID | None = None
-    ticket_code: str | None = None
+    public_id: str | None = None
     attendee_name: str | None = None
     ticket_type_name: str | None = None
     seat_label: str | None = None
@@ -118,7 +116,7 @@ class ScanResponse(BaseModel):
 
 class AttendeeRow(BaseModel):
     ticket_id: uuid.UUID
-    ticket_code: str
+    public_id: str
     attendee_name: str
     buyer_email: str
     ticket_type_name: str

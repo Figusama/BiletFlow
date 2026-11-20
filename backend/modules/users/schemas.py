@@ -8,7 +8,6 @@ class UserCreate(BaseModel):
     password : str = Field(min_length=8)
     full_name : str
     phone : str
-    locale : str = "en"
 
 
 class UserPublic(BaseModel):

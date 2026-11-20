@@ -12,10 +12,11 @@ from backend.modules.events.router import ever_issued
 from backend.modules.events.schemas import EventLifecycleStatus, SeatingMode
 from backend.modules.orders.models import reservation_items, reservations, order_items, orders
 from backend.modules.orders.service import availability, effective_hold_clause, sale_state, taken_seat_ids
+from backend.modules.promotions.models import promo_code_ticket_types
 from backend.modules.tickets import service as ticket_service
 from backend.modules.tickets.models import ticket_types, tickets
 from backend.modules.tickets.pdf import render_ticket_pdf
-from backend.modules.tickets.schemas import AttendeeUpdate, TicketPublic, TicketStatus, TicketTypeCreate, TicketTypePublic, TicketTypeUpdate, TicketKind
+from backend.modules.tickets.schemas import TicketPublic, TicketTypeCreate, TicketTypePublic, TicketTypeUpdate, TicketKind
 from backend.modules.users.user_model import users
 from backend.modules.venues.models import venues, venue_rows, venue_seats, venue_sections
 from database.database import get_session
@@ -111,6 +112,7 @@ def delete_ticket_type(event_id: uuid.UUID, ticket_type_id: uuid.UUID, session: 
         session.exec(select(order_items.id).where(order_items.ticket_type_id == ticket_type.id).limit(1)).first()
         or session.exec(select(reservation_items.id).where(reservation_items.ticket_type_id == ticket_type.id).limit(1)).first()
         or session.exec(select(event_seats.id).where(event_seats.ticket_type_id == ticket_type.id).limit(1)).first()
+        or session.exec(select(promo_code_ticket_types.promo_code_id).where(promo_code_ticket_types.ticket_type_id == ticket_type.id).limit(1)).first()
     )
     if referenced:
         raise HTTPException(status.HTTP_409_CONFLICT, "Ticket type is in use; disable it instead")
@@ -219,14 +221,17 @@ def assign_seats(event_id: uuid.UUID, data: SeatAssignment, session: Session = D
 
 def get_own_ticket(session: Session, ticket_id: uuid.UUID, user: users) -> tickets:
     ticket = session.get(tickets, ticket_id)
-    if ticket is None or ticket.holder_user_id != user.id:
+    if ticket is None or ticket_service.ticket_owner_id(session, ticket) != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Ticket not found")
     return ticket
 
 
 @router.get("/tickets/mine", response_model=list[TicketPublic])
 def my_tickets(session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
-    rows = session.exec(select(tickets).join(events, events.id == tickets.event_id).where(tickets.holder_user_id == current_user.id).order_by(events.starts_at, tickets.issued_at)).all()
+    rows = session.exec(
+        select(tickets).join(orders, orders.id == tickets.order_id).join(events, events.id == tickets.event_id)
+        .where(orders.buyer_user_id == current_user.id).order_by(events.starts_at, tickets.issued_at)
+    ).all()
     return [ticket_service.to_public(session, ticket) for ticket in rows]
 
 
@@ -235,22 +240,10 @@ def read_ticket(ticket_id: uuid.UUID, session: Session = Depends(get_session), c
     return ticket_service.to_public(session, get_own_ticket(session, ticket_id, current_user))
 
 
-@router.patch("/tickets/{ticket_id}/attendee", response_model=TicketPublic)
-def update_attendee(ticket_id: uuid.UUID, data: AttendeeUpdate, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
-    ticket = get_own_ticket(session, ticket_id, current_user)
-    if ticket.status != TicketStatus.VALID:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Attendee can only be changed on a valid, unused ticket")
-    ticket.attendee_name = data.attendee_name.strip()
-    session.add(ticket)
-    session.commit()
-    session.refresh(ticket)
-    return ticket_service.to_public(session, ticket)
-
-
 @router.get("/tickets/{ticket_id}/qr.png")
 def ticket_qr(ticket_id: uuid.UUID, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
     ticket = get_own_ticket(session, ticket_id, current_user)
-    return Response(content=ticket_service.qr_png(ticket_service.qr_payload(ticket.ticket_code)), media_type="image/png", headers={"Cache-Control": "no-store"})
+    return Response(content=ticket_service.qr_png(ticket_service.qr_payload(ticket)), media_type="image/png", headers={"Cache-Control": "no-store"})
 
 
 @router.get("/tickets/{ticket_id}/pdf")
@@ -269,10 +262,10 @@ def ticket_pdf(ticket_id: uuid.UUID, session: Session = Depends(get_session), cu
         venue_address=", ".join(p for p in [venue.address, venue.city] if p) if venue else "",
         ticket_type_name=ticket_type.name,
         attendee_name=ticket.attendee_name,
-        seat_label=ticket.seat_label,
-        ticket_code=ticket.ticket_code,
+        seat_label=ticket_service.seat_label(ticket.section_snapshot, ticket.row_snapshot, ticket.seat_snapshot),
+        ticket_code=ticket.public_id,
         order_number=order.order_number,
         status=ticket.status.value,
-        qr_payload=ticket_service.qr_payload(ticket.ticket_code),
+        qr_payload=ticket_service.qr_payload(ticket),
     )
-    return Response(content=body, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{ticket.ticket_code}.pdf"', "Cache-Control": "no-store"})
+    return Response(content=body, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{ticket.public_id}.pdf"', "Cache-Control": "no-store"})

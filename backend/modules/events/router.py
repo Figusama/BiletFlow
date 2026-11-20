@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 from backend.core.clock import as_aware, db_now
 from backend.core.config import PUBLIC_API_URL
 from backend.modules.auth.dependencies import get_current_user
-from backend.modules.events.access import get_event_or_404, is_publicly_viewable, require_organizer, event_role_of
+from backend.modules.events.access import get_event_or_404, is_publicly_viewable, require_organizer, event_roles
 from backend.modules.events.calendar import build_ics, google_calendar_url
 from backend.modules.events.models import events
 from backend.modules.events.schemas import EventLifecycleStatus, EventPublic, EventUpdate, SeatingMode, Visibility
@@ -77,7 +77,7 @@ def read_event(event_ref: str, session: Session = Depends(get_session)):
 @router.get("/{event_id}/manage", response_model=EventPublic)
 def read_event_for_staff(event_id: uuid.UUID, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
     event = get_event_or_404(session, event_id)
-    if current_user.personal_role != Role.PLATFORM_ADMIN and event_role_of(session, event_id, current_user) is None:
+    if current_user.personal_role != Role.PLATFORM_ADMIN and not event_roles(session, event_id, current_user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "You do not manage this event")
     return to_public(session, event)
 

@@ -56,6 +56,7 @@ class EventPublic(SQLModel):
     seating_mode: SeatingMode
     ga_capacity: int | None
     status: EventLifecycleStatus
+    is_suspended: bool
     public_contact_name: str | None
     public_contact_email: str | None
     public_contact_phone: str | None

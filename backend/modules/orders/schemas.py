@@ -65,6 +65,8 @@ class OrderItemPublic(BaseModel):
     seat_label: str | None
     unit_price_minor: int
     quantity: int
+    line_subtotal_minor: int
+    line_discount_minor: int
 
 
 class OrderPublic(BaseModel):

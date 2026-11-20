@@ -28,7 +28,6 @@ async def register(user_in: UserCreate, background_tasks: BackgroundTasks, sessi
     pending.password_hash = get_password_hash(user_in.password)
     pending.full_name = user_in.full_name
     pending.phone = user_in.phone
-    pending.locale = user_in.locale
     pending.verification_hash = hash_token(token)
     pending.expires_at = datetime.now(timezone.utc) + timedelta(hours=EMAIL_VERIFICATION_EXPIRE_HOURS)
 
@@ -59,7 +58,7 @@ async def verify_email(token: str, session : Session = Depends(get_session)):
     user = users(email=pending.email, password_hash=pending.password_hash)
     session.add(user)
     session.flush()
-    session.add(profiles(user_id=user.id, full_name=pending.full_name, phone=pending.phone, locale=pending.locale))
+    session.add(profiles(user_id=user.id, full_name=pending.full_name, phone=pending.phone))
     session.delete(pending)
     session.commit()
 

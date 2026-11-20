@@ -12,6 +12,7 @@ from backend.modules.orders.schemas import OrderCreate, OrderPublic, OrderItemPu
 from backend.modules.promotions.models import promo_codes
 from backend.modules.tickets.models import tickets
 from backend.modules.tickets.notify import queue_ticket_email
+from backend.modules.tickets.service import seat_label
 from backend.modules.users.user_model import users
 from database.database import get_session
 
@@ -52,7 +53,7 @@ def order_to_public(session: Session, order: orders) -> OrderPublic:
         reservation_expires_at=reservation.expires_at,
         created_at=order.created_at,
         confirmed_at=order.confirmed_at,
-        items=[OrderItemPublic(id=i.id, ticket_type_id=i.ticket_type_id, ticket_type_name=i.ticket_type_name, event_seat_id=i.event_seat_id, seat_label=i.seat_label, unit_price_minor=i.unit_price_minor, quantity=i.quantity) for i in items],
+        items=[OrderItemPublic(id=i.id, ticket_type_id=i.ticket_type_id, ticket_type_name=i.ticket_type_name, event_seat_id=i.event_seat_id, seat_label=seat_label(i.section_snapshot, i.row_snapshot, i.seat_snapshot), unit_price_minor=i.unit_price_minor, quantity=i.quantity, line_subtotal_minor=i.line_subtotal_minor, line_discount_minor=i.line_discount_minor) for i in items],
         ticket_ids=list(ticket_ids),
     )
 
