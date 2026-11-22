@@ -17,3 +17,6 @@ SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "true").lower() == "true"
 EMAIL_FROM = os.getenv("EMAIL_FROM", "BiletFlow <no-reply@biletflow.local>")
+
+EMAIL_API = os.getenv("EMAIL_API", "")
+MAIL_FROM = os.getenv("MAIL_FROM", "")
