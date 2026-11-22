@@ -1,49 +1,64 @@
+import pytest
+from unittest.mock import patch
+from fastapi import status
 from fastapi.testclient import TestClient
+from sqlalchemy import text
+
 from backend.main import app
 from database.database import engine
-from fastapi import status
-from sqlalchemy import text
+
 client = TestClient(app)
-test_json = {
-    "email": "sqdflarry@gmail.com",
+
+USER = {
+    "email": "ci-user@example.com",
     "password": "stringst12332",
-    "full_name": "Ebalo",
-    "phone": "+87711881608"
-    }
-
-test_login_json = {
-    "username" : "brawlerflqmy@gmail.com",
-    "password" : "stringst12332"
+    "full_name": "CI User",
+    "phone": "+77011234567",
 }
-new_password = "stringster112"
+NEW_PASSWORD = "stringster112"
 
 
-def delete_current_user(jason):
-    with engine.connect() as conn:
-        conn.execute(text("delete from pending_registrations where email = :e", {"e": jason['email']}))
-        conn.execute(text("delete from users where email = :e", {"e": jason['email']}))
-        conn.execute(text("delete from profiles where email = :e", {"e": jason['email']}))
+def delete_user(email: str):
+    with engine.begin() as conn:
+        for table in ("pending_registrations", "users", "profiles"):
+            conn.execute(text(f"delete from {table} where email = :e"), {"e": email})
+
+
+@pytest.fixture(autouse=True)
+def clean_user():
+    delete_user(USER["email"])
+    yield
+    delete_user(USER["email"])
+
 
 def test_registration():
-    delete_current_user(test_json)
-    response = client.post(url="auth/register", json=test_json)
+    with patch("backend.modules.auth.router.send_verification_email") as mock_send:
+        response = client.post("/auth/register", json=USER)
 
     assert response.status_code == status.HTTP_202_ACCEPTED
+    mock_send.assert_called_once()
+
+
+def login(email, password):
+    return client.post("/auth/token", data={"username": email, "password": password})
+
 
 def test_login():
-    delete_current_user(test_login_json)
-    response = client.post(url="auth/token", json=test_login_json)
-
+    response = login(USER["email"], USER["password"])
     assert response.status_code == status.HTTP_200_OK
+    assert "access_token" in response.json()
 
 
 def test_change_password():
-    response = client.post(url="/users/me/password", json={"current_password": test_login_json["password"], "new_password": new_password})
-
+    token = login(USER["email"], USER["password"]).json()["access_token"]
+    response = client.post(
+        "/users/me/password",
+        json={"current_password": USER["password"], "new_password": NEW_PASSWORD},
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
+
 def test_list_events():
-    response = client.get(url="/events")
-
+    response = client.get("/events")
     assert response.status_code == status.HTTP_200_OK
-
