@@ -10,3 +10,4 @@ email-validator
 qrcode[pil]
 reportlab
 tzdata
+resend
