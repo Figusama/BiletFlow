@@ -3,7 +3,7 @@ import secrets
 
 from fastapi import status, Depends, HTTPException, APIRouter, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
-from backend.modules.auth.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, EMAIL_VERIFICATION_EXPIRE_HOURS, APP_URL
+from backend.modules.auth.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, EMAIL_VERIFICATION_EXPIRE_HOURS, APP_URL, FRONTEND_URL
 from sqlmodel import Session, select
 
 from database.database import get_session
@@ -34,7 +34,7 @@ async def register(user_in: UserCreate, background_tasks: BackgroundTasks, sessi
     session.add(pending)
     session.commit()
 
-    link = f"{APP_URL}/auth/verify-email?token={token}"
+    link = f"{FRONTEND_URL}/auth/verify-email?token={token}"
     background_tasks.add_task(
         send_email,
         user_in.email,
