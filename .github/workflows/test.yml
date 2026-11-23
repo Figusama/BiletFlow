@@ -31,4 +31,4 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt pytest
       - run: python create_tables.py
-      - run: pytest -v backend/tests/testing.py
+      - run: pytest -v backend/tests/test_auth.py

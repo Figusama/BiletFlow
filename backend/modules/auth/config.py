@@ -12,12 +12,5 @@ EMAIL_VERIFICATION_EXPIRE_HOURS = int(os.getenv("EMAIL_VERIFICATION_EXPIRE_HOURS
 APP_URL = os.getenv("APP_URL", "http://localhost:8000")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
-SMTP_HOST = os.getenv("SMTP_HOST", "")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER", "")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
-SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "true").lower() == "true"
-EMAIL_FROM = os.getenv("EMAIL_FROM", "BiletFlow <no-reply@biletflow.local>")
-
 EMAIL_API = os.getenv("EMAIL_API", "")
 MAIL_FROM = os.getenv("MAIL_FROM", "")
