@@ -6,3 +6,4 @@ from backend.modules.orders.models import reservations, reservation_items, order
 from backend.modules.payments.models import payments, payment_webhook_events, paid_sales_activations
 from backend.modules.promotions.models import promotional_campaigns, promo_codes, promo_code_ticket_types, promo_holds, promo_redemptions
 from backend.modules.audit.models import audit_logs
+from backend.modules.refunds.models import refunds

@@ -11,6 +11,9 @@ from backend.modules.orders.router import router as orders
 from backend.modules.payments.router import router as payments
 from backend.modules.promotions.router import router as promotions
 from backend.modules.checkin.router import router as checkin
+from backend.modules.analytics.router import router as analytics
+from backend.modules.audit.router import router as history
+from backend.modules.admin.router import router as admin
 
 
 app = FastAPI(title="BiletFlow API")
@@ -23,3 +26,6 @@ app.include_router(orders)
 app.include_router(payments)
 app.include_router(promotions)
 app.include_router(checkin)
+app.include_router(analytics)
+app.include_router(history)
+app.include_router(admin)
