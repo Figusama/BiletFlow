@@ -1,4 +1,5 @@
 import type { AuthUser } from './authSlice'
+import { api, ApiError, setAccessToken } from '../../shared/api/client'
 
 export type SignInInput = {
     email: string
@@ -10,27 +11,46 @@ type SignInResult =
     | { status: 'invalid_credentials' }
     | { status: 'email_verification_required' }
 
-export async function signIn(input: SignInInput): Promise<SignInResult> {
-    
-    const email = input.email.trim().toLowerCase()
+export const signIn = async (input: SignInInput): Promise<SignInResult> => {
+    let token: string
 
-    if (input.password === 'DemoPass123') {
-        if (email === 'demo@example.kz') {
-            return {
-                status: 'success',
-                user: {
-                    fullName: 'Demo User',
-                    email,
-                },
+    try {
+        const result = await api<{ access_token: string }>('/auth/token', {
+            method: 'POST',
+            form: new URLSearchParams({
+                username: input.email.trim(),
+                password: input.password,
+            }),
+        })
+
+        token = result.access_token
+    } catch (error) {
+        if (error instanceof ApiError) {
+            if (error.status === 401) {
+                return { status: 'invalid_credentials' }
+            }
+
+            if (error.status === 403 && error.message === 'Email is not verified') {
+                return { status: 'email_verification_required' }
             }
         }
 
-        if (email === 'pending@example.kz') {
-            return { status: 'email_verification_required' }
-        }
+        throw error
     }
 
-    return { status: 'invalid_credentials' }
+    const profile = await api<{ full_name: string; email: string }>('/auth/users/me/', {
+        headers: { Authorization: `Bearer ${token}` },
+    })
+
+    setAccessToken(token)
+
+    return {
+        status: 'success',
+        user: {
+            fullName: profile.full_name,
+            email: profile.email,
+        },
+    }
 }
 
 
@@ -43,7 +63,18 @@ export type RegisterAccountInput = {
     password: string
 }
 
-export const registerAccount = async (input: RegisterAccountInput): Promise<{ email: string }> => {
+export const registerAccount = async (
+    input: RegisterAccountInput,
+): Promise<{ email: string }> => {
+    await api<{ detail: string }>('/auth/register', {
+        method: 'POST',
+        json: {
+            full_name: input.fullName,
+            email: input.email,
+            phone: input.phone,
+            password: input.password,
+        },
+    })
 
     return { email: input.email }
 }
@@ -51,7 +82,10 @@ export const registerAccount = async (input: RegisterAccountInput): Promise<{ em
 
 
 
-export const verifyEmail = (token: string) => token === 'demo'
+export const verifyEmail = async (token: string) => {
+    const query = new URLSearchParams({ token })
+    await api(`/auth/verify-email?${query}`)
+}
 
 
 

@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 
-type ButtonVariant = 'primary' | 'secondary'
+type ButtonVariant = 'primary' | 'secondary' | 'night'
 type ButtonSize = 'sm' | 'md'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -36,12 +36,16 @@ const Button = ({
 	const variantStyles = {
 		primary: `
 			bg-accent text-accent-foreground
+			hover:bg-accent-hover
+		`,
+		night: `
+			bg-night text-on-night
 			hover:opacity-90
 		`,
 		secondary: `
 			border border-border
 			bg-surface text-foreground
-			hover:bg-surface-raised
+			hover:bg-surface-sunk
 		`,
 	}
 

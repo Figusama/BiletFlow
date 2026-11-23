@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import App from './app/App'
 import './styles/index.css'
 import ThemeProvider from './app/providers/ThemeProvider'
+import LanguageProvider from './shared/i18n/LanguageProvider'
 import QueryProvider from './app/providers/QueryProvider'
 import { Provider } from 'react-redux'
 import { store } from './app/store'
@@ -19,11 +20,13 @@ void restoreSession().then((user) => {
 createRoot(document.getElementById('root')!).render(
   	<StrictMode>
 		<ThemeProvider>
-			<QueryProvider>
-				<Provider store={store}>
-					<App />
-				</Provider>
-			</QueryProvider>
+			<LanguageProvider>
+				<QueryProvider>
+					<Provider store={store}>
+						<App />
+					</Provider>
+				</QueryProvider>
+			</LanguageProvider>
 		</ThemeProvider>	
 	</StrictMode>
 )

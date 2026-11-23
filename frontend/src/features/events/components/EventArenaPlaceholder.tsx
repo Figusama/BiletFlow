@@ -23,27 +23,27 @@ const EventArenaPlaceholder = () => {
 				{/* Very subtle stage lights */}
 				<path
 					d="M430 55L510 310"
-					stroke="#D9786A"
+					className="stroke-accent"
 					strokeWidth="2"
 					opacity="0.08"
 				/>
 				<path
 					d="M555 45L535 310"
-					stroke="#D9786A"
+					className="stroke-accent"
 					strokeWidth="2"
 					opacity="0.1"
 				/>
 				<path
 					d="M675 75L560 310"
-					stroke="#D9786A"
+					className="stroke-accent"
 					strokeWidth="2"
 					opacity="0.07"
 				/>
 
 				{/* Hanging lights */}
-				<circle cx="430" cy="55" r="4" fill="#D9786A" opacity="0.7" />
-				<circle cx="555" cy="45" r="4" fill="#D9786A" opacity="0.7" />
-				<circle cx="675" cy="75" r="4" fill="#D9786A" opacity="0.7" />
+				<circle cx="430" cy="55" r="4" className="fill-accent" opacity="0.7" />
+				<circle cx="555" cy="45" r="4" className="fill-accent" opacity="0.7" />
+				<circle cx="675" cy="75" r="4" className="fill-accent" opacity="0.7" />
 
 				{/* Rear wall / stage frame */}
 				<path
@@ -67,7 +67,7 @@ const EventArenaPlaceholder = () => {
 				{/* Screen detail */}
 				<path
 					d="M505 234H590"
-					stroke="#D9786A"
+					className="stroke-accent"
 					strokeWidth="3"
 					strokeLinecap="round"
 					opacity="0.75"
@@ -136,7 +136,7 @@ const EventArenaPlaceholder = () => {
 				</g>
 
 				{/* A few accent seats */}
-				<g fill="#D9786A">
+				<g className="fill-accent">
 					<circle cx="483" cy="387" r="4.5" />
 					<circle cx="516" cy="389" r="4.5" />
 					<circle cx="538" cy="426" r="4.5" />

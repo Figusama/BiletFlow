@@ -1,16 +1,16 @@
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useLoaderData } from 'react-router-dom'
 import { verifyEmail } from '../features/auth/auth'
 
 const VerifyEmailPage = () => {
-    const [searchParams] = useSearchParams()
-    const token = searchParams.get('token') ?? ''
-    const verified = verifyEmail(token)
+    const status = useLoaderData()
+    const verified = status === 'verified'
+    const unavailable = status === 'unavailable'
 
     return (
-        <main className="auth-theme grid min-h-[calc(100dvh-4rem)] place-items-center bg-background px-4 py-8 text-foreground">
+        <main className="grid min-h-[calc(100dvh-4rem)] place-items-center bg-background px-4 py-8 text-foreground">
             <section
                 aria-labelledby="verify-email-title"
-                className="flex min-h-[360px] w-full max-w-sm flex-col items-center justify-center rounded-2xl border border-[#e3dce7] bg-white p-6 text-center sm:p-8"
+                className="flex min-h-[360px] w-full max-w-sm flex-col items-center justify-center rounded-2xl border border-border bg-surface p-6 text-center sm:p-8"
             >
                 <div
                     aria-hidden="true"
@@ -27,19 +27,21 @@ const VerifyEmailPage = () => {
                     />
                 </div>
 
-                <h1 id="verify-email-title" className="text-2xl font-bold tracking-tight">
-                    {verified ? 'Email verified' : 'Invalid verification link'}
-                </h1>
+                {unavailable
+                    ? 'Could not verify your email'
+                    : verified ? 'Email verified' : 'Invalid verification link'}
 
                 <p className="mt-2 text-sm leading-6 text-muted">
-                    {verified
-                        ? 'Your email is verified. You can now sign in.'
-                        : 'This link is invalid or has expired. Register again to request a new link.'}
+                    {unavailable
+                        ? 'We could not check your link. Try opening it again.'
+                        : verified
+                            ? 'Your email is verified. You can now sign in.'
+                            : 'This link is invalid or has expired. Register again to request a new link.'}
                 </p>
 
                 <Link
                     to={verified ? '/login' : '/register'}
-                    className="mt-6 inline-flex min-h-11 items-center justify-center rounded-full bg-foreground px-6 text-sm font-semibold text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    className="mt-6 inline-flex min-h-11 items-center justify-center rounded-full bg-night px-6 text-sm font-semibold text-on-night hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
                     {verified ? 'Sign in' : 'Back to registration'}
                 </Link>

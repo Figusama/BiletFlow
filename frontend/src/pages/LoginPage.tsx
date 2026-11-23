@@ -50,9 +50,9 @@ const LoginPage = () => {
     }
 
 	return (
-        <div className="auth-theme min-h-[calc(100dvh-4rem)] bg-background px-4 pt-4 md:pt-6 pb-10 text-foreground sm:px-6">
+        <div className="min-h-[calc(100dvh-4rem)] bg-background px-4 pt-4 md:pt-6 pb-10 text-foreground sm:px-6">
             <div className="mx-auto grid max-w-[1224px] gap-3 md:grid-cols-[0.92fr_1fr] md:gap-6">
-                <aside className="relative isolate flex min-h-[220px] items-end overflow-hidden rounded-[28px] bg-[#251d38] p-6 text-white md:min-h-[700px] md:rounded-[36px] md:p-10">
+                <aside className="relative isolate flex min-h-[220px] items-end overflow-hidden rounded-[28px] bg-night p-6 text-white md:min-h-[700px] md:rounded-[36px] md:p-10">
                     <img
                         src="/concert.png"
                         alt=""
@@ -60,7 +60,7 @@ const LoginPage = () => {
                     />
                     <div
                         aria-hidden="true"
-                        className="absolute inset-0 -z-10 bg-linear-to-t from-[#0c1a1e]/90 via-transparent to-transparent"
+                        className="absolute inset-0 -z-10 bg-linear-to-t from-night-deep/90 via-transparent to-transparent"
                     />
 
                     <div>
@@ -79,7 +79,7 @@ const LoginPage = () => {
 
                 <section
                     aria-labelledby="login-title"
-                    className="flex items-center rounded-[28px] border border-[#e3dce7] bg-white px-5 py-7 md:rounded-[36px] md:px-[clamp(24px,4.5vw,64px)] md:py-12"
+                    className="flex items-center rounded-[28px] border border-border bg-surface px-5 py-7 md:rounded-[36px] md:px-[clamp(24px,4.5vw,64px)] md:py-12"
                 >
                     <div className="w-full md:mx-auto md:max-w-md">
                         <h1
@@ -88,7 +88,7 @@ const LoginPage = () => {
                         >
                             Sign in
                         </h1>
-                        <p className="mt-2 text-[15px] text-[#544b63]">
+                        <p className="mt-2 text-[15px] text-muted">
                             Use the email you verified.
                         </p>
 
@@ -110,7 +110,7 @@ const LoginPage = () => {
                                     placeholder="name@example.com"
                                     hasError={Boolean(errors.email)}
                                     aria-invalid={Boolean(errors.email)}
-                                    className="min-h-12 bg-white text-[#251d38]"
+                                    className="min-h-12 bg-surface text-foreground"
                                     {...register('email', {
                                         required: 'Email is required',
                                         pattern: {
@@ -140,7 +140,7 @@ const LoginPage = () => {
                                     autoComplete="current-password"
                                     hasError={Boolean(errors.password)}
                                     aria-invalid={Boolean(errors.password)}
-                                    className="min-h-12 bg-white text-[#251d38]"
+                                    className="min-h-12 bg-surface text-foreground"
                                     {...register('password', {
                                         required: 'Password is required',
                                     })}
@@ -158,7 +158,8 @@ const LoginPage = () => {
                                 fullWidth
                                 shape="pill"
                                 disabled={isSubmitting}
-                                className="min-h-14 bg-foreground! text-base! text-white"
+                                variant="night"
+                                className="min-h-14 text-base!"
                             >
                                 {isSubmitting ? 'Signing in…' : 'Sign in'}
                             </Button>
@@ -168,7 +169,7 @@ const LoginPage = () => {
                             New to BiletFlow?{' '}
                             <Link
                                 to="/register"
-                                className="font-bold text-[#523889] hover:underline"
+                                className="font-bold text-accent hover:underline"
                             >
                                 Create an account
                             </Link>

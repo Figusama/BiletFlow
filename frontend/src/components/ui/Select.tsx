@@ -44,7 +44,7 @@ const Select = <T extends string>({
 					text-sm text-foreground
 					outline-none
 					transition-colors
-					hover:bg-surface-raised
+					hover:bg-surface-sunk
 					focus-visible:ring-2
 					focus-visible:ring-accent
 				"
@@ -67,7 +67,7 @@ const Select = <T extends string>({
 						z-50 min-w-[var(--radix-select-trigger-width)]
 						overflow-hidden rounded-lg
 						border border-border
-						bg-surface-raised p-1
+						bg-surface-sunk p-1
 						shadow-lg
 					"
 				>

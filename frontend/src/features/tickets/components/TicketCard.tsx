@@ -88,7 +88,7 @@ const TicketCard = ({
 			</div>
 
 			{isExpanded && (
-				<div className="border-t border-dashed border-border bg-surface-raised p-5">
+				<div className="border-t border-dashed border-border bg-surface-sunk p-5">
 					<div className="flex flex-col items-center">
 						{/* TODO(API): Replace this placeholder with the issued ticket QR data from the backend. */}
 						<div

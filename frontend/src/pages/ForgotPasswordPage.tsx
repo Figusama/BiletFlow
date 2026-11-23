@@ -32,10 +32,10 @@ const ForgotPasswordPage = () => {
 	}
 
 	return (
-		<div className="auth-theme grid min-h-[calc(100dvh-4rem)] place-items-center bg-background px-4 py-8 text-foreground">
+		<div className="grid min-h-[calc(100dvh-4rem)] place-items-center bg-background px-4 py-8 text-foreground">
 			<section
 				aria-labelledby="forgot-password-title"
-				className="flex min-h-[360px] w-full max-w-md flex-col justify-center rounded-[28px] border border-[#e3dce7] bg-white p-6 sm:p-8"
+				className="flex min-h-[360px] w-full max-w-md flex-col justify-center rounded-[28px] border border-border bg-surface p-6 sm:p-8"
 			>
 				<h1
 					id="forgot-password-title"
@@ -103,7 +103,8 @@ const ForgotPasswordPage = () => {
 								fullWidth
 								shape="pill"
 								disabled={isSubmitting}
-								className="min-h-12 bg-foreground! text-white"
+								variant="night"
+								className="min-h-12"
 							>
 								{isSubmitting ? 'Sending…' : 'Send reset link'}
 							</Button>

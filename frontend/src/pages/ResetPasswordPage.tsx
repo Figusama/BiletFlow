@@ -46,8 +46,8 @@ const ResetPasswordPage = () => {
 		const updated = Boolean(token) && status === 'updated'
 
 		return (
-			<div className="auth-theme grid min-h-[calc(100dvh-4rem)] place-items-center bg-background px-4 py-8 text-foreground">
-				<section className="flex min-h-[360px] w-full max-w-sm flex-col items-center justify-center rounded-2xl border border-[#e3dce7] bg-white p-6 text-center sm:p-8">
+			<div className="grid min-h-[calc(100dvh-4rem)] place-items-center bg-background px-4 py-8 text-foreground">
+				<section className="flex min-h-[360px] w-full max-w-sm flex-col items-center justify-center rounded-2xl border border-border bg-surface p-6 text-center sm:p-8">
 					<h1 className="text-2xl font-bold tracking-tight">
 						{updated ? 'Password updated' : 'Invalid reset link'}
 					</h1>
@@ -60,7 +60,7 @@ const ResetPasswordPage = () => {
 
 					<Link
 						to={updated ? '/login' : '/forgot-password'}
-						className="mt-6 inline-flex min-h-11 items-center justify-center rounded-full bg-foreground px-6 text-sm font-semibold text-white"
+						className="mt-6 inline-flex min-h-11 items-center justify-center rounded-full bg-night px-6 text-sm font-semibold text-on-night"
 					>
 						{updated ? 'Sign in' : 'Request a new link'}
 					</Link>
@@ -70,10 +70,10 @@ const ResetPasswordPage = () => {
 	}
 
 	return (
-		<div className="auth-theme grid min-h-[calc(100dvh-4rem)] place-items-center bg-background px-4 py-8 text-foreground">
+		<div className="grid min-h-[calc(100dvh-4rem)] place-items-center bg-background px-4 py-8 text-foreground">
 			<section
 				aria-labelledby="reset-password-title"
-				className="w-full max-w-md rounded-[28px] border border-[#e3dce7] bg-white p-6 sm:p-8"
+				className="w-full max-w-md rounded-[28px] border border-border bg-surface p-6 sm:p-8"
 			>
 				<h1
 					id="reset-password-title"
@@ -147,7 +147,8 @@ const ResetPasswordPage = () => {
 						fullWidth
 						shape="pill"
 						disabled={isSubmitting}
-						className="min-h-12 bg-foreground! text-white"
+						variant="night"
+						className="min-h-12"
 					>
 						{isSubmitting ? 'Updating…' : 'Update password'}
 					</Button>

@@ -1,79 +1,197 @@
 @import url("https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
-
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 :root {
-	--background: #F5F2EC;
-	--surface: #FBFAF7;
-	--surface-raised: #FFFFFF;
-	--border: #DED9D1;
+	color-scheme: light;
 
-	--foreground: #18212C;
-	--muted: #68727D;
+	--bg: #f6f4ef;
+	--surface: #ffffff;
+	--surface-sunk: #efebe4;
+	--line: #e3dce7;
+	--line-strong: #8e7fa3;
+	--perforation: #b8abc8;
 
-	--accent: #C9685C;
-    --accent-foreground: #FFFFFF;
+	--ink: #251d38;
+	--ink-muted: #544b63;
 
-    --error: #B94F49;
+	--violet: #523889;
+	--violet-hover: #43296f;
+	--violet-soft: #ebe2f5;
+	--on-violet: #ffffff;
+	--focus: var(--violet);
 
-	font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-	font-synthesis: none;
-	text-rendering: optimizeLegibility;
+	--night: #251d38;
+	--night-deep: #21172c;
+	--on-night: #f6f4ef;
+	--wordmark-tint: #e7ddf2;
+
+	--caramel: #9a5b13;
+	--seat-selected: #c8285f;
+	--on-seat-selected: #ffffff;
+	--seat-on: #ffffff;
+
+	--success: #2e6a4a;
+	--success-soft: #dcebdf;
+	--warning: #875200;
+	--warning-soft: #f6e5c4;
+	--danger: #a52f2b;
+	--danger-soft: #f7dcd8;
+	--info: #2d5c8c;
+	--info-soft: #dce7f2;
+
+	--badge-success-fg: #1f7a4a;
+	--badge-success-bg: #eef8f1;
+	--badge-success-border: #8fcba6;
+	--badge-warning-fg: #a35c00;
+	--badge-warning-bg: #fff6e5;
+	--badge-warning-border: #e9b25c;
+	--badge-danger-fg: #b42a24;
+	--badge-danger-bg: #fef1ef;
+	--badge-danger-border: #eba29c;
+	--badge-info-fg: #1f66a6;
+	--badge-info-bg: #edf5fc;
+	--badge-info-border: #7da9d6;
+	--badge-violet-fg: #6a3fc8;
+	--badge-violet-bg: #f6f0fd;
+	--badge-violet-border: #b9a0ea;
+	--badge-neutral-fg: #4a4656;
+	--badge-neutral-bg: #f2f1f4;
+	--badge-neutral-border: #8e8a99;
 }
 
 [data-theme="dark"] {
-	--background: #151C26;
-	--surface: #1B2531;
-	--surface-raised: #222E3B;
-	--border: #344252;
+	color-scheme: dark;
 
-	--foreground: #F3F1ED;
-	--muted: #AAB4C0;
+	--bg: #141416;
+	--surface: #1c1c1f;
+	--surface-sunk: #18181b;
+	--line: #2a2a2e;
+	--line-strong: #75757e;
+	--perforation: #45454b;
 
-	--accent: #D9786A;
-    --accent-foreground: #18212C;
+	--ink: #ececee;
+	--ink-muted: #a1a1aa;
 
-    --error: #E07A70;
+	--violet: #9d8bd6;
+	--violet-hover: #b2a3e0;
+	--violet-soft: #262330;
+	--on-violet: #141416;
+
+	--night: #0b0b0d;
+	--night-deep: #070708;
+	--on-night: #ececee;
+	--wordmark-tint: #5a5a63;
+
+	--caramel: #c99a5b;
+	--seat-selected: #e0608a;
+	--on-seat-selected: #141416;
+	--seat-on: #141416;
+
+	--success: #6db08a;
+	--success-soft: #16231b;
+	--warning: #d4a55a;
+	--warning-soft: #272013;
+	--danger: #e2786e;
+	--danger-soft: #2a1716;
+	--info: #7fa3c9;
+	--info-soft: #151f28;
+
+	--badge-success-fg: #6db08a;
+	--badge-success-bg: #16231b;
+	--badge-success-border: #3b5a47;
+	--badge-warning-fg: #d4a55a;
+	--badge-warning-bg: #272013;
+	--badge-warning-border: #6a5530;
+	--badge-danger-fg: #e2786e;
+	--badge-danger-bg: #2a1716;
+	--badge-danger-border: #6e3b36;
+	--badge-info-fg: #7fa3c9;
+	--badge-info-bg: #151f28;
+	--badge-info-border: #3b5168;
+	--badge-violet-fg: #b2a3e0;
+	--badge-violet-bg: #232029;
+	--badge-violet-border: #4d4566;
+	--badge-neutral-fg: #b4b4bc;
+	--badge-neutral-bg: #232326;
+	--badge-neutral-border: #55555c;
 }
 
 @theme inline {
-	--color-background: var(--background);
+	--font-sans: "Golos Text", system-ui, sans-serif;
+
+	--color-background: var(--bg);
 	--color-surface: var(--surface);
-	--color-surface-raised: var(--surface-raised);
-	--color-border: var(--border);
+	--color-surface-sunk: var(--surface-sunk);
+	--color-border: var(--line);
+	--color-border-strong: var(--line-strong);
+	--color-perforation: var(--perforation);
 
-	--color-foreground: var(--foreground);
-	--color-muted: var(--muted);
+	--color-foreground: var(--ink);
+	--color-muted: var(--ink-muted);
 
-	--color-accent: var(--accent);
-    --color-accent-foreground: var(--accent-foreground);
+	--color-accent: var(--violet);
+	--color-accent-hover: var(--violet-hover);
+	--color-accent-soft: var(--violet-soft);
+	--color-accent-foreground: var(--on-violet);
+	--color-focus: var(--focus);
 
-    --color-error: var(--error);
+	--color-night: var(--night);
+	--color-night-deep: var(--night-deep);
+	--color-on-night: var(--on-night);
+	--color-wordmark-tint: var(--wordmark-tint);
+
+	--color-caramel: var(--caramel);
+	--color-seat-selected: var(--seat-selected);
+	--color-on-seat-selected: var(--on-seat-selected);
+	--color-seat-on: var(--seat-on);
+
+	--color-success: var(--success);
+	--color-success-soft: var(--success-soft);
+	--color-warning: var(--warning);
+	--color-warning-soft: var(--warning-soft);
+	--color-error: var(--danger);
+	--color-danger: var(--danger);
+	--color-danger-soft: var(--danger-soft);
+	--color-info: var(--info);
+	--color-info-soft: var(--info-soft);
+
+	--color-badge-success-fg: var(--badge-success-fg);
+	--color-badge-success-bg: var(--badge-success-bg);
+	--color-badge-success-border: var(--badge-success-border);
+	--color-badge-warning-fg: var(--badge-warning-fg);
+	--color-badge-warning-bg: var(--badge-warning-bg);
+	--color-badge-warning-border: var(--badge-warning-border);
+	--color-badge-danger-fg: var(--badge-danger-fg);
+	--color-badge-danger-bg: var(--badge-danger-bg);
+	--color-badge-danger-border: var(--badge-danger-border);
+	--color-badge-info-fg: var(--badge-info-fg);
+	--color-badge-info-bg: var(--badge-info-bg);
+	--color-badge-info-border: var(--badge-info-border);
+	--color-badge-violet-fg: var(--badge-violet-fg);
+	--color-badge-violet-bg: var(--badge-violet-bg);
+	--color-badge-violet-border: var(--badge-violet-border);
+	--color-badge-neutral-fg: var(--badge-neutral-fg);
+	--color-badge-neutral-bg: var(--badge-neutral-bg);
+	--color-badge-neutral-border: var(--badge-neutral-border);
 }
 
 body {
 	margin: 0;
 	min-width: 320px;
 	min-height: 100vh;
-	background: var(--background);
-	color: var(--foreground);
+	background: var(--bg);
+	color: var(--ink);
+	font-family: var(--font-sans);
+	font-synthesis: none;
+	text-rendering: optimizeLegibility;
 }
 
-button,
-input,
-select {
-	font: inherit;
-}
-
-.auth-theme {
-    --background: #f6f4ef;
-    --surface: #ffffff;
-    --border: #a494b5;
-    --foreground: #251d38;
-    --muted: #544b63;
-    --accent: #523889;
-    --accent-foreground: #ffffff;
-
-    font-family: "Golos Text", system-ui, sans-serif;
+@layer base {
+	button,
+	input,
+	select {
+		font: inherit;
+	}
 }

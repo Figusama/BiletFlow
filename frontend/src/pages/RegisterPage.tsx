@@ -63,7 +63,7 @@ const RegisterPage = () => {
 		mode: 'onBlur',
     	reValidateMode: 'onBlur',
 	})
-	
+
 
 	const onSubmit = async (data: RegisterFormData) => {
 		setSubmitError('')
@@ -87,9 +87,9 @@ const RegisterPage = () => {
 
 
 	return (
-		<div className="auth-theme min-h-[calc(100dvh-4rem)] bg-background px-4 pb-10 pt-4 text-foreground sm:px-6 md:pt-6">
+		<div className="min-h-[calc(100dvh-4rem)] bg-background px-4 pb-10 pt-4 text-foreground sm:px-6 md:pt-6">
 			<div className="mx-auto grid max-w-[1224px] gap-3 md:grid-cols-[0.92fr_1fr] md:gap-6">
-				<aside className="relative isolate flex min-h-[220px] items-end overflow-hidden rounded-[28px] bg-foreground p-6 text-white md:min-h-[744px] md:rounded-[36px] md:p-10">
+				<aside className="relative isolate flex min-h-[220px] items-end overflow-hidden rounded-[28px] bg-night p-6 text-white md:min-h-[744px] md:rounded-[36px] md:p-10">
 					<img
 						src="/jazz.png"
 						alt=""
@@ -97,7 +97,7 @@ const RegisterPage = () => {
 					/>
 					<div
 						aria-hidden="true"
-						className="absolute inset-0 -z-10 bg-linear-to-t from-[#0c1a1e]/90 via-transparent to-transparent"
+						className="absolute inset-0 -z-10 bg-linear-to-t from-night-deep/90 via-transparent to-transparent"
 					/>
 
 					<div>
@@ -116,7 +116,7 @@ const RegisterPage = () => {
 
 				<section
 					aria-labelledby="register-title"
-					className="flex items-center rounded-[28px] border border-[#e3dce7] bg-white px-5 py-7 md:rounded-[36px] md:px-[clamp(24px,4.5vw,64px)] md:py-12"
+					className="flex items-center rounded-[28px] border border-border bg-surface px-5 py-7 md:rounded-[36px] md:px-[clamp(24px,4.5vw,64px)] md:py-12"
 				>
 					<div className="w-full md:mx-auto md:max-w-md">
 						
@@ -134,12 +134,6 @@ const RegisterPage = () => {
 									<strong className="break-all">{registeredEmail}</strong>{' '}
 									to finish creating your account.
 								</p>
-								<Link
-									to="/auth/verify-email?token=demo"
-									className="mt-4 block font-bold text-accent hover:underline"
-								>
-									Open demo verification link
-								</Link>
 
 								<div className="mt-4">
 									<Button
@@ -275,7 +269,8 @@ const RegisterPage = () => {
 										type="submit"
 										fullWidth
 										shape="pill"
-										className="min-h-14 bg-foreground! text-base! text-white"
+										variant="night"
+										className="min-h-14 text-base!"
 									    disabled={isSubmitting}
 									>
 										{isSubmitting ? 'Creating account…' : 'Create account'}

@@ -24,7 +24,7 @@ const OrderSummary = ({
 	const hasTickets = selectedTickets.length > 0
 
 	return (
-		<div className="rounded-xl border border-border bg-surface-raised p-6">
+		<div className="rounded-xl border border-border bg-surface-sunk p-6">
 			<h2 className="text-xl font-semibold text-foreground">
 				Order summary
 			</h2>
@@ -86,7 +86,7 @@ const OrderSummary = ({
 					focus-visible:ring-2
 					focus-visible:ring-accent
 					focus-visible:ring-offset-2
-					focus-visible:ring-offset-surface-raised
+					focus-visible:ring-offset-surface-sunk
 				"
 			>
 				Continue

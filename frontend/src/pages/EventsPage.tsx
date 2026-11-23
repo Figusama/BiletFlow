@@ -2,7 +2,7 @@ import EventArenaPlaceholder from '../features/events/components/EventArenaPlace
 
 const EventsPage = () => {
 	return (
-		<div className="min-h-screen bg-background text-foreground">
+		<div className="min-h-screen bg-background text-foreground transition-colors duration-400 ease-out motion-reduce:transition-none">
 			<section className="relative min-h-[470px] overflow-hidden">
 				<EventArenaPlaceholder />
 
@@ -65,7 +65,7 @@ const EventsPage = () => {
 										bg-surface px-4 py-2
 										text-sm text-muted
 										transition-colors
-										hover:bg-surface-raised
+										hover:bg-surface-sunk
 										hover:text-foreground
 										focus-visible:outline-none
 										focus-visible:ring-2
