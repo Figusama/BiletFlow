@@ -1,7 +1,14 @@
 import { Link, NavLink } from 'react-router-dom'
 import ThemeSelect from '../ui/ThemeSelect'
+import { useDispatch, useSelector } from 'react-redux'
+import type { RootState } from '../../app/store'
+import { signedOut } from '../../features/auth/authSlice'
+import ProfileMenu from '../layout/profileMenu'
 
 const Header = () => {
+	const { user, status } = useSelector((state: RootState) => state.auth)
+	const dispatch = useDispatch()
+
 	return (
 		<header className="bg-surface">
 			<div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
@@ -65,22 +72,23 @@ const Header = () => {
 
 					<ThemeSelect />
 
-					<Link
-						to="/login"
-						className="
-							rounded-lg bg-accent px-4 py-2
-							text-sm font-semibold text-accent-foreground
-							transition-opacity
-							hover:opacity-90
-							focus-visible:outline-none
-							focus-visible:ring-2
-							focus-visible:ring-accent
-							focus-visible:ring-offset-2
-							focus-visible:ring-offset-surface
-						"
-					>
-						Log in
-					</Link>
+					{status === 'checking' ? (
+						<span role="status" className="text-sm text-muted">
+							Checking session…
+						</span>
+					) : user ? (
+						<ProfileMenu
+							fullName={user.fullName}
+							onLogout={() => dispatch(signedOut())}
+						/>
+					) : (
+						<Link
+							to="/login"
+							className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground"
+						>
+							Log in
+						</Link>
+					)}
 				</div>
 			</div>
 		</header>

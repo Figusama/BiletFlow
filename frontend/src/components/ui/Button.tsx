@@ -8,6 +8,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 	variant?: ButtonVariant
 	size?: ButtonSize
 	fullWidth?: boolean
+	shape?: 'default' | 'pill'
 }
 
 const Button = ({
@@ -16,11 +17,12 @@ const Button = ({
 	size = 'md',
 	fullWidth = false,
 	className = '',
+	shape = 'default',
 	...props
 }: ButtonProps) => {
 	const baseStyles = `
 		inline-flex items-center justify-center
-		rounded-lg font-semibold
+		${shape === 'pill' ? 'rounded-full' : 'rounded-lg'} font-semibold
 		transition
 		disabled:cursor-not-allowed
 		disabled:opacity-40

@@ -1,4 +1,7 @@
+@import url("https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
+
+
 
 :root {
 	--background: #F5F2EC;
@@ -61,4 +64,16 @@ button,
 input,
 select {
 	font: inherit;
+}
+
+.auth-theme {
+    --background: #f6f4ef;
+    --surface: #ffffff;
+    --border: #a494b5;
+    --foreground: #251d38;
+    --muted: #544b63;
+    --accent: #523889;
+    --accent-foreground: #ffffff;
+
+    font-family: "Golos Text", system-ui, sans-serif;
 }

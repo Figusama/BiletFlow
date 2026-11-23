@@ -12,7 +12,7 @@ const Input = ({
 	return (
 		<input
 			className={`
-				w-full rounded-lg border
+				w-full rounded-[14px] border
 				bg-surface px-4 py-3
 				text-sm text-foreground
 				outline-none transition-colors

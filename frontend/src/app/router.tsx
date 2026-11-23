@@ -6,9 +6,11 @@ import EventDetailsPage from '../pages/EventDetailsPage'
 import TicketSelectionPage from '../pages/TicketSelectionPage'
 import LoginPage from '../pages/LoginPage'
 import RegisterPage from '../pages/RegisterPage'
+import VerifyEmailPage from '../pages/VerifyEmailPage'
 import ForgotPasswordPage from '../pages/ForgotPasswordPage'
 import ResetPasswordPage from '../pages/ResetPasswordPage'
 import MyTicketsPage from '../pages/MyTicketsPage'
+import RequireAuth from '../features/auth/requireAuth'
 
 export const router = createBrowserRouter([
     {
@@ -36,6 +38,10 @@ export const router = createBrowserRouter([
 				element: <RegisterPage />
 			},
             {
+                path: 'auth/verify-email',
+                element: <VerifyEmailPage />,
+            },
+            {
                 path: 'forgot-password',
                 element: <ForgotPasswordPage />,
             },
@@ -44,8 +50,13 @@ export const router = createBrowserRouter([
                 element: <ResetPasswordPage />,
             },
             {
-                path: 'tickets',
-                element: <MyTicketsPage />,
+                element: <RequireAuth />,
+                children: [
+                    {
+                        path: 'tickets',
+                        element: <MyTicketsPage />,
+                    },
+                ],
             },
             {
                 path: '*',
