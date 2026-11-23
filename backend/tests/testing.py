@@ -20,7 +20,7 @@ NEW_PASSWORD = "stringster112"
 
 def delete_user(email: str):
     with engine.begin() as conn:
-        for table in ("pending_registrations", "users", "profiles"):
+        for table in ("pending_registrations", "users"):
             conn.execute(text(f"delete from {table} where email = :e"), {"e": email})
 
 
