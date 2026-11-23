@@ -11,4 +11,3 @@ qrcode[pil]
 reportlab
 tzdata
 resend
-alembic
