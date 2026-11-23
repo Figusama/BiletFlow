@@ -5,6 +5,7 @@ from jose import jwt
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, Field, select
 from database.database import get_session
+from backend.modules.audit import service as audit
 from backend.modules.auth.dependencies import oauth_2_scheme, get_current_user, authenticate_user, create_access_token, get_password_hash, verify_password
 from backend.modules.auth.config import SECRET_KEY, ALGORITHM
 from backend.modules.users.schemas import Role
@@ -80,8 +81,12 @@ def suspend_user(user_id: uuid.UUID, session: Session = Depends(get_session), ad
     user = session.get(users, user_id)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
-    user.is_suspended = True
-    session.add(user)
+    if user.id == admin.id:
+        raise HTTPException(status.HTTP_409_CONFLICT, "You cannot suspend yourself")
+    if not user.is_suspended:
+        user.is_suspended = True
+        session.add(user)
+        audit.record(session, action="USER_SUSPENDED", entity_type="USER", entity_id=user.id, actor_user_id=admin.id)
     session.commit()
 
 @router.post("/{user_id}/unsuspend", status_code=status.HTTP_204_NO_CONTENT)
@@ -89,6 +94,8 @@ def unsuspend_user(user_id: uuid.UUID, session: Session = Depends(get_session), 
     user = session.get(users, user_id)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
-    user.is_suspended = False
-    session.add(user)
+    if user.is_suspended:
+        user.is_suspended = False
+        session.add(user)
+        audit.record(session, action="USER_SUSPENSION_LIFTED", entity_type="USER", entity_id=user.id, actor_user_id=admin.id)
     session.commit()
