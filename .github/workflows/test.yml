@@ -18,15 +18,17 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 5
+    env:
+      PYTHONPATH: .
+      DATABASE_URL: postgresql://test:test@localhost:5432/biletflow_test
+      EMAIL_API: ${{ secrets.EMAIL_API }}
+      APP_URL: http://localhost:8000
+      MAIL_FROM: BiletFlow <onboarding@resend.dev>
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt pytest
-      - run: python -m backend.tests.testing
-        env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/biletflow_test
-          EMAIL_API: ${{ secrets.EMAIL_API }}
-          APP_URL: http://localhost:8000
-          MAIL_FROM: BiletFlow <onboarding@resend.dev>  
+      - run: python create_tables.py
+      - run: pytest -v backend/tests/testing.py
