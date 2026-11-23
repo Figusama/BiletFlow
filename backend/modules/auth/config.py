@@ -6,6 +6,8 @@ load_dotenv()
 
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
 ALGORITHM = "HS256"
+REFRESH_COOKIE = "refresh_token"
+REFRESH_DAYS = 30
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
 EMAIL_VERIFICATION_EXPIRE_HOURS = int(os.getenv("EMAIL_VERIFICATION_EXPIRE_HOURS", "24"))
