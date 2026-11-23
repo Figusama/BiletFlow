@@ -81,3 +81,21 @@ class event_user_roles(SQLModel, table=True):
         )
     event_role : EventRole = Field(sa_column=Column(text_enum(EventRole), primary_key=True, nullable=False))
     created_at : datetime = Field(default_factory=_now, sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False, server_default=sa.func.now()))
+
+class refresh_session(SQLModel, table=True):
+    id : uuid.UUID = Field(sa_column=Column(pg.UUID, unique=True, primary_key=True, default=uuid.uuid4))
+    user_id : uuid.UUID = Field(sa_column=Column(pg.UUID, sa.ForeignKey("users.id"), nullable=False ))
+    refresh_token_hash : str = Field(sa_column=Column(pg.TEXT, unique=True, nullable=False))
+    expires_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, nullable=False))
+    revoked_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, nullable=True))
+    created_at : datetime = Field(sa_column=Column(pg.TIMESTAMP, default=datetime.now(timezone.utc)))
+
+class password_reset_tokens(SQLModel, table=True):
+    id : uuid.UUID = Field(sa_column=Column(pg.UUID, primary_key=True, default=uuid.uuid4))
+    user_id : uuid.UUID = Field(sa_column=Column(pg.UUID, sa.ForeignKey("users.id"), nullable=False))
+    token_hash : str = Field(sa_column=Column(pg.TEXT, unique=True, nullable=False))
+    expires_at : datetime = Field(sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False))
+    used_at : datetime = Field(sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=True))
+    revoked_at : datetime = Field(sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=True))
+    created_at : datetime = Field(sa_column=Column(pg.TIMESTAMP(timezone=True), default=datetime.now(timezone.utc)))
+
