@@ -6,6 +6,7 @@ from sqlmodel import Session, select
 
 from backend.core.clock import as_aware, db_now
 from backend.core.config import PUBLIC_API_URL
+from backend.modules.audit import service as audit
 from backend.modules.auth.dependencies import get_current_user
 from backend.modules.events.access import get_event_or_404, is_publicly_viewable, require_organizer, event_roles
 from backend.modules.events.calendar import build_ics, google_calendar_url
@@ -132,6 +133,7 @@ def publish_event(event_id: uuid.UUID, session: Session = Depends(get_session), 
     event.status = EventLifecycleStatus.PUBLISHED
     event.published_at = now
     session.add(event)
+    audit.record(session, action="EVENT_PUBLISHED", entity_type="EVENT", entity_id=event.id, event_id=event.id, actor_user_id=current_user.id)
     session.commit()
     session.refresh(event)
     return to_public(session, event)
@@ -148,6 +150,7 @@ def unpublish_event(event_id: uuid.UUID, session: Session = Depends(get_session)
     event.status = EventLifecycleStatus.DRAFT
     event.published_at = None
     session.add(event)
+    audit.record(session, action="EVENT_UNPUBLISHED", entity_type="EVENT", entity_id=event.id, event_id=event.id, actor_user_id=current_user.id)
     session.commit()
     session.refresh(event)
     return to_public(session, event)
