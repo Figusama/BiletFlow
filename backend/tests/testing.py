@@ -32,7 +32,7 @@ def clean_user():
 
 
 def test_registration():
-    with patch("backend.modules.auth.router.send_verification_email") as mock_send:
+    with patch("backend.modules.auth.email.send_email") as mock_send:
         response = client.post("/auth/register", json=USER)
 
     assert response.status_code == status.HTTP_202_ACCEPTED
