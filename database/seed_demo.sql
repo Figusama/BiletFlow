@@ -143,8 +143,9 @@ JOIN categories c ON c.slug = d.category_slug
 ON CONFLICT DO NOTHING;
 
 INSERT INTO event_application_images (id, application_id, storage_key, position, created_at)
-SELECT gen_random_uuid(), application_id, 'events/' || slug || '/0.jpg', 0, now()
+SELECT gen_random_uuid(), application_id, 'events/' || slug || '/' || position || '.jpg', position, now()
 FROM demo_events
+CROSS JOIN generate_series(0, 2) AS position
 ON CONFLICT (application_id, position) DO UPDATE SET storage_key = EXCLUDED.storage_key;
 
 INSERT INTO event_categories (event_id, category_id)
@@ -154,8 +155,9 @@ JOIN categories c ON c.slug = d.category_slug
 ON CONFLICT DO NOTHING;
 
 INSERT INTO event_images (id, event_id, storage_key, position, created_at)
-SELECT gen_random_uuid(), event_id, 'events/' || slug || '/0.jpg', 0, now()
+SELECT gen_random_uuid(), event_id, 'events/' || slug || '/' || position || '.jpg', position, now()
 FROM demo_events
+CROSS JOIN generate_series(0, 2) AS position
 ON CONFLICT (event_id, position) DO UPDATE SET storage_key = EXCLUDED.storage_key;
 
 INSERT INTO ticket_types (
