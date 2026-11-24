@@ -10,14 +10,16 @@ from backend.modules.audit import service as audit
 from backend.modules.auth.dependencies import get_current_user
 from backend.modules.events.access import get_event_or_404, is_publicly_viewable, require_organizer, event_roles
 from backend.modules.events.calendar import build_ics, google_calendar_url
-from backend.modules.events.models import events
-from backend.modules.events.schemas import EventLifecycleStatus, EventPublic, EventUpdate, SeatingMode, Visibility
+from backend.modules.events.models import events, event_applications
+from backend.modules.events.schemas import EventLifecycleStatus, EventPublic, EventUpdate, SeatingMode, Visibility, CreateEvent, EventStatus
 from backend.modules.payments.activation import paid_sales_active
 from backend.modules.tickets.models import ticket_types, tickets
 from backend.modules.tickets.schemas import TicketKind
 from backend.modules.users.user_model import users, event_user_roles, Role
 from backend.modules.venues.models import venues
 from database.database import get_session
+from datetime import datetime, timezone
+import secrets
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -43,9 +45,27 @@ def find_event(session: Session, ref: str) -> events:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
     return event
 
+def generate_application_number(prefix : str = "APP"):
+    year = datetime.now(timezone.utc).year
+    random_part = secrets.token_hex(3).upper()
+    return f"{prefix}-{year}-{random_part}"
 
 def ever_issued(session: Session, event_id: uuid.UUID) -> bool:
     return session.exec(select(tickets.id).where(tickets.event_id == event_id).limit(1)).first() is not None
+
+@router.post("/create", response_model=CreateEvent)
+def create_event(data : CreateEvent, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
+    application = event_applications(**data.model_dump(),
+                                    applicant_user_id=current_user.id,
+                                    application_number=generate_application_number(),
+                                    status=EventStatus.DRAFT,
+                                    )
+    session.add(application)
+    session.commit()
+    session.refresh(application)
+
+    return application
+
 
 
 @router.get("/", response_model=list[EventPublic])
