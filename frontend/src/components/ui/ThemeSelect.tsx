@@ -1,12 +1,7 @@
 import { useId } from 'react'
-import { useTheme, type Theme } from '../../app/providers/Theme'
+import { useTheme } from '../../app/providers/Theme'
 import { useLanguage } from '../../shared/i18n/language'
-
-const themeOptions = [
-    { value: 'light', icon: '/icons/sun.svg' },
-    { value: 'system', icon: '/icons/desktop.svg' },
-    { value: 'dark', icon: '/icons/moon.svg' },
-] satisfies { value: Theme; icon: string }[]
+import { themeOptions } from './themeOptions'
 
 const ThemeSelect = () => {
     const { theme, setTheme } = useTheme()

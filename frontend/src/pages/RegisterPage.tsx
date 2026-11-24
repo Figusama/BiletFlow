@@ -6,7 +6,9 @@ import FormField from '../components/ui/FormField'
 import PhoneInput from '../components/ui/PhoneInput'
 import { validateKzMobilePhone } from '../shared/lib/phone'
 import { useEffect, useState } from 'react'
-import { registerAccount } from '../features/auth/auth'
+import { registerAccount, type RegisterAccountInput } from '../features/auth/auth'
+import { ApiError } from '../shared/api/client'
+import { useLanguage } from '../shared/i18n/language'
 
 
 interface RegisterFormData {
@@ -19,40 +21,47 @@ interface RegisterFormData {
 const RESEND_DELAY_SECONDS = 60
 
 const RegisterPage = () => {
+	const { t } = useLanguage()
 	const [registeredEmail, setRegisteredEmail] = useState('')
 	const [submitError, setSubmitError] = useState('')
-
-	const [resendAt, setResendAt] = useState(0)
 	const [resendSeconds, setResendSeconds] = useState(0)
-
-	const startResendTimer = () => {
-		setResendAt(Date.now() + RESEND_DELAY_SECONDS * 1000)
-		setResendSeconds(RESEND_DELAY_SECONDS)
-	}
+	const [lastSubmission, setLastSubmission] = useState<RegisterAccountInput | null>(null)
 
 	useEffect(() => {
-		if (!registeredEmail || resendAt === 0) return
+		if (resendSeconds === 0) return
 
-		const intervalId = window.setInterval(() => {
-			const remaining = Math.max(0, Math.ceil((resendAt - Date.now()) / 1000))
-			setResendSeconds(remaining)
+		const timeoutId = window.setTimeout(() => setResendSeconds((seconds) => seconds - 1), 1000)
+		return () => window.clearTimeout(timeoutId)
+	}, [resendSeconds])
 
-			if (remaining === 0) window.clearInterval(intervalId)
-		}, 250)
+	const sendRegistration = async (input: RegisterAccountInput) => {
+		setSubmitError('')
 
-		return () => window.clearInterval(intervalId)
-	}, [registeredEmail, resendAt])
+		try {
+			const result = await registerAccount(input)
+			setLastSubmission(input)
+			setRegisteredEmail(result.email)
+			setResendSeconds(RESEND_DELAY_SECONDS)
+			return true
+		} catch (error) {
+			const emailTaken = error instanceof ApiError && error.status === 409
+			setSubmitError(emailTaken ? t.register.emailTaken : t.register.failed)
+			return false
+		}
+	}
 
 	const handleResend = () => {
-		if (!registeredEmail || Date.now() < resendAt) return
-
-		
-
-
-
-		startResendTimer()
+		if (lastSubmission && resendSeconds === 0) {
+			void sendRegistration(lastSubmission)
+		}
 	}
-	
+
+	const handleTryDifferentEmail = () => {
+		setLastSubmission(null)
+		setRegisteredEmail('')
+		setResendSeconds(0)
+	}
+
 	const {
 		register,
 		control,
@@ -66,25 +75,15 @@ const RegisterPage = () => {
 
 
 	const onSubmit = async (data: RegisterFormData) => {
-		setSubmitError('')
+		const sent = await sendRegistration({
+			fullName: data.fullName.trim(),
+			email: data.email.trim(),
+			phone: `+${data.phone}`,
+			password: data.password,
+		})
 
-		try {
-			const result = await registerAccount({
-				fullName: data.fullName.trim(),
-				email: data.email.trim(),
-				phone: `+${data.phone}`,
-				password: data.password,
-			})
-
-			reset()
-			setRegisteredEmail(result.email)
-			startResendTimer()
-		} catch {
-			setSubmitError('Could not create your account. Please try again.')
-		}
+		if (sent) reset()
 	}
-
-
 
 	return (
 		<div className="min-h-[calc(100dvh-4rem)] bg-background px-4 pb-10 pt-4 text-foreground sm:px-6 md:pt-6">
@@ -102,14 +101,14 @@ const RegisterPage = () => {
 
 					<div>
 						<p className="text-[28px] leading-[1.05] font-bold tracking-tight md:text-[44px]">
-							Every evening
+							{t.auth.promoTitleLine1}
 							<br />
-							in one ticket.
+							{t.auth.promoTitleLine2}
 						</p>
 						<p className="mt-3 hidden text-base leading-6 text-white/90 md:block">
-							Concerts, theatre, stand-up and community nights.
+							{t.auth.promoTextLine1}
 							<br />
-							Free events are always free to host.
+							{t.auth.promoTextLine2}
 						</p>
 					</div>
 				</aside>
@@ -126,13 +125,13 @@ const RegisterPage = () => {
 									id="register-title"
             						className="text-2xl leading-tight font-bold tracking-tight md:text-[32px]"
 								>
-									Check your inbox
+									{t.auth.checkInbox}
 								</h1>
 
 								<p className="mt-2 text-[15px] text-muted">
-									Confirm your email at{' '}
+									{t.register.sentBefore}{' '}
 									<strong className="break-all">{registeredEmail}</strong>{' '}
-									to finish creating your account.
+									{t.register.sentAfter}
 								</p>
 
 								<div className="mt-4">
@@ -143,17 +142,17 @@ const RegisterPage = () => {
 										onClick={handleResend}
 									>
 										{resendSeconds > 0
-											? `Resend link in ${resendSeconds}s`
-											: 'Resend link'}
+											? t.register.resendIn(resendSeconds)
+											: t.register.resend}
 									</Button>
 								</div>
 
 								<button
 									type="button"
-									onClick={() => setRegisteredEmail('')}
+									onClick={handleTryDifferentEmail}
 									className="mt-6 font-bold text-accent hover:underline"
 								>
-									Try a different email
+									{t.register.tryDifferentEmail}
 								</button>
 						    </>
 						) : (
@@ -162,10 +161,10 @@ const RegisterPage = () => {
 									id="register-title"
 									className="text-2xl leading-tight font-bold tracking-tight md:text-[32px]"
 								>
-									Create account
+									{t.register.title}
 								</h1>
 								<p className="mt-2 text-[15px] text-muted">
-									One account to buy tickets and host events.
+									{t.register.subtitle}
 								</p>
 
 								<form
@@ -173,22 +172,22 @@ const RegisterPage = () => {
 									onSubmit={handleSubmit(onSubmit)}
 									className="mt-6 grid gap-5"
 								>
-									<FormField label="Full name" htmlFor="full-name" error={errors.fullName?.message}>
+									<FormField label={t.register.fullName} htmlFor="full-name" error={errors.fullName?.message}>
 										<Input
 											id="full-name"
 											autoComplete="name"
-											placeholder="Aruzhan Serikova"
+											placeholder={t.register.fullNamePlaceholder}
 											className="min-h-12"
 											hasError={Boolean(errors.fullName)}
 											aria-invalid={Boolean(errors.fullName)}
 											{...register('fullName', {
-												validate: (value) => value.trim().length > 0 || 'Full name is required',
+												validate: (value) => value.trim().length > 0 || t.validation.fullNameRequired,
 											})}
 										/>
 									</FormField>
 
 									<FormField
-										label="Email"
+										label={t.auth.email}
 										htmlFor="register-email"
 										error={errors.email?.message}
 									>
@@ -196,14 +195,14 @@ const RegisterPage = () => {
 											id="register-email"
 											type="email"
 											autoComplete="email"
-											placeholder="name@example.com"
+											placeholder={t.auth.emailPlaceholder}
 											className="min-h-12"
 											hasError={Boolean(errors.email)}
 											{...register('email', {
-												required: 'Email is required',
+												required: t.validation.emailRequired,
 												pattern: {
 													value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-													message: 'Enter a valid email address',
+													message: t.validation.emailInvalid,
 												},
 											})}
 										/>
@@ -214,14 +213,17 @@ const RegisterPage = () => {
 										control={control}
 										defaultValue=""
 										rules={{
-											required: 'Phone number is required',
-											validate: validateKzMobilePhone,
+											required: t.validation.phoneRequired,
+											validate: (value) => {
+												const result = validateKzMobilePhone(value)
+												return result === true || t.validation[result]
+											},
 										}}
 										render={({ field, fieldState }) => (
 											<FormField
-												label="Phone number"
+												label={t.register.phone}
 												htmlFor="register-phone"
-												hint="For contact only."
+												hint={t.register.phoneHint}
 												error={fieldState.error?.message}
 											>
 												<PhoneInput
@@ -238,23 +240,23 @@ const RegisterPage = () => {
 									/>
 
 									<FormField
-										label="Password"
+										label={t.auth.password}
 										htmlFor="register-password"
 										error={errors.password?.message}
-										hint="Use at least 8 characters."
+										hint={t.register.passwordHint}
 									>
 										<Input
 											id="register-password"
 											type="password"
 											autoComplete="new-password"
-											placeholder="Create a password"
+											placeholder={t.register.passwordPlaceholder}
 											className="min-h-12"
 											hasError={Boolean(errors.password)}
 											{...register('password', {
-												required: 'Password is required',
+												required: t.validation.passwordRequired,
 												minLength: {
 													value: 8,
-													message: 'Password must be at least 8 characters',
+													message: t.validation.passwordMinLength,
 												},
 											})}
 										/>
@@ -273,14 +275,14 @@ const RegisterPage = () => {
 										className="min-h-14 text-base!"
 									    disabled={isSubmitting}
 									>
-										{isSubmitting ? 'Creating account…' : 'Create account'}
+										{isSubmitting ? t.register.submitting : t.register.submit}
 									</Button>
 								</form>
 
 								<p className="mt-6 text-center text-[15px] text-muted">
-									Already have an account?{' '}
+									{t.register.haveAccount}{' '}
 									<Link to="/login" className="font-bold text-accent hover:underline">
-										Sign in
+										{t.auth.signIn}
 									</Link>
 								</p>
 							</>

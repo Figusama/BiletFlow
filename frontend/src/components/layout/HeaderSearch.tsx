@@ -40,7 +40,7 @@ const HeaderSearch = ({ className = '', onSearch }: HeaderSearchProps) => {
                     type="search"
                     name="search"
                     placeholder={t.nav.search}
-                    className="w-full min-w-0 bg-transparent text-sm text-foreground placeholder:text-muted focus:outline-none"
+                    className="w-full min-w-0 bg-transparent text-sm text-ellipsis text-foreground placeholder:text-muted focus:outline-none"
                 />
             </label>
         </form>

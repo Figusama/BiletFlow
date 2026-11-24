@@ -1,192 +1,125 @@
 import { Link, useParams } from 'react-router-dom'
+import { useEvent } from '../features/events/api'
+import { usePricedEvents } from '../features/events/usePricedEvents'
+import CalendarMenu from '../features/events/components/CalendarMenu'
+import EventFacts from '../features/events/components/EventFacts'
+import EventBuyButton from '../features/events/components/EventBuyButton'
+import EventImage from '../features/events/components/EventImage'
+import EventListItem from '../features/events/components/EventListItem'
+import ShareButton from '../features/events/components/ShareButton'
+import { sortEvents } from '../features/events/filters'
+import { formatEventTimeRange, formatPriceFrom } from '../features/events/labels'
+import { useTicketTypes } from '../features/tickets/api'
+import { getMinPrice } from '../features/tickets/status'
+import { ApiError } from '../shared/api/client'
+import { useLanguage } from '../shared/i18n/language'
+
+const MORE_EVENTS = 3
 
 const EventDetailsPage = () => {
-	const { eventId } = useParams()
+    const { t } = useLanguage()
+    const { eventId = '' } = useParams()
+    const { data: event, isPending, error, refetch } = useEvent(eventId)
+    const { data: events } = usePricedEvents()
+    const { data: ticketTypes = [] } = useTicketTypes(event?.id)
 
-	return (
-		<div className="min-h-screen bg-background text-foreground">
-			<div className="mx-auto max-w-6xl px-6 py-10">
-				<Link
-					to="/"
-					className="
-						inline-flex items-center gap-2
-						text-sm font-medium text-muted
-						transition-colors
-						hover:text-foreground
-						focus-visible:rounded-md
-						focus-visible:outline-none
-						focus-visible:ring-2
-						focus-visible:ring-accent
-					"
-				>
-					<span aria-hidden="true">←</span>
-					Events
-				</Link>
+    if (isPending) {
+        return (
+            <div className="mx-auto max-w-[1224px] px-4 pt-8 pb-16 sm:px-6">
+                <div className="h-[220px] animate-pulse rounded-3xl bg-surface-sunk sm:h-[300px] md:h-[380px]" />
+            </div>
+        )
+    }
 
-				<div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-					<main>
-						<div
-							className="
-								flex aspect-[16/9]
-								items-center justify-center
-								overflow-hidden rounded-xl
-								bg-surface
-								text-sm text-muted
-							"
-						>
-							Event cover : {eventId}
-						</div>
-                        <div className="mt-6">
-                            <span
-                                className="
-                                    inline-flex rounded-full
-                                    border border-border bg-surface
-                                    px-3 py-1
-                                    text-xs font-medium text-foreground
-                                "
-                            >
-                                Music
-                            </span>
+    if (!event) {
+        const notFound = error instanceof ApiError && error.status === 404
 
-                            <h1 className="mt-4 text-4xl font-semibold tracking-tight">
-                                Astana Music Festival
-                            </h1>
+        return (
+            <div className="mx-auto grid min-h-[50vh] max-w-md place-items-center px-4 py-16 text-center">
+                <div>
+                    <h1 className="text-2xl font-bold text-foreground">
+                        {notFound ? t.eventPage.notFoundTitle : t.eventPage.loadError}
+                    </h1>
+                    {notFound && <p className="mt-3 text-muted">{t.eventPage.notFoundText}</p>}
+                    <div className="mt-6 flex justify-center gap-4">
+                        {!notFound && (
+                            <button type="button" onClick={() => refetch()} className="font-semibold text-accent hover:underline">
+                                {t.discover.retry}
+                            </button>
+                        )}
+                        <Link to="/" className="font-semibold text-accent hover:underline">
+                            {t.common.backToEvents}
+                        </Link>
+                    </div>
+                </div>
+            </div>
+        )
+    }
 
-                            <div className="mt-5 space-y-2 text-sm text-muted">
-                                <p className="flex items-center gap-2">
-                                    Oct 15, 2026 · 19:00
-                                </p>
+    const categoryLabels: Record<string, string> = t.categories
+    const moreEvents = sortEvents(
+        events.filter((item) => item.id !== event.id && item.venue_city === event.venue_city),
+        'date',
+    ).slice(0, MORE_EVENTS)
+    const priceLabel = formatPriceFrom(event.price_from ?? getMinPrice(ticketTypes), t)
+    const moreTitle = (event.venue_city && t.city.more[event.venue_city]) || t.eventPage.moreEvents
 
-                                <p className="flex items-center gap-2">
-                                    Astana · Barys Arena
-                                </p>
-                            </div>
-                        </div>
+    return (
+        <div className="mx-auto max-w-[1224px] px-4 pt-8 pb-16 sm:px-6">
+            <EventImage src={event.images?.[0]} className="h-[220px] w-full rounded-3xl sm:h-[300px] md:h-[380px]" />
 
-                        <a
-                            href="#tickets"
-                            className="
-                                mt-5 inline-flex rounded-lg bg-accent
-                                px-4 py-2.5 text-sm font-semibold
-                                text-accent-foreground
-                                transition-opacity
-                                hover:opacity-90
-                                focus-visible:outline-none
-                                focus-visible:ring-2
-                                focus-visible:ring-accent
-                                lg:hidden
-                            "
-                        >
-                            View tickets
-                        </a>
+            <div className="mt-6 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                    {event.categories && event.categories.length > 0 && (
+                        <ul className="mb-3 flex flex-wrap gap-2">
+                            {event.categories.map(({ slug, name }) => (
+                                <li key={slug} className="rounded-md bg-surface-sunk px-2 py-0.5 text-sm text-muted">
+                                    {categoryLabels[slug] ?? name}
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                    <h1 className="text-3xl leading-tight font-bold text-foreground md:text-4xl">{event.title}</h1>
+                    <p className="mt-2 flex flex-wrap gap-x-4 text-muted">
+                        <span>{formatEventTimeRange(event, t)}</span>
+                        {event.venue_name && <span>{event.venue_name}</span>}
+                    </p>
+                </div>
 
-                        <div className="mt-8 border-t border-border pt-7">
-                            <h2 className="text-xl font-semibold">
-                                About this event
-                            </h2>
+                <EventBuyButton event={event} ticketTypes={ticketTypes} />
+            </div>
 
-                            <div className="mt-4 space-y-4 text-sm leading-6 text-muted">
-                                <p>
-                                    Experience the grandest musical celebration of the year at Barys Arena.
-                                    Featuring top local and international artists, this year's festival
-                                    brings a state-of-the-art sound system and unforgettable visual
-                                    productions.
-                                </p>
+            <div className="mt-10 grid gap-10 lg:grid-cols-2 lg:gap-16">
+                <section aria-labelledby="about-title">
+                    <h2 id="about-title" className="text-xl font-bold text-foreground">
+                        {t.eventPage.about}
+                    </h2>
+                    <p className="mt-4 leading-7 whitespace-pre-line text-foreground">{event.description}</p>
+                    <div className="mt-4 -ml-3 flex flex-wrap gap-1">
+                        <CalendarMenu event={event} />
+                        <ShareButton title={event.title} />
+                    </div>
+                </section>
 
-                                <p>
-                                    Doors open at 18:00. Food and beverage stations will be available
-                                    throughout the venue. Please secure your tickets in advance.
-                                </p>
-                            </div>
-                        </div>
+                <EventFacts event={event} priceLabel={priceLabel} />
+            </div>
 
-                        <div className="mt-8 border-t border-border pt-7">
-                            <h2 className="text-xl font-semibold">
-                                Venue
-                            </h2>
-
-                            <div className="mt-4">
-                                <p className="font-medium text-foreground">
-                                    Barys Arena
-                                </p>
-
-                                <p className="mt-1 text-sm text-muted">
-                                    Astana, Kazakhstan
-                                </p>
-                            </div>
-                        </div>
-
-					</main>
-
-                    
-
-					<aside id="tickets">
-                        <div className="rounded-xl border border-border bg-surface p-6">
-                            <h2 className="text-xl font-semibold text-foreground">
-                                Tickets
-                            </h2>
-
-                            <div className="mt-5 divide-y divide-border">
-                                <div className="pb-4">
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div>
-                                            <p className="font-medium text-foreground">
-                                                General Admission
-                                            </p>
-
-                                            <p className="mt-1 text-sm text-muted">
-                                                Standing area
-                                            </p>
-                                        </div>
-
-                                        <p className="shrink-0 font-semibold text-foreground">
-                                            8 000 ₸
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="pt-4">
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div>
-                                            <p className="font-medium text-foreground">
-                                                VIP
-                                            </p>
-
-                                            <p className="mt-1 text-sm text-muted">
-                                                Priority access
-                                            </p>
-                                        </div>
-
-                                        <p className="shrink-0 font-semibold text-foreground">
-                                            15 000 ₸
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <Link
-                                to={`/events/${eventId}/tickets`}
-                                className="
-                                    mt-6 flex w-full items-center justify-center
-                                    rounded-lg bg-accent px-4 py-3
-                                    text-sm font-semibold text-accent-foreground
-                                    transition-opacity
-                                    hover:opacity-90
-                                    focus-visible:outline-none
-                                    focus-visible:ring-2
-                                    focus-visible:ring-accent
-                                    focus-visible:ring-offset-2
-                                    focus-visible:ring-offset-surface
-                                "
-                            >
-                                Get tickets
-                            </Link>
-                        </div>
-                    </aside>
-				</div>
-			</div>
-		</div>
-	)
+            {moreEvents.length > 0 && (
+                <section aria-labelledby="more-title" className="mt-14">
+                    <h2 id="more-title" className="text-xl font-bold text-foreground">
+                        {moreTitle}
+                    </h2>
+                    <ul className="mt-5 flex flex-col gap-4">
+                        {moreEvents.map((item) => (
+                            <li key={item.id}>
+                                <EventListItem event={item} />
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+            )}
+        </div>
+    )
 }
 
 export default EventDetailsPage

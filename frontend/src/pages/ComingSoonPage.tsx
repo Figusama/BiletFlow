@@ -3,7 +3,7 @@ import { useLanguage } from '../shared/i18n/language'
 import type { Dictionary } from '../shared/i18n/dictionaries/en'
 
 interface ComingSoonPageProps {
-    titleKey: keyof Dictionary['organizer']
+    titleKey: keyof Dictionary['pageTitles']
 }
 
 const ComingSoonPage = ({ titleKey }: ComingSoonPageProps) => {
@@ -15,7 +15,7 @@ const ComingSoonPage = ({ titleKey }: ComingSoonPageProps) => {
                 <p className="text-xs font-bold tracking-widest text-accent uppercase">
                     {t.comingSoon.eyebrow}
                 </p>
-                <h1 className="mt-3 text-3xl font-bold text-foreground">{t.organizer[titleKey]}</h1>
+                <h1 className="mt-3 text-3xl font-bold text-foreground">{t.pageTitles[titleKey]}</h1>
                 <p className="mt-3 text-muted">
                     {t.comingSoon.text}
                 </p>
@@ -24,7 +24,7 @@ const ComingSoonPage = ({ titleKey }: ComingSoonPageProps) => {
                     to="/"
                     className="mt-8 inline-flex h-11 items-center rounded-full bg-night px-6 text-sm font-semibold text-on-night hover:opacity-90"
                 >
-                    {t.comingSoon.backToEvents}
+                    {t.common.backToEvents}
                 </Link>
             </div>
         </section>

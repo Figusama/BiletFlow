@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
+import { useLanguage } from '../shared/i18n/language'
 
 const NotFoundPage = () => {
+	const { t } = useLanguage()
 	return (
 		<div className="min-h-[calc(100vh-4rem)] bg-background text-foreground">
 			<div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl items-center justify-center px-6 py-12">
@@ -10,11 +12,11 @@ const NotFoundPage = () => {
 					</p>
 
 					<h1 className="mt-3 text-3xl font-semibold tracking-tight">
-						Page not found
+						{t.notFound.title}
 					</h1>
 
 					<p className="mt-3 text-sm leading-6 text-muted">
-						The page you're looking for doesn't exist or may have been moved.
+						{t.notFound.text}
 					</p>
 
 					<Link
@@ -32,7 +34,7 @@ const NotFoundPage = () => {
 							focus-visible:ring-offset-background
 						"
 					>
-						Back to events
+						{t.common.backToEvents}
 					</Link>
 				</div>
 			</div>

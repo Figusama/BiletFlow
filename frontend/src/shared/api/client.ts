@@ -6,6 +6,11 @@ export const setAccessToken = (token: string | null) => {
   accessToken = token;
 }
 
+let onSessionExpired: () => void = () => {};
+export const setSessionExpiredHandler = (handler: () => void) => {
+  onSessionExpired = handler;
+}
+
 export class ApiError extends Error {
     status: number;
     body: unknown;
@@ -24,11 +29,31 @@ type ApiInit = Omit<RequestInit, 'body' | 'headers'> & {
     idempotencyKey?: string;
 }
 
+const AUTH_PATHS_WITHOUT_REFRESH = ['/auth/token', '/auth/refresh', '/auth/logout']
 
-export async function api<T>(path: string, init: ApiInit = {}): Promise<T> {
+let refreshPromise: Promise<boolean> | null = null
+
+export const refreshAccessToken = (): Promise<boolean> => {
+    refreshPromise ??= fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'include' })
+        .then(async (response) => {
+            if (!response.ok) return false
+            const data: { access_token: string } = await response.json()
+            setAccessToken(data.access_token)
+            return true
+        })
+        .catch(() => false)
+        .finally(() => {
+            refreshPromise = null
+        })
+
+    return refreshPromise
+}
+
+const send = (path: string, init: ApiInit) => {
     const { json, form, headers, idempotencyKey, ...rest } = init
-    const response = await fetch(`${BASE}${path}`, {
+    return fetch(`${BASE}${path}`, {
         ...rest,
+        credentials: 'include',
         body: form ?? JSON.stringify(json),
         headers: {
             ...(json !== undefined ? { 'Content-Type': 'application/json' } : {}),
@@ -37,8 +62,21 @@ export async function api<T>(path: string, init: ApiInit = {}): Promise<T> {
             ...headers,
         },
     })
+}
 
-    
+export async function api<T>(path: string, init: ApiInit = {}): Promise<T> {
+    let response = await send(path, init)
+
+    const canRefresh = accessToken !== null && !AUTH_PATHS_WITHOUT_REFRESH.includes(path)
+    if (response.status === 401 && canRefresh) {
+        if (await refreshAccessToken()) {
+            response = await send(path, init)
+        } else {
+            setAccessToken(null)
+            onSessionExpired()
+        }
+    }
+
     if (!response.ok) {
         const body = await response.json().catch(() => null)
         const detail = body?.detail

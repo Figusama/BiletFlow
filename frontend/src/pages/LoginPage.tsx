@@ -5,6 +5,7 @@ import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import FormField from '../components/ui/FormField'
 import { signIn } from '../features/auth/auth'
+import { useLanguage } from '../shared/i18n/language'
 import type { SignInInput } from '../features/auth/auth'
 import { useDispatch } from 'react-redux'
 import { signedIn } from '../features/auth/authSlice'
@@ -14,7 +15,9 @@ const LoginPage = () => {
     const navigate = useNavigate()
     const dispatch = useDispatch()
     const location = useLocation()
-    const destination = location.state?.from === '/tickets' ? '/tickets' : '/'
+    const { t } = useLanguage()
+    const from = location.state?.from
+    const destination = typeof from === 'string' && from.startsWith('/') ? from : '/'
     const [ submitError, setSubmitError ] = useState('')
 
     const {
@@ -38,14 +41,14 @@ const LoginPage = () => {
                     navigate(destination, { replace: true })
                     return
                 case 'invalid_credentials':
-                    setSubmitError('Email or password is incorrect.')
+                    setSubmitError(t.login.invalidCredentials)
                     return
                 case 'email_verification_required':
-                    setSubmitError('Verify your email first. Open the link in your inbox.')
+                    setSubmitError(t.login.verifyFirst)
                     return
             }
         } catch {
-            setSubmitError('Could not sign in. Please try again.')
+            setSubmitError(t.login.failed)
         }
     }
 
@@ -65,14 +68,14 @@ const LoginPage = () => {
 
                     <div>
                         <p className="mt-2 text-[28px] leading-[1.05] font-bold tracking-tight md:text-[44px]">
-                            Every evening
+                            {t.auth.promoTitleLine1}
                             <br />
-                            in one ticket.
+                            {t.auth.promoTitleLine2}
                         </p>
                         <p className="mt-3 hidden text-base leading-6 text-white/90 md:block">
-                            Concerts, theatre, stand-up and community nights.
+                            {t.auth.promoTextLine1}
                             <br />
-                            Free events are always free to host.
+                            {t.auth.promoTextLine2}
                         </p>
                     </div>
                 </aside>
@@ -86,10 +89,10 @@ const LoginPage = () => {
                             id="login-title"
                             className="text-2xl leading-tight font-bold tracking-tight md:text-[32px]"
                         >
-                            Sign in
+                            {t.auth.signIn}
                         </h1>
                         <p className="mt-2 text-[15px] text-muted">
-                            Use the email you verified.
+                            {t.login.subtitle}
                         </p>
 
                         <form
@@ -99,7 +102,7 @@ const LoginPage = () => {
                             className="mt-6 grid gap-5"
                         >
                             <FormField
-                                label="Email"
+                                label={t.auth.email}
                                 htmlFor="login-email"
                                 error={errors.email?.message}
                             >
@@ -107,22 +110,22 @@ const LoginPage = () => {
                                     id="login-email"
                                     type="email"
                                     autoComplete="email"
-                                    placeholder="name@example.com"
+                                    placeholder={t.auth.emailPlaceholder}
                                     hasError={Boolean(errors.email)}
                                     aria-invalid={Boolean(errors.email)}
                                     className="min-h-12 bg-surface text-foreground"
                                     {...register('email', {
-                                        required: 'Email is required',
+                                        required: t.validation.emailRequired,
                                         pattern: {
                                             value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                                            message: 'Enter a valid email address',
+                                            message: t.validation.emailInvalid,
                                         },
                                     })}
                                 />
                             </FormField>
 
                             <FormField
-                                label="Password"
+                                label={t.auth.password}
                                 htmlFor="login-password"
                                 error={errors.password?.message}
                                 labelAction={
@@ -130,7 +133,7 @@ const LoginPage = () => {
                                         to="/forgot-password"
                                         className="text-[13px] font-semibold text-accent hover:underline"
                                     >
-                                        Forgot password?
+                                        {t.login.forgotPassword}
                                     </Link>
                                 }
                             >
@@ -142,7 +145,7 @@ const LoginPage = () => {
                                     aria-invalid={Boolean(errors.password)}
                                     className="min-h-12 bg-surface text-foreground"
                                     {...register('password', {
-                                        required: 'Password is required',
+                                        required: t.validation.passwordRequired,
                                     })}
                                 />
                             </FormField>
@@ -161,17 +164,17 @@ const LoginPage = () => {
                                 variant="night"
                                 className="min-h-14 text-base!"
                             >
-                                {isSubmitting ? 'Signing in…' : 'Sign in'}
+                                {isSubmitting ? t.login.submitting : t.auth.signIn}
                             </Button>
                         </form>
 
                         <p className="mt-6 text-center text-[15px] text-muted">
-                            New to BiletFlow?{' '}
+                            {t.login.noAccount}{' '}
                             <Link
                                 to="/register"
                                 className="font-bold text-accent hover:underline"
                             >
-                                Create an account
+                                {t.login.createAccount}
                             </Link>
                         </p>
                     </div>

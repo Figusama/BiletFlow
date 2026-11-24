@@ -3,13 +3,15 @@ const KZ_MOBILE_PREFIXES = new Set([
     '747', '771', '775', '776', '777', '778',
 ])
 
-export const validateKzMobilePhone = (value: string): true | string => {
+export type PhoneError = 'phoneIncomplete' | 'phoneInvalid'
+
+export const validateKzMobilePhone = (value: string): true | PhoneError => {
     if (!/^7\d{10}$/.test(value)) {
-        return 'Enter a complete phone number'
+        return 'phoneIncomplete'
     }
 
     if (!KZ_MOBILE_PREFIXES.has(value.slice(1, 4))) {
-        return 'Enter a valid Kazakhstan mobile number'
+        return 'phoneInvalid'
     }
 
     return true

@@ -1,7 +1,3 @@
-// formatKzt(150000) -> 1 500 тенге 
-export const formatKzt = (minor: number): string => {
-    return (minor / 100).toLocaleString('kk-KZ', {
-        style: 'currency',
-        currency: 'KZT'
-    });
-}
+const numberFormat = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 })
+
+export const formatKzt = (minor: number): string => `${numberFormat.format(minor / 100)} ₸`

@@ -61,11 +61,11 @@ export const router = createBrowserRouter([
                 },
             },
             {
-                path: 'forgot-password',
+                path: 'auth/forgot-password',
                 element: <ForgotPasswordPage />,
             },
             {
-                path: 'reset-password',
+                path: 'auth/reset-password',
                 element: <ResetPasswordPage />,
             },
             {
@@ -87,6 +87,18 @@ export const router = createBrowserRouter([
             },
             {
                 path: 'organizer/help',
+                element: <ComingSoonPage titleKey="organizerHelp" />,
+            },
+            {
+                path: 'checkout/:reservationId',
+                element: <ComingSoonPage titleKey="checkout" />,
+            },
+            {
+                path: 'notifications',
+                element: <ComingSoonPage titleKey="notifications" />,
+            },
+            {
+                path: 'help',
                 element: <ComingSoonPage titleKey="help" />,
             },
             {

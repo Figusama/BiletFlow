@@ -1,6 +1,12 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '../../shared/i18n/language'
+import { useDismiss } from '../../shared/lib/useDismiss'
+import { getInitials } from '../../shared/lib/initials'
+import ThemeSelect from '../ui/ThemeSelect'
+
+const itemClass =
+    'block rounded-lg px-3 py-2.5 text-sm text-foreground hover:bg-surface-sunk focus-visible:outline-2 focus-visible:outline-accent'
 
 interface ProfileMenuProps {
     fullName: string
@@ -14,28 +20,15 @@ const ProfileMenu = ({ fullName, onLogout }: ProfileMenuProps) => {
     const buttonRef = useRef<HTMLButtonElement>(null)
     const panelId = useId()
 
-    useEffect(() => {
-        if (!isOpen) return
-
-        const handlePointerDown = (event: PointerEvent) => {
-            if (
-                event.target instanceof Node &&
-                !containerRef.current?.contains(event.target)
-            ) {
-                setIsOpen(false)
-            }
-        }
-
-        document.addEventListener('pointerdown', handlePointerDown)
-        return () => document.removeEventListener('pointerdown', handlePointerDown)
-    }, [isOpen])
+    const close = useCallback(() => setIsOpen(false), [])
+    useDismiss(containerRef, isOpen, close)
 
     return (
         <div
             ref={containerRef}
-            className="relative min-w-0"
+            className="relative shrink-0"
             onBlur={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget)) {
+                if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) {
                     setIsOpen(false)
                 }
             }}
@@ -52,34 +45,32 @@ const ProfileMenu = ({ fullName, onLogout }: ProfileMenuProps) => {
                 aria-expanded={isOpen}
                 aria-controls={panelId}
                 onClick={() => setIsOpen((open) => !open)}
-                className="flex min-h-11 items-center gap-2 rounded-full px-3 text-sm font-semibold text-foreground hover:bg-surface-sunk focus-visible:outline-2 focus-visible:outline-accent"
+                aria-label={t.nav.profile}
+                title={fullName}
+                className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-sm font-bold text-accent-foreground hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
-                <span className="max-w-24 truncate sm:max-w-40">{fullName}</span>
-                <span aria-hidden="true" className="text-muted">
-                    {isOpen ? '▴' : '▾'}
-                </span>
+                {getInitials(fullName)}
             </button>
 
             <div
                 id={panelId}
                 hidden={!isOpen}
-                className="absolute right-0 top-full z-20 mt-2 w-44 rounded-xl border border-border bg-surface p-1.5 shadow-lg"
+                className="absolute right-0 top-full z-20 mt-2 w-60 rounded-2xl border border-border bg-surface p-1.5 shadow-lg"
             >
-                <Link
-                    to="/tickets"
-                    onClick={() => setIsOpen(false)}
-                    className="block rounded-lg px-3 py-2.5 text-sm text-foreground hover:bg-surface-sunk focus-visible:outline-2 focus-visible:outline-accent"
-                >
+                <p className="truncate border-b border-border px-3 pt-2 pb-3 text-sm font-semibold text-foreground">
+                    {fullName}
+                </p>
+                <Link to="/tickets" onClick={() => setIsOpen(false)} className={`mt-1.5 ${itemClass}`}>
                     {t.nav.myTickets}
                 </Link>
-
-                <button
-                    type="button"
-                    onClick={onLogout}
-                    className="block w-full rounded-lg px-3 py-2.5 text-left text-sm text-foreground hover:bg-surface-sunk focus-visible:outline-2 focus-visible:outline-accent"
-                >
+                <button type="button" onClick={onLogout} className={`${itemClass} w-full text-left`}>
                     {t.nav.logOut}
                 </button>
+
+                <div className="mt-1.5 flex items-center justify-between gap-3 border-t border-border px-3 pt-3 pb-1.5">
+                    <span className="text-sm text-muted">{t.theme.label}</span>
+                    <ThemeSelect />
+                </div>
             </div>
         </div>
     )

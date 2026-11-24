@@ -1,10 +1,19 @@
 import { Link, useLoaderData } from 'react-router-dom'
-import { verifyEmail } from '../features/auth/auth'
+import { useLanguage } from '../shared/i18n/language'
 
 const VerifyEmailPage = () => {
+    const { t } = useLanguage()
     const status = useLoaderData()
     const verified = status === 'verified'
     const unavailable = status === 'unavailable'
+
+    const title = unavailable
+        ? t.verifyEmail.unavailableTitle
+        : verified ? t.verifyEmail.verifiedTitle : t.verifyEmail.invalidTitle
+
+    const text = unavailable
+        ? t.verifyEmail.unavailableText
+        : verified ? t.verifyEmail.verifiedText : t.verifyEmail.invalidText
 
     return (
         <main className="grid min-h-[calc(100dvh-4rem)] place-items-center bg-background px-4 py-8 text-foreground">
@@ -14,36 +23,30 @@ const VerifyEmailPage = () => {
             >
                 <div
                     aria-hidden="true"
-                    className={`mx-auto mb-4 grid size-12 place-items-center rounded-full text-2xl font-semibold ${
-                        verified
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-amber-50 text-amber-800'
+                    className={`mx-auto mb-4 grid size-12 place-items-center rounded-full ${
+                        verified ? 'bg-success-soft' : 'bg-warning-soft'
                     }`}
                 >
                     <img
                         src={verified ? '/email-verified.svg' : '/email-invalid.svg'}
-                        alt="email verification result"
-                        className="mb-5 size-12 object-contain"
+                        alt=""
+                        className="size-12 object-contain"
                     />
                 </div>
 
-                {unavailable
-                    ? 'Could not verify your email'
-                    : verified ? 'Email verified' : 'Invalid verification link'}
+                <h1 id="verify-email-title" className="text-xl font-bold tracking-tight">
+                    {title}
+                </h1>
 
                 <p className="mt-2 text-sm leading-6 text-muted">
-                    {unavailable
-                        ? 'We could not check your link. Try opening it again.'
-                        : verified
-                            ? 'Your email is verified. You can now sign in.'
-                            : 'This link is invalid or has expired. Register again to request a new link.'}
+                    {text}
                 </p>
 
                 <Link
                     to={verified ? '/login' : '/register'}
                     className="mt-6 inline-flex min-h-11 items-center justify-center rounded-full bg-night px-6 text-sm font-semibold text-on-night hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
-                    {verified ? 'Sign in' : 'Back to registration'}
+                    {verified ? t.auth.signIn : t.verifyEmail.backToRegistration}
                 </Link>
             </section>
         </main>

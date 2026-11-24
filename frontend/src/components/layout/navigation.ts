@@ -12,6 +12,6 @@ export const organizerLinks: { to: string; labelKey: keyof Dictionary['organizer
 ]
 
 export const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap text-foreground transition-colors
+    `rounded-full px-3.5 py-2 text-sm font-medium whitespace-nowrap text-foreground transition-colors
      hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-accent
      ${isActive ? 'bg-accent-soft' : ''}`

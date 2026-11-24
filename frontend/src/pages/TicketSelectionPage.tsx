@@ -1,105 +1,136 @@
-import { Link, useParams } from 'react-router-dom'
-import SeatMapPreviewPlaceholder from '../features/tickets/components/SeatMapPreviewPlaceholder'
 import { useState } from 'react'
-import TicketTypeSelector from '../features/tickets/components/TicketTypeSelector'
-import OrderSummary from '../features/tickets/components/OrderSummary'
-
-interface TicketType {
-	id: string
-	name: string
-	description: string
-	price: number
-	available: number
-}
-
-const ticketTypes: TicketType[] = [
-	{
-		id: 'standard',
-		name: 'Standard',
-		description: 'General admission',
-		price: 8000,
-		available: 120,
-	},
-	{
-		id: 'vip',
-		name: 'VIP',
-		description: 'Priority access and premium seating',
-		price: 15000,
-		available: 24,
-	},
-]
-
+import { useSelector } from 'react-redux'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import type { RootState } from '../app/store'
+import { useEvent } from '../features/events/api'
+import { formatEventTimeRange } from '../features/events/labels'
+import { createReservation, useTicketTypes } from '../features/tickets/api'
+import OrderSummary, { type OrderLine } from '../features/tickets/components/OrderSummary'
+import TicketPicker from '../features/tickets/components/TicketPicker'
+import { useLanguage } from '../shared/i18n/language'
 
 const TicketSelectionPage = () => {
-	const { eventId } = useParams()
-    const [quantities, setQuantities] = useState<Record<string, number>>({})
+    const { t } = useLanguage()
+    const navigate = useNavigate()
+    const location = useLocation()
+    const { eventId = '' } = useParams()
+    const user = useSelector((state: RootState) => state.auth.user)
+    const { data: event, isPending } = useEvent(eventId)
+    const { data: ticketTypes = [] } = useTicketTypes(event?.id)
 
-    const handleQuantityChange = (ticketTypeId: string, quantity: number) => {
-        setQuantities((current) => ({
-            ...current,
-            [ticketTypeId]: quantity,
-        }))
+    const [quantities, setQuantities] = useState<Record<string, number>>({})
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [error, setError] = useState('')
+
+    if (isPending) {
+        return <div className="mx-auto h-96 max-w-[1224px] animate-pulse px-4 pt-10 sm:px-6" />
     }
 
-	return (
-		<div className="min-h-screen bg-background text-foreground">
-			<div className="mx-auto max-w-6xl px-6 py-10">
-				<Link
-					to={`/events/${eventId}`}
-					className="
-						inline-flex items-center gap-2
-						text-sm font-medium text-muted
-						transition-colors
-						hover:text-foreground
-						focus-visible:rounded-md
-						focus-visible:outline-none
-						focus-visible:ring-2
-						focus-visible:ring-accent
-					"
-				>
-					<span aria-hidden="true">←</span>
-					Back to event
-				</Link>
+    if (!event) {
+        return (
+            <div className="mx-auto max-w-md px-4 py-16 text-center">
+                <h1 className="text-2xl font-bold text-foreground">{t.eventPage.notFoundTitle}</h1>
+                <Link to="/" className="mt-6 inline-block font-semibold text-accent hover:underline">
+                    {t.common.backToEvents}
+                </Link>
+            </div>
+        )
+    }
 
-				<h1 className="mt-6 text-3xl font-semibold tracking-tight">
-					Select tickets
-				</h1>
-                <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-                    <main className="min-w-0">
-                        <SeatMapPreviewPlaceholder />
-                        <div className="mt-6">
-                            <h2 className="text-xl font-semibold">
-                                Ticket types
-                            </h2>
+    const lines: OrderLine[] = ticketTypes
+        .filter((ticketType) => (quantities[ticketType.id] ?? 0) > 0)
+        .map((ticketType) => ({ ticketType, quantity: quantities[ticketType.id] }))
 
-                            <div className="mt-4 divide-y divide-border rounded-xl border border-border bg-surface">
-                                {ticketTypes.map((ticketType) => (
-                                    <TicketTypeSelector
-                                        key={ticketType.id}
-                                        name={ticketType.name}
-                                        description={ticketType.description}
-                                        price={ticketType.price}
-                                        available={ticketType.available}
-                                        quantity={quantities[ticketType.id] ?? 0}
-                                        onQuantityChange={(quantity) =>
-                                            handleQuantityChange(ticketType.id, quantity)
-                                        }
-                                    />
-                                ))}
-                            </div>
-                        </div>
-                    </main>
+    const changeQuantity = (ticketTypeId: string, quantity: number) => {
+        setQuantities((current) => ({ ...current, [ticketTypeId]: quantity }))
+        setError('')
+    }
 
-                    <aside>
+    const handleContinue = async () => {
+        if (!user) {
+            navigate('/login', { state: { from: location.pathname } })
+            return
+        }
+
+        setIsSubmitting(true)
+        setError('')
+
+        try {
+            const reservation = await createReservation(
+                event.id,
+                lines.map(({ ticketType, quantity }) => ({ ticket_type_id: ticketType.id, quantity })),
+            )
+            navigate(`/checkout/${reservation.id}`)
+        } catch {
+            setError(t.tickets.reserveFailed)
+            setIsSubmitting(false)
+        }
+    }
+
+    return (
+        <div className="mx-auto max-w-[1224px] px-4 pt-8 pb-16 sm:px-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold tracking-tight text-foreground">{t.ticketSelection.title}</h1>
+                    <Link to={`/events/${event.slug}`} className="mt-2 block font-semibold text-foreground hover:text-accent">
+                        {event.title}
+                    </Link>
+                    <p className="flex flex-wrap gap-x-4 text-sm text-muted">
+                        <span>{formatEventTimeRange(event, t)}</span>
+                        {event.venue_name && <span>{event.venue_name}</span>}
+                    </p>
+                </div>
+
+                <ol className="flex items-center gap-2 text-sm">
+                    {t.ticketSelection.steps.map((step, index) => (
+                        <li key={step} className="flex items-center gap-2">
+                            {index > 0 && <span aria-hidden="true" className="h-px w-6 bg-border-strong" />}
+                            <span
+                                aria-current={index === 0 ? 'step' : undefined}
+                                className={`grid size-6 place-items-center rounded-full text-xs font-bold ${
+                                    index === 0 ? 'bg-accent text-accent-foreground' : 'bg-surface-sunk text-muted'
+                                }`}
+                            >
+                                {index + 1}
+                            </span>
+                            <span className={index === 0 ? 'font-semibold text-foreground' : 'text-muted'}>{step}</span>
+                        </li>
+                    ))}
+                </ol>
+            </div>
+
+            {event.seating_mode === 'ASSIGNED_SEATING' ? (
+                <p className="mt-10 rounded-2xl border border-dashed border-border py-12 text-center text-muted">
+                    {t.ticketSelection.seatingSoon}
+                </p>
+            ) : (
+                <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+                    <section aria-label={t.tickets.title}>
+                        {ticketTypes.length === 0 ? (
+                            <p className="text-muted">{t.tickets.noTickets}</p>
+                        ) : (
+                            <TicketPicker
+                                ticketTypes={ticketTypes}
+                                quantities={quantities}
+                                onChange={changeQuantity}
+                                timeZone={event.timezone}
+                            />
+                        )}
+                    </section>
+
+                    <aside className="lg:sticky lg:top-24">
                         <OrderSummary
-                            ticketTypes={ticketTypes}
-	                        quantities={quantities}
+                            lines={lines}
+                            isSignedIn={Boolean(user)}
+                            isSubmitting={isSubmitting}
+                            error={error}
+                            onContinue={handleContinue}
                         />
                     </aside>
                 </div>
-			</div>
-		</div>
-	)
+            )}
+        </div>
+    )
 }
 
 export default TicketSelectionPage

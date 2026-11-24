@@ -3,13 +3,16 @@ import { useDispatch, useSelector } from 'react-redux'
 import { Link, NavLink } from 'react-router-dom'
 
 import type { RootState } from '../../app/store'
+import { signOut } from '../../features/auth/auth'
 import { signedOut } from '../../features/auth/authSlice'
-import { setAccessToken } from '../../shared/api/client'
 import { useLanguage } from '../../shared/i18n/language'
 import { useDismiss } from '../../shared/lib/useDismiss'
 import Collapse from '../ui/Collapse'
+import { BellIcon } from '../ui/icons'
+import CityMenu from '../../features/events/components/CityMenu'
 import LanguageMenu from '../ui/LanguageMenu'
 import ThemeSelect from '../ui/ThemeSelect'
+import ThemeToggle from '../ui/ThemeToggle'
 import HeaderSearch from './HeaderSearch'
 import MobileMenu from './MobileMenu'
 import OrganizerPanel from './OrganizerPanel'
@@ -36,7 +39,7 @@ const Header = () => {
     useDismiss(headerRef, openMenu !== null, closeMenu)
 
     const handleLogout = () => {
-        setAccessToken(null)
+        void signOut()
         dispatch(signedOut())
         closeMenu()
     }
@@ -44,16 +47,16 @@ const Header = () => {
     const isMenuOpen = openMenu !== null
 
     return (
-        <header className="relative z-40 px-4 pt-4 sm:px-6">
-            <div className="relative mx-auto h-[66px] w-full max-w-[1090px]">
+        <header className="sticky top-0 z-40 px-4 pt-4 sm:px-6">
+            <div className="relative mx-auto h-16 w-full max-w-[1176px]">
                 <div
                     ref={headerRef}
                     className={`absolute inset-x-0 top-0 border border-border bg-surface transition-[border-radius,box-shadow] duration-200 ${
-                        isMenuOpen ? 'rounded-[28px] shadow-lg' : 'rounded-[33px]'
+                        isMenuOpen ? 'rounded-[28px] shadow-lg' : 'rounded-[32px]'
                     }`}
                 >
-                    <div className="flex h-16 items-center justify-between gap-4 pr-3 pl-5 sm:pl-8">
-                        <div className="flex shrink-0 items-center gap-8">
+                    <div className="flex h-[62px] items-center justify-between gap-4 pr-3 pl-5 sm:pl-7">
+                        <div className="flex shrink-0 items-center gap-6">
                             <Link
                                 to="/"
                                 onClick={closeMenu}
@@ -62,7 +65,7 @@ const Header = () => {
                                 BiletFlow
                             </Link>
 
-                            <nav aria-label={t.nav.mainNavigation} className="hidden items-center gap-1 lg:flex">
+                            <nav aria-label={t.nav.mainNavigation} className="hidden items-center gap-0.5 lg:flex">
                                 {mainLinks.map(({ to, labelKey }) => (
                                     <NavLink
                                         key={to}
@@ -90,25 +93,40 @@ const Header = () => {
                         </div>
 
                         <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-                            <HeaderSearch className="hidden max-w-44 min-w-28 flex-1 xl:block" />
+                            <HeaderSearch className="hidden max-w-52 min-w-28 flex-1 lg:block" />
 
-                            <div className="hidden shrink-0 items-center gap-1 lg:flex">
-                                <button type="button" className="rounded-full px-3 py-2 text-sm font-semibold whitespace-nowrap text-foreground hover:bg-accent-soft">
-                                    {t.city.astana}
-                                </button>
+                            <div className="hidden shrink-0 items-center lg:flex">
+                                <CityMenu />
                                 <LanguageMenu />
                             </div>
 
-                            <div className="hidden shrink-0 xl:block">
-                                <ThemeSelect />
-                            </div>
+                            {!user && (
+                                <>
+                                    <div className="hidden lg:block xl:hidden">
+                                        <ThemeToggle />
+                                    </div>
+                                    <div className="hidden shrink-0 xl:block">
+                                        <ThemeSelect />
+                                    </div>
+                                </>
+                            )}
 
                             {status === 'checking' ? (
                                 <span role="status" className="px-3 text-sm whitespace-nowrap text-muted">
                                     {t.nav.checkingSession}
                                 </span>
                             ) : user ? (
-                                <ProfileMenu fullName={user.fullName} onLogout={handleLogout} />
+                                <>
+                                    <Link
+                                        to="/notifications"
+                                        onClick={closeMenu}
+                                        aria-label={t.nav.notifications}
+                                        className="grid size-10 shrink-0 place-items-center rounded-full text-foreground hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-accent"
+                                    >
+                                        <BellIcon className="size-5" />
+                                    </Link>
+                                    <ProfileMenu fullName={user.fullName} onLogout={handleLogout} />
+                                </>
                             ) : (
                                 <Link
                                     to="/login"

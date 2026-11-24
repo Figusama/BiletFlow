@@ -5,6 +5,7 @@ import Input from '../components/ui/Input'
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { resetPassword } from '../features/auth/auth'
+import { useLanguage } from '../shared/i18n/language'
 
 interface ResetPasswordFormData {
 	password: string
@@ -12,6 +13,7 @@ interface ResetPasswordFormData {
 }
 
 const ResetPasswordPage = () => {
+	const { t } = useLanguage()
 
 	const [searchParams] = useSearchParams()
 	const token = searchParams.get('token') ?? ''
@@ -38,7 +40,7 @@ const ResetPasswordPage = () => {
 			reset()
 			setStatus(result === 'success' ? 'updated' : 'invalid')
 		} catch {
-			setSubmitError('Could not update your password. Please try again.')
+			setSubmitError(t.resetPassword.failed)
 		}
 	}
 
@@ -49,20 +51,20 @@ const ResetPasswordPage = () => {
 			<div className="grid min-h-[calc(100dvh-4rem)] place-items-center bg-background px-4 py-8 text-foreground">
 				<section className="flex min-h-[360px] w-full max-w-sm flex-col items-center justify-center rounded-2xl border border-border bg-surface p-6 text-center sm:p-8">
 					<h1 className="text-2xl font-bold tracking-tight">
-						{updated ? 'Password updated' : 'Invalid reset link'}
+						{updated ? t.resetPassword.updatedTitle : t.resetPassword.invalidTitle}
 					</h1>
 
 					<p className="mt-2 text-sm leading-6 text-muted">
 						{updated
-							? 'Sign in with your new password to continue.'
-							: 'This link is invalid or has expired. Request a new reset link.'}
+							? t.resetPassword.updatedText
+							: t.resetPassword.invalidText}
 					</p>
 
 					<Link
 						to={updated ? '/login' : '/forgot-password'}
 						className="mt-6 inline-flex min-h-11 items-center justify-center rounded-full bg-night px-6 text-sm font-semibold text-on-night"
 					>
-						{updated ? 'Sign in' : 'Request a new link'}
+						{updated ? t.auth.signIn : t.resetPassword.requestNew}
 					</Link>
 				</section>
 			</div>
@@ -79,11 +81,11 @@ const ResetPasswordPage = () => {
 					id="reset-password-title"
 					className="text-center text-2xl font-bold tracking-tight sm:text-[28px]"
 				>
-					Set a new password
+					{t.resetPassword.title}
 				</h1>
 
 				<p className="mt-2 text-center text-sm leading-6 text-muted">
-					Choose a password you’ll use to sign in to BiletFlow.
+					{t.resetPassword.subtitle}
 				</p>
 
 				<form
@@ -92,9 +94,9 @@ const ResetPasswordPage = () => {
 					className="mt-6 grid gap-5"
 				>
 					<FormField
-						label="New password"
+						label={t.resetPassword.newPassword}
 						htmlFor="new-password"
-						hint="Use at least 8 characters."
+						hint={t.register.passwordHint}
 						error={errors.password?.message}
 					>
 						<Input
@@ -105,10 +107,10 @@ const ResetPasswordPage = () => {
 							hasError={Boolean(errors.password)}
 							aria-invalid={Boolean(errors.password)}
 							{...register('password', {
-								required: 'New password is required',
+								required: t.validation.newPasswordRequired,
 								minLength: {
 									value: 8,
-									message: 'Use at least 8 characters',
+									message: t.validation.passwordMinLength,
 								},
 								deps: ['confirmPassword'],
 							})}
@@ -116,7 +118,7 @@ const ResetPasswordPage = () => {
 					</FormField>
 
 					<FormField
-						label="Repeat new password"
+						label={t.resetPassword.repeatPassword}
 						htmlFor="repeat-password"
 						error={errors.confirmPassword?.message}
 					>
@@ -128,10 +130,10 @@ const ResetPasswordPage = () => {
 							hasError={Boolean(errors.confirmPassword)}
 							aria-invalid={Boolean(errors.confirmPassword)}
 							{...register('confirmPassword', {
-								required: 'Please repeat your new password',
+								required: t.validation.repeatPasswordRequired,
 								validate: (value) =>
 									value === getValues('password') ||
-									'Passwords do not match',
+									t.validation.passwordsDontMatch,
 							})}
 						/>
 					</FormField>
@@ -150,7 +152,7 @@ const ResetPasswordPage = () => {
 						variant="night"
 						className="min-h-12"
 					>
-						{isSubmitting ? 'Updating…' : 'Update password'}
+						{isSubmitting ? t.resetPassword.submitting : t.resetPassword.submit}
 					</Button>
 				</form>
 
@@ -158,7 +160,7 @@ const ResetPasswordPage = () => {
 					to="/login"
 					className="mx-auto mt-5 block w-fit text-sm font-semibold text-accent hover:underline"
 				>
-					Back to sign in
+					{t.auth.backToSignIn}
 				</Link>
 			</section>
 		</div>

@@ -1,5 +1,5 @@
 import type { AuthUser } from './authSlice'
-import { api, ApiError, setAccessToken } from '../../shared/api/client'
+import { api, ApiError, refreshAccessToken, setAccessToken } from '../../shared/api/client'
 
 export type SignInInput = {
     email: string
@@ -38,19 +38,23 @@ export const signIn = async (input: SignInInput): Promise<SignInResult> => {
         throw error
     }
 
-    const profile = await api<{ full_name: string; email: string }>('/auth/users/me/', {
-        headers: { Authorization: `Bearer ${token}` },
-    })
-
     setAccessToken(token)
 
+    return { status: 'success', user: await loadCurrentUser() }
+}
+
+const loadCurrentUser = async (): Promise<AuthUser> => {
+    const profile = await api<{ full_name: string; email: string }>('/auth/users/me/')
+
     return {
-        status: 'success',
-        user: {
-            fullName: profile.full_name,
-            email: profile.email,
-        },
+        fullName: profile.full_name,
+        email: profile.email,
     }
+}
+
+export const signOut = async () => {
+    await api('/auth/logout', { method: 'POST' }).catch(() => undefined)
+    setAccessToken(null)
 }
 
 
@@ -91,9 +95,11 @@ export const verifyEmail = async (token: string) => {
 
 
 
-export const requestPasswordReset = async (_email: string): Promise<void> => {
-    // TODO(API): Send a password reset request.
-    await Promise.resolve()
+export const requestPasswordReset = async (email: string): Promise<void> => {
+    await api('/auth/forgot-password', {
+        method: 'POST',
+        json: { email },
+    })
 }
 
 
@@ -103,15 +109,36 @@ export const resetPassword = async (input: {
     token: string
     newPassword: string
 }): Promise<'success' | 'invalid_token'> => {
-    // TODO(API): Send the token and new password to the backend.
-    return input.token === 'demo' ? 'success' : 'invalid_token'
+    try {
+        await api('/auth/reset-password', {
+            method: 'POST',
+            json: {
+                token: input.token,
+                new_password: input.newPassword,
+            },
+        })
+
+        return 'success'
+    } catch (error) {
+        if (error instanceof ApiError && error.status === 400) {
+            return 'invalid_token'
+        }
+
+        throw error
+    }
 }
 
 
 
 
 export const restoreSession = async (): Promise<AuthUser | null> => {
-    // TODO(API): Restore the session and load the current user.
-    
-    return null
+    const refreshed = await refreshAccessToken()
+    if (!refreshed) return null
+
+    try {
+        return await loadCurrentUser()
+    } catch {
+        setAccessToken(null)
+        return null
+    }
 }
