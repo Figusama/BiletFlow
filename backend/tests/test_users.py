@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 from database.database import engine
 from backend.main import app
-from test_auth import login, USER, verified_user, NEW_PASSWORD
+from test_auth import login, USER, verified_user, NEW_PASSWORD, clean_user
 client = TestClient(app)
 
 update_json = {
