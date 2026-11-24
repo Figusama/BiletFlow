@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 from backend.core.clock import as_aware, db_now
 from backend.core.config import RESERVATION_TTL_MINUTES
 from backend.modules.audit import service as audit
-from backend.modules.events.access import ensure_on_sale, get_event_or_404
+from backend.modules.events.access import ensure_on_sale, ensure_purchase_access, get_event_or_404
 from backend.modules.events.models import events, event_seats
 from backend.modules.events.schemas import SeatingMode
 from backend.modules.orders.models import reservations, reservation_items, orders, order_items
@@ -118,6 +118,7 @@ def _check_type_on_sale(event: events, ticket_type: ticket_types, now: datetime,
 def create_reservation(session: Session, event_id: uuid.UUID, user: users, data: ReservationCreate) -> reservations:
     event = get_event_or_404(session, event_id, for_update=True)
     ensure_on_sale(event)
+    ensure_purchase_access(session, event, user)
     now = db_now(session)
 
     if event.seating_mode == SeatingMode.GENERAL_ADMISSION:
@@ -225,6 +226,7 @@ def create_order(session: Session, reservation_id: uuid.UUID, user: users, promo
         return existing, []
 
     ensure_on_sale(event)
+    ensure_purchase_access(session, event, user)
     now = db_now(session)
     if not (reservation.status == ReservationStatus.ACTIVE and as_aware(reservation.expires_at) > now):
         raise HTTPException(status.HTTP_409_CONFLICT, "Reservation has expired or is no longer active")

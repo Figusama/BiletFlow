@@ -1,8 +1,9 @@
 import uuid
 from enum import Enum
+from pydantic import BaseModel, EmailStr, Field
 from sqlmodel import SQLModel
 from datetime import datetime
-
+from pydantic import field_validator
 
 class EventStatus(str, Enum):
     DRAFT = "DRAFT"
@@ -33,11 +34,26 @@ class EventChangeField(str, Enum):
     END_AT = "END_AT"
     LOCATION = "LOCATION"
 
-class EventUpdate(SQLModel):
+class EventUpdate(BaseModel):
     ga_capacity: int | None = None
-    public_contact_name: str | None = None
-    public_contact_email: str | None = None
-    public_contact_phone: str | None = None
+    description: str | None = Field(default=None, min_length=1, max_length=20000)
+    public_contact_name: str | None = Field(default=None, max_length=200)
+    public_contact_email: EmailStr | None = None
+    public_contact_phone: str | None = Field(default=None, max_length=40)
+    public_instagram_url: str | None = Field(default=None, max_length=300, pattern=r"^https://(www\.)?instagram\.com/\S+$")
+    public_telegram_url: str | None = Field(default=None, max_length=300, pattern=r"^https://t\.me/\S+$")
+    public_website_url: str | None = Field(default=None, max_length=300, pattern=r"^https://\S+$")
+    refund_policy: dict | None = None
+
+class EventCategory(SQLModel):
+    id: uuid.UUID
+    name: str
+    slug: str
+
+class EventImage(SQLModel):
+    id: uuid.UUID
+    position: int
+    url: str
 
 class CreateEvent(SQLModel):
 
@@ -61,9 +77,10 @@ class CreateEvent(SQLModel):
 
     intends_paid_sales : bool = False
 
-
-
-
+class CreatedEvent(CreateEvent):
+    id: uuid.UUID
+    application_number: str
+    status: EventStatus
 
 class EventPublic(SQLModel):
     id: uuid.UUID
@@ -90,3 +107,22 @@ class EventPublic(SQLModel):
     cancelled_at: datetime | None
     calendar_ics_url: str | None = None
     google_calendar_url: str | None = None
+    public_instagram_url: str | None = None
+    public_telegram_url: str | None = None
+    public_website_url: str | None = None
+    refund_policy: dict = {}
+    purchase_terms_version: int = 1
+    categories: list[EventCategory] = []
+    images: list[EventImage] = []
+    cover_image_url: str | None = None
+
+class ApplicationReject(SQLModel):
+    review_comment: str
+
+    @field_validator("review_comment")
+    @classmethod
+    def not_blank(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("review_comment must not be empty")
+        return v

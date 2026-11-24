@@ -30,6 +30,7 @@ class ScanResult(str, Enum):
     EVENT_NOT_ACTIVE = "event_not_active"
     EVENT_SUSPENDED = "event_suspended"
     CAMPAIGN_QR_NOT_ADMISSION = "campaign_qr_not_admission"
+    REFUND_IN_PROGRESS = "refund_in_progress"
     UNDONE = "undone"
 
 

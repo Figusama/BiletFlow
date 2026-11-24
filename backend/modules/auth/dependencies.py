@@ -14,6 +14,7 @@ import secrets
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth_2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
+optional_oauth_2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token", auto_error=False)
 
 
 def verify_password(plain_password : str, hashed_password : str):
@@ -66,6 +67,16 @@ async def get_current_user(token: str = Depends(oauth_2_scheme), session: Sessio
     if user.is_suspended:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is suspended")
     return user
+
+async def get_optional_user(token: str | None = Depends(optional_oauth_2_scheme), session: Session = Depends(get_session)) -> users | None:
+    if not token:
+        return None
+    try:
+        email = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM]).get("sub")
+    except JWTError:
+        return None
+    user = get_user(session, email=email) if email else None
+    return None if user is None or user.is_suspended else user
 
 async def get_current_active_user(current_user : users = Depends(get_current_user)):
     return current_user

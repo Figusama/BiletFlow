@@ -15,7 +15,7 @@ def _now() -> datetime:
 
 class promotional_campaigns(SQLModel, table=True):
     __tablename__ = "promotional_campaigns"
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True))
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()))
     event_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("events.id"), nullable=False, index=True))
     name: str = Field(sa_column=Column(pg.TEXT, nullable=False))
     created_by_user_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("users.id"), nullable=False))
@@ -24,7 +24,7 @@ class promotional_campaigns(SQLModel, table=True):
 
 class promo_codes(SQLModel, table=True):
     __tablename__ = "promo_codes"
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True))
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()))
     event_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("events.id"), nullable=False, index=True))
     campaign_id: uuid.UUID | None = Field(default=None, sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("promotional_campaigns.id"), nullable=True))
     code: str = Field(sa_column=Column(pg.CITEXT, unique=True, nullable=False))
@@ -51,7 +51,7 @@ class promo_code_ticket_types(SQLModel, table=True):
 
 class promo_holds(SQLModel, table=True):
     __tablename__ = "promo_holds"
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True))
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()))
     promo_code_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("promo_codes.id"), nullable=False, index=True))
     order_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("orders.id"), unique=True, nullable=False))
     expires_at: datetime = Field(sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False))
@@ -62,7 +62,7 @@ class promo_holds(SQLModel, table=True):
 
 class promo_redemptions(SQLModel, table=True):
     __tablename__ = "promo_redemptions"
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True))
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()))
     promo_code_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("promo_codes.id"), nullable=False, index=True))
     order_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("orders.id"), unique=True, nullable=False))
     discount_minor: int = Field(sa_column=Column(pg.BIGINT, nullable=False))
