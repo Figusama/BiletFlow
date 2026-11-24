@@ -6,6 +6,12 @@ export interface EventCategory {
     name: string
 }
 
+export interface EventPhoto {
+    id: string
+    position: number
+    url: string
+}
+
 export interface EventSummary {
     id: string
     public_id: string
@@ -18,7 +24,8 @@ export interface EventSummary {
     starts_at: string
     ends_at: string
     timezone: string
-    images?: string[]
+    images?: EventPhoto[]
+    cover_image_url?: string | null
     categories?: EventCategory[]
     price_from?: number | null
 }
@@ -33,6 +40,11 @@ export interface EventDetails extends EventSummary {
     calendar_ics_url: string | null
     google_calendar_url: string | null
 }
+
+export const getImageUrls = (event: EventSummary) =>
+    [...(event.images ?? [])].sort((a, b) => a.position - b.position).map((image) => image.url)
+
+export const getCoverUrl = (event: EventSummary) => event.cover_image_url ?? getImageUrls(event)[0]
 
 export const useEvent = (ref: string) =>
     useQuery({

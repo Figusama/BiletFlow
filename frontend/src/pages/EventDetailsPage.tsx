@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
-import { useEvent } from '../features/events/api'
+import { getImageUrls, useEvent } from '../features/events/api'
 import { usePricedEvents } from '../features/events/usePricedEvents'
 import CalendarMenu from '../features/events/components/CalendarMenu'
 import EventFacts from '../features/events/components/EventFacts'
@@ -66,7 +66,7 @@ const EventDetailsPage = () => {
 
     return (
         <div className="mx-auto max-w-[1224px] px-4 pt-8 pb-16 sm:px-6">
-            <EventGallery images={event.images ?? []} title={event.title} className="h-[220px] sm:h-[300px] md:h-[380px]" />
+            <EventGallery images={getImageUrls(event)} title={event.title} className="h-[220px] sm:h-[300px] md:h-[380px]" />
 
             <div className="mt-6 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">

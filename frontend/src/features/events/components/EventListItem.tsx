@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { formatTime } from '../../../shared/lib/date'
 import { useLanguage } from '../../../shared/i18n/language'
-import type { EventSummary } from '../api'
+import { getCoverUrl, type EventSummary } from '../api'
 import { getCategoryLabel, getPriceLabel } from '../labels'
 import DateStub from './DateStub'
 import EventImage from './EventImage'
@@ -25,7 +25,7 @@ const EventListItem = ({ event }: EventListItemProps) => {
             <DateStub date={startsAt} timeZone={event.timezone} />
 
             <EventImage
-                src={event.images?.[0]}
+                src={getCoverUrl(event)}
                 className="my-4 ml-5 hidden h-26 w-44 shrink-0 rounded-xl sm:block"
             />
 

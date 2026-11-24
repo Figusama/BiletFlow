@@ -3,7 +3,7 @@ import DateStub from '../../events/components/DateStub'
 import EventImage from '../../events/components/EventImage'
 import { useLanguage } from '../../../shared/i18n/language'
 import { formatTime } from '../../../shared/lib/date'
-import type { EventSummary } from '../../events/api'
+import { getCoverUrl, type EventSummary } from '../../events/api'
 import { getCategoryLabel } from '../../events/labels'
 import { isCancelled, type TicketOrder } from '../orders'
 import TicketStatusBadge from './TicketStatusBadge'
@@ -23,7 +23,7 @@ const TicketOrderCard = ({ order, event }: TicketOrderCardProps) => {
         <article className="flex min-h-[136px] items-stretch rounded-2xl border border-border bg-surface">
             <DateStub date={startsAt} timeZone={order.timeZone} />
 
-            <EventImage src={event?.images?.[0]} className="my-4 ml-5 hidden h-26 w-44 shrink-0 rounded-xl sm:block" />
+            <EventImage src={event && getCoverUrl(event)} className="my-4 ml-5 hidden h-26 w-44 shrink-0 rounded-xl sm:block" />
 
             <div className="flex min-w-0 flex-1 flex-col justify-center gap-3 px-5 py-5 md:flex-row md:items-center md:justify-between">
                 <div className="min-w-0">

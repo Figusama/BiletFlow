@@ -14,6 +14,7 @@ import ResetPasswordPage from '../pages/ResetPasswordPage'
 import MyTicketsPage from '../pages/MyTicketsPage'
 import CheckoutPage from '../pages/CheckoutPage'
 import OrderPage from '../pages/OrderPage'
+import ApplicationPage from '../pages/ApplicationPage'
 import RequireAuth from '../features/auth/requireAuth'
 import { verifyEmail } from '../features/auth/auth'
 import { ApiError } from '../shared/api/client'
@@ -90,11 +91,15 @@ export const router = createBrowserRouter([
                                 path: 'orders/:orderId',
                                 element: <OrderPage />,
                             },
+                            {
+                                path: 'organizer/events/new',
+                                element: <ApplicationPage />,
+                            },
+                            {
+                                path: 'organizer/applications/:applicationId',
+                                element: <ApplicationPage />,
+                            },
                         ],
-                    },
-                    {
-                        path: 'organizer/events/new',
-                        element: <ComingSoonPage titleKey="createEvent" />,
                     },
                     {
                         path: 'organizer/events',

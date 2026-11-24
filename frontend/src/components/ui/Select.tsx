@@ -12,6 +12,7 @@ interface SelectProps<T extends string> {
 	onValueChange: (value: T) => void
 	placeholder?: string
 	ariaLabel?: string
+	fullWidth?: boolean
 }
 
 const Select = <T extends string>({
@@ -20,6 +21,7 @@ const Select = <T extends string>({
 	onValueChange,
 	placeholder,
 	ariaLabel,
+	fullWidth = false,
 }: SelectProps<T>) => {
     const handleValueChange = (value: string) => {
 		const selectedOption = options.find(
@@ -38,17 +40,18 @@ const Select = <T extends string>({
 		>
 			<RadixSelect.Trigger
 				aria-label={ariaLabel}
-				className="
-					inline-flex h-9 min-w-40 items-center justify-between gap-3
-					rounded-xl border border-border-strong
-					bg-surface px-4
+				className={`
+					inline-flex items-center justify-between gap-3
+					${fullWidth ? 'h-12 w-full rounded-[14px] border-border data-[placeholder]:text-muted' : 'h-9 min-w-40 rounded-xl border-border-strong'}
+					border bg-surface px-4
 					text-sm font-medium text-foreground
 					outline-none
 					transition-colors
 					hover:bg-surface-sunk
 					focus-visible:ring-2
 					focus-visible:ring-accent
-				"
+					disabled:cursor-default disabled:hover:bg-surface
+				`}
 			>
 				<RadixSelect.Value placeholder={placeholder} />
 

@@ -24,7 +24,7 @@ export class ApiError extends Error {
 
 type ApiInit = Omit<RequestInit, 'body' | 'headers'> & {
     json?: unknown;
-    form?: URLSearchParams;
+    form?: URLSearchParams | FormData;
     headers?: Record<string, string>;
     idempotencyKey?: string;
 }

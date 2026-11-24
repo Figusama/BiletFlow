@@ -52,3 +52,17 @@ export const getNextDays = (count: number) => {
     const now = Date.now()
     return Array.from({ length: count }, (_, index) => new Date(now + index * DAY_MS))
 }
+
+export const toDateTimeInput = (iso: string | null, timeZone: string) => {
+    if (!iso) return ''
+    const { year, month, day, hours, minutes } = getDateParts(new Date(iso), timeZone)
+    return `${year}-${pad(month + 1)}-${pad(day)}T${pad(hours)}:${pad(minutes)}`
+}
+
+export const fromDateTimeInput = (value: string, timeZone: string) => {
+    if (!value) return null
+    const asUtc = new Date(`${value}:00Z`)
+    const shown = toDateTimeInput(asUtc.toISOString(), timeZone)
+    const offset = new Date(`${shown}:00Z`).getTime() - asUtc.getTime()
+    return new Date(asUtc.getTime() - offset).toISOString()
+}

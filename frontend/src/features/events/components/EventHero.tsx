@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '../../../shared/i18n/language'
 import { useSwipe } from '../../../shared/lib/useSwipe'
-import type { EventSummary } from '../api'
+import { getCoverUrl, type EventSummary } from '../api'
 import { formatEventDate, getCategoryLabel, getPriceLabel } from '../labels'
 import EventBanner from './EventBanner'
 import Icon from '../../../components/ui/Icon'
@@ -28,7 +28,7 @@ const EventHero = ({ events }: EventHeroProps) => {
         <section aria-roledescription="carousel" aria-label={t.discover.title} className="relative">
             <div {...swipe} className="relative touch-pan-y">
                 <EventBanner
-                    image={event.images?.[0]}
+                    image={getCoverUrl(event)}
                     overline={[getCategoryLabel(event, t), formatEventDate(event, t)]}
                     title={event.title}
                     subtitle={[event.venue_name, getPriceLabel(event, t)]}
