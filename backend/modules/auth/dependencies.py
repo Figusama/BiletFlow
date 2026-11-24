@@ -1,18 +1,20 @@
-from fastapi import status, Depends, HTTPException
+from fastapi import status, Depends, HTTPException, Response
 from fastapi.security import OAuth2PasswordBearer
 from datetime import datetime, timedelta
 from jose import JWTError, jwt 
 from passlib.context import CryptContext
-from backend.modules.auth.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+from backend.modules.auth.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_COOKIE, REFRESH_DAYS
 from sqlmodel import Session, select
 from datetime import timezone
 from database.database import get_session
-from backend.modules.users.user_model import users, pending_registrations
+from backend.modules.users.user_model import users, pending_registrations, refresh_session
 import hashlib
+import secrets
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth_2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
+
 
 def verify_password(plain_password : str, hashed_password : str):
     return pwd_context.verify(plain_password, hashed_password)
@@ -67,3 +69,29 @@ async def get_current_user(token: str = Depends(oauth_2_scheme), session: Sessio
 
 async def get_current_active_user(current_user : users = Depends(get_current_user)):
     return current_user
+
+def set_refresh_cookie(response: Response, token: str):
+    response.set_cookie(
+        REFRESH_COOKIE,
+        token,
+        max_age=REFRESH_DAYS * 86400,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        path="/auth"
+
+    )
+
+def create_refresh_session(session, user_id) -> str:
+    raw = secrets.token_urlsafe(48)
+    session.add(refresh_session(
+        user_id=user_id,
+        refresh_token_hash=hash_token(raw),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=REFRESH_DAYS)
+    ))
+    return raw
+
+def revoke_all_sessions(session, user_id):
+    now = datetime.now(timezone.utc)
+    for rs in session.exec(select(refresh_session).where(refresh_session.user_id == user_id, refresh_session.revoked_at.is_(None))):
+        rs.revoked_at = now

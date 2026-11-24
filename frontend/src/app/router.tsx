@@ -33,15 +33,15 @@ export const router = createBrowserRouter([
                 element: <TicketSelectionPage />,
             },
 			{
-				path: 'login',
+				path: '/auth/token',
 				element: <LoginPage />,
 			},
 			{
-				path: 'register',
+				path: '/auth/register',
 				element: <RegisterPage />
 			},
             {
-                path: 'auth/verify-email',
+                path: '/auth/verify-email',
                 element: <VerifyEmailPage />,
                 loader: async ({ request }) => {
                     const token = new URL(request.url).searchParams.get('token')
@@ -61,11 +61,11 @@ export const router = createBrowserRouter([
                 },
             },
             {
-                path: 'auth/forgot-password',
+                path: '/auth/forgot-password',
                 element: <ForgotPasswordPage />,
             },
             {
-                path: 'auth/reset-password',
+                path: '/auth/reset-password',
                 element: <ResetPasswordPage />,
             },
             {

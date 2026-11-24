@@ -105,7 +105,7 @@ const ForgotPasswordPage = () => {
 				)}
 
 				<Link
-					to="/login"
+					to="/auth/token"
 					className="mt-5 self-center text-sm font-semibold text-accent hover:underline"
 				>
 					{t.auth.backToSignIn}

@@ -61,7 +61,7 @@ const ResetPasswordPage = () => {
 					</p>
 
 					<Link
-						to={updated ? '/login' : '/forgot-password'}
+						to={updated ? '/auth/token' : '/auth/forgot-password'}
 						className="mt-6 inline-flex min-h-11 items-center justify-center rounded-full bg-night px-6 text-sm font-semibold text-on-night"
 					>
 						{updated ? t.auth.signIn : t.resetPassword.requestNew}
@@ -157,7 +157,7 @@ const ResetPasswordPage = () => {
 				</form>
 
 				<Link
-					to="/login"
+					to="/auth/token"
 					className="mx-auto mt-5 block w-fit text-sm font-semibold text-accent hover:underline"
 				>
 					{t.auth.backToSignIn}

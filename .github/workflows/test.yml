@@ -32,3 +32,4 @@ jobs:
       - run: pip install -r requirements.txt pytest
       - run: python create_tables.py
       - run: pytest -v backend/tests/test_auth.py
+      - run: pytest -v backend/tests/test_users.py

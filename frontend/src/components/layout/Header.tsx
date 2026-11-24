@@ -129,7 +129,7 @@ const Header = () => {
                                 </>
                             ) : (
                                 <Link
-                                    to="/login"
+                                    to="/auth/token"
                                     onClick={closeMenu}
                                     className="inline-flex h-10 shrink-0 items-center rounded-full bg-night px-6 whitespace-nowrap text-sm font-semibold text-on-night focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                                 >

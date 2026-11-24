@@ -89,7 +89,7 @@ def test_login(verified_user):
 
 
 def test_login_unverified_user_gets_403():
-    r, _ = register_with_mock()          # registered, but not verified yet
+    r, _ = register_with_mock()
     assert r.status_code == status.HTTP_202_ACCEPTED, r.text
 
     r = login(USER["email"], USER["password"])
@@ -114,18 +114,6 @@ def test_login_suspended_user(verified_user):
         )
     r = login(USER["email"], USER["password"])
     assert r.status_code == status.HTTP_403_FORBIDDEN, r.text
-
-
-def test_change_password(verified_user):
-    token = login(USER["email"], USER["password"]).json()["access_token"]
-    r = client.post(
-        "/users/me/password",
-        json={"current_password": USER["password"], "new_password": NEW_PASSWORD},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert r.status_code == status.HTTP_204_NO_CONTENT, r.text
-    assert login(USER["email"], USER["password"]).status_code == status.HTTP_401_UNAUTHORIZED
-    assert login(USER["email"], NEW_PASSWORD).status_code == status.HTTP_200_OK
 
 
 def test_list_events():

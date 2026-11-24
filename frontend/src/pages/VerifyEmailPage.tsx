@@ -43,7 +43,7 @@ const VerifyEmailPage = () => {
                 </p>
 
                 <Link
-                    to={verified ? '/login' : '/register'}
+                    to={verified ? '/auth/token' : '/auth/register'}
                     className="mt-6 inline-flex min-h-11 items-center justify-center rounded-full bg-night px-6 text-sm font-semibold text-on-night hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
                     {verified ? t.auth.signIn : t.verifyEmail.backToRegistration}

@@ -130,7 +130,7 @@ const LoginPage = () => {
                                 error={errors.password?.message}
                                 labelAction={
                                     <Link
-                                        to="/forgot-password"
+                                        to="/auth/forgot-password"
                                         className="text-[13px] font-semibold text-accent hover:underline"
                                     >
                                         {t.login.forgotPassword}
@@ -171,7 +171,7 @@ const LoginPage = () => {
                         <p className="mt-6 text-center text-[15px] text-muted">
                             {t.login.noAccount}{' '}
                             <Link
-                                to="/register"
+                                to="/auth/register"
                                 className="font-bold text-accent hover:underline"
                             >
                                 {t.login.createAccount}

@@ -281,7 +281,7 @@ const RegisterPage = () => {
 
 								<p className="mt-6 text-center text-[15px] text-muted">
 									{t.register.haveAccount}{' '}
-									<Link to="/login" className="font-bold text-accent hover:underline">
+									<Link to="/auth/token" className="font-bold text-accent hover:underline">
 										{t.auth.signIn}
 									</Link>
 								</p>

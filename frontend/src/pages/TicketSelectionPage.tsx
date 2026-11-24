@@ -48,7 +48,7 @@ const TicketSelectionPage = () => {
 
     const handleContinue = async () => {
         if (!user) {
-            navigate('/login', { state: { from: location.pathname } })
+            navigate('/auth/token', { state: { from: location.pathname } })
             return
         }
 
