@@ -13,6 +13,7 @@ from backend.modules.events.models import events
 from backend.modules.events.schemas import EventLifecycleStatus
 from backend.modules.orders.models import orders
 from backend.modules.promotions.models import promo_codes
+from backend.modules.refunds import service as refund_service
 from backend.modules.tickets import service as ticket_service
 from backend.modules.tickets.models import check_in_records, ticket_types, tickets
 from backend.modules.tickets.schemas import AttendeeRow, CheckInStats, ScanRequest, ScanResponse, ScanResult, TicketStatus, UndoRequest
@@ -94,6 +95,8 @@ def scan(data: ScanRequest, session: Session = Depends(get_session), current_use
         return _deny(session, blocked, event.id, current_user, ticket)
     if ticket.status != TicketStatus.VALID:
         return _deny(session, STATUS_RESULTS.get(ticket.status, ScanResult.INVALID), event.id, current_user, ticket)
+    if refund_service.is_checkin_blocked(session, ticket.order_id):
+        return _deny(session, ScanResult.REFUND_IN_PROGRESS, event.id, current_user, ticket)
 
     record = check_in_records(ticket_id=ticket.id, checked_in_by=current_user.id, checked_in_at=now)
     ticket.status = TicketStatus.CHECKED_IN

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from backend.core.types import text_enum
 from backend.modules.tickets.schemas import TicketKind, SalesStatus, TicketStatus
-from sqlalchemy import Column, ForeignKey, func
+from sqlalchemy import Column, ForeignKey, Index, func, text
 from sqlalchemy.dialects import postgresql as pg
 from sqlmodel import SQLModel, Field
 
@@ -13,7 +13,7 @@ def _now() -> datetime:
 
 class ticket_types(SQLModel, table=True):
     __tablename__ = "ticket_types"
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True))
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()))
     event_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("events.id"), nullable=False, index=True))
     name: str = Field(sa_column=Column(pg.TEXT, nullable=False))
     description: str | None = Field(default=None, sa_column=Column(pg.TEXT, nullable=True))
@@ -31,7 +31,11 @@ class ticket_types(SQLModel, table=True):
 
 class tickets(SQLModel, table=True):
     __tablename__ = "tickets"
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True))
+    __table_args__ = (
+        Index("ux_occupying_event_seat", "event_seat_id", unique=True, postgresql_where=text("event_seat_id IS NOT NULL AND status IN ('VALID','CHECKED_IN')")),
+        Index("ux_one_ticket_per_assigned_order_item", "order_item_id", unique=True, postgresql_where=text("event_seat_id IS NOT NULL")),
+    )
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()))
     public_id: str = Field(sa_column=Column(pg.VARCHAR, unique=True, nullable=False))
     order_item_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("order_items.id"), nullable=False))
     order_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("orders.id"), nullable=False, index=True))
@@ -50,7 +54,8 @@ class tickets(SQLModel, table=True):
 
 class check_in_records(SQLModel, table=True):
     __tablename__ = "check_in_records"
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True))
+    __table_args__ = (Index("ux_effective_checkin", "ticket_id", unique=True, postgresql_where=text("reversed_at IS NULL")),)
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()))
     ticket_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("tickets.id"), nullable=False, index=True))
     checked_in_by: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("users.id"), nullable=False))
     checked_in_at: datetime = Field(default_factory=_now, sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False, server_default=func.now()))

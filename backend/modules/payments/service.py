@@ -11,7 +11,8 @@ from sqlmodel import Session, select
 from backend.core.clock import as_aware, db_now
 from backend.core.config import PAYMENT_CHECK_INTERVAL_SECONDS, PAYMENT_WEBHOOK_SECRET, PROCESSING_FEE_RATE_BPS, PUBLIC_API_URL
 from backend.modules.audit import service as audit
-from backend.modules.events.access import ensure_on_sale, get_event_or_404
+from backend.modules.events.schemas import EventLifecycleStatus
+from backend.modules.events.access import ensure_on_sale, ensure_purchase_access, get_event_or_404
 from backend.modules.orders.models import orders, reservations
 from backend.modules.orders.schemas import OrderStatus, ReservationStatus
 from backend.modules.payments.activation import paid_sales_active
@@ -116,6 +117,7 @@ def start_payment(session: Session, order_id: uuid.UUID, user: users, idempotenc
         return existing
 
     ensure_on_sale(event)
+    ensure_purchase_access(session, event, user)
     if not paid_sales_active(session, event.id):
         raise HTTPException(status.HTTP_409_CONFLICT, "Paid sales are suspended for this event")
     if order.purchase_terms_version != event.purchase_terms_version:
@@ -203,12 +205,14 @@ def _mark(session: Session, journal: payment_webhook_events, processing: Webhook
     session.commit()
 
 
-def _lock_chain(session: Session, payment_id: uuid.UUID):
+def _lock_chain(session: Session, payment_id: uuid.UUID, with_event: bool = False):
     from backend.modules.orders.service import lock_order_chain
 
     snapshot = session.get(payments, payment_id)
-    _, order, reservation = lock_order_chain(session, snapshot.order_id)
+    event, order, reservation = lock_order_chain(session, snapshot.order_id)
     payment = session.exec(select(payments).where(payments.id == payment_id).with_for_update().execution_options(populate_existing=True)).one()
+    if with_event:
+        return event, order, reservation, payment
     return order, reservation, payment
 
 
@@ -266,7 +270,7 @@ def run_capture(session: Session, payment_id: uuid.UUID, outcome: SimulatedOutco
 def apply_capture(session: Session, payment_id: uuid.UUID, approved: bool) -> list[tickets] | None:
     from backend.modules.orders.service import confirm_order
 
-    order, reservation, payment = _lock_chain(session, payment_id)
+    event, order, reservation, payment = _lock_chain(session, payment_id, with_event=True)
     if payment.status != PaymentStatus.CAPTURING:
         session.rollback()
         return None
@@ -278,7 +282,10 @@ def apply_capture(session: Session, payment_id: uuid.UUID, approved: bool) -> li
         audit.record(session, action="PAYMENT_SUCCEEDED", entity_type="PAYMENT", entity_id=payment.id, event_id=order.event_id)
         issued: list[tickets] = []
         if order.status == OrderStatus.PENDING:
-            issued = confirm_order(session, order, reservation, now)
+            if event.status == EventLifecycleStatus.CANCELLED or event.is_suspended:
+                _refund_without_issuing(session, event, order, reservation, now)
+            else:
+                issued = confirm_order(session, order, reservation, now)
         session.commit()
         return issued
 
@@ -296,6 +303,20 @@ def apply_capture(session: Session, payment_id: uuid.UUID, approved: bool) -> li
     session.add_all([payment, order, reservation])
     session.commit()
     return []
+
+
+def _refund_without_issuing(session: Session, event, order: orders, reservation, now) -> None:
+    from backend.modules.refunds import service as refund_service
+    from backend.modules.refunds.schemas import RefundSource
+
+    order.status = OrderStatus.CONFIRMED
+    order.confirmed_at = now
+    reservation.status = ReservationStatus.RELEASED
+    reservation.released_at = now
+    session.add_all([order, reservation])
+    promo_service.release_hold(session, order.id, now)
+    source = RefundSource.EVENT_CANCELLATION if event.status == EventLifecycleStatus.CANCELLED else RefundSource.EVENT_SUSPENSION
+    refund_service.create_request(session, order, source, now, requested_by=None)
 
 
 def simulate_bank(session: Session, payment_id: uuid.UUID, outcome: SimulatedOutcome) -> list[tickets]:
