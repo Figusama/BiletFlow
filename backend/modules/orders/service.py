@@ -21,6 +21,7 @@ from backend.modules.promotions.service import PricedLine, PROMO_MESSAGES
 from backend.modules.tickets import service as ticket_service
 from backend.modules.tickets.models import ticket_types, tickets
 from backend.modules.tickets.schemas import TicketKind, SalesStatus, TicketStatus
+from backend.modules.tickets.notify import publish_order_confirmed
 from backend.modules.users.user_model import users
 
 
@@ -301,6 +302,7 @@ def confirm_order(session: Session, order: orders, reservation: reservations, no
     if order.promo_code_id is not None:
         promo_service.redeem(session, order.promo_code_id, order.id, order.discount_minor, now)
     issued = ticket_service.issue_for_order(session, order)
+    publish_order_confirmed(session, order, issued)
     audit.record(session, action="ORDER_CONFIRMED", entity_type="ORDER", entity_id=order.id, event_id=order.event_id, actor_user_id=actor_user_id)
     return issued
 

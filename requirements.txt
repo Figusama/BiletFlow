@@ -12,3 +12,6 @@ pillow
 reportlab
 tzdata
 resend
+httpx
+requests
+boto3

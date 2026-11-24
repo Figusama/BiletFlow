@@ -11,7 +11,7 @@ from backend.modules.orders.models import orders, order_items, reservations, res
 from backend.modules.orders.schemas import OrderCreate, OrderPublic, OrderItemPublic, ReservationCreate, ReservationItemPublic, ReservationPublic, ReservationStatus
 from backend.modules.promotions.models import promo_codes
 from backend.modules.tickets.models import tickets
-from backend.modules.tickets.notify import queue_ticket_email
+from backend.modules.tickets.notify import deliver_notices
 from backend.modules.tickets.service import seat_label
 from backend.modules.users.user_model import users
 from database.database import get_session
@@ -84,7 +84,7 @@ def release_reservation(reservation_id: uuid.UUID, session: Session = Depends(ge
 @router.post("/reservations/{reservation_id}/order", response_model=OrderPublic, status_code=status.HTTP_201_CREATED)
 def create_order(reservation_id: uuid.UUID, data: OrderCreate, background: BackgroundTasks, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
     order, issued = service.create_order(session, reservation_id, current_user, data.promo_code)
-    queue_ticket_email(background, session, issued)
+    deliver_notices(background)
     return order_to_public(session, order)
 
 

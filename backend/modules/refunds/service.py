@@ -15,8 +15,10 @@ from backend.modules.events.schemas import EventLifecycleStatus
 from backend.modules.notifications import service as notify
 from backend.modules.orders.models import orders
 from backend.modules.orders.schemas import OrderStatus
+from backend.modules.payments import halyk
 from backend.modules.payments.models import payments
 from backend.modules.payments.schemas import PaymentStatus
+from backend.modules.payments.service import is_simulated
 from backend.modules.refunds.models import refund_requests, refunds
 from backend.modules.refunds.schemas import MANDATORY_SOURCES, RefundAttemptPublic, RefundEligibility, RefundRequestPublic, RefundSource
 from backend.modules.tickets.models import tickets
@@ -32,6 +34,8 @@ ESCALATE_AFTER = timedelta(hours=48)
 REMIND_AFTER = timedelta(hours=24)
 MAX_SYSTEM_ATTEMPTS = 5
 STUCK_AFTER = timedelta(minutes=5)
+UNKNOWN_SLOW_AFTER = timedelta(minutes=30)
+UNKNOWN_ESCALATE_AFTER = timedelta(hours=24)
 OPEN_EXECUTION = ("NOT_STARTED", "IN_PROGRESS")
 UNFINISHED_ATTEMPT = ("PENDING", "PROCESSING", "UNKNOWN")
 
@@ -39,12 +43,25 @@ SIMULATED_OUTCOME = "SUCCEEDED"
 SIMULATED_RECONCILE_OUTCOME = "SUCCEEDED"
 
 
-def provider_refund(attempt: refunds) -> str:
-    return SIMULATED_OUTCOME
+def provider_refund(attempt: refunds, payment: payments) -> str:
+    if is_simulated(payment):
+        return SIMULATED_OUTCOME
+    answer = halyk.refund(payment.provider_payment_id, attempt.provider_ref)
+    outcome = provider_refund_status(attempt, payment)
+    if outcome != "SUCCEEDED" and answer == halyk.REFUSED and _bank_status(payment) == halyk.CHARGE:
+        return "FAILED"
+    return outcome
 
 
-def provider_refund_status(attempt: refunds) -> str:
-    return SIMULATED_RECONCILE_OUTCOME
+def provider_refund_status(attempt: refunds, payment: payments) -> str:
+    if is_simulated(payment):
+        return SIMULATED_RECONCILE_OUTCOME
+    return "SUCCEEDED" if _bank_status(payment) == halyk.REFUNDED else "UNKNOWN"
+
+
+def _bank_status(payment: payments) -> str:
+    state = halyk.lookup(payment.provider_invoice_id)
+    return state.status if state.transaction_id == payment.provider_payment_id else halyk.IN_PROGRESS
 
 
 def lock_order(session: Session, order_id: uuid.UUID) -> tuple[events, orders]:
@@ -140,6 +157,11 @@ def admin_ids(session: Session) -> list[uuid.UUID]:
     return list(session.exec(select(users.id).where(users.personal_role == Role.PLATFORM_ADMIN, users.is_suspended.is_(False))).all())
 
 
+def organizer_email(session: Session, user_id: uuid.UUID) -> list[notify.Email]:
+    owner = session.get(users, user_id)
+    return [notify.Email(address=owner.email, user_id=owner.id)]
+
+
 def notify_buyer(session: Session, order: orders, key: str, event_type: str, title: str, body: str) -> None:
     buyer = session.get(users, order.buyer_user_id)
     notify.publish(session, notify.Notice(key=key, event_type=event_type, aggregate_type="ORDER", aggregate_id=order.id, title=title, body=body,
@@ -166,7 +188,7 @@ def create_request(session: Session, order: orders, source: RefundSource, now: d
         if owner and pending_status == "PENDING":
             notify.publish(session, notify.Notice(key=f"REFUND_REQUESTED:{request.id}", event_type="REFUND_REQUESTED", aggregate_type="REFUND_REQUEST", aggregate_id=request.id,
                                                   title="New refund request", body=f"Refund requested for order {order.order_number}.",
-                                                  action_url=f"{FRONTEND_URL}/events/{order.event_id}/refunds", inbox_user_ids=[owner]))
+                                                  action_url=f"{FRONTEND_URL}/events/{order.event_id}/refunds", inbox_user_ids=[owner], emails=organizer_email(session, owner)))
         elif pending_status == "PENDING_ADMIN":
             notify.publish(session, notify.Notice(key=f"REFUND_NEEDS_ADMIN:{request.id}", event_type="REFUND_ESCALATED", aggregate_type="REFUND_REQUEST", aggregate_id=request.id,
                                                   title="Refund needs review", body=f"Refund for order {order.order_number} needs an administrator decision.",
@@ -233,7 +255,7 @@ def start_attempt(session: Session, order: orders, request: refund_requests, now
     if payment is None:
         return None
     attempt = refunds(refund_request_id=request.id, order_id=order.id, payment_id=payment.id, amount_minor=payment.amount_minor, status="PROCESSING",
-                      attempt_actor=_attempt_actor(request, manual_admin), provider_ref="SIMREF-" + secrets.token_hex(8).upper(),
+                      attempt_actor=_attempt_actor(request, manual_admin), provider_ref=("SIMREF-" if is_simulated(payment) else "BFREF-") + secrets.token_hex(8).upper(),
                       idempotency_key=f"refund:{request.id}:{len(history) + 1}")
     for previous in history:
         previous.next_retry_at = None
@@ -255,8 +277,14 @@ def _finalize(session: Session, attempt_id: uuid.UUID, outcome: str) -> None:
     now = db_now(session)
     if outcome == "UNKNOWN":
         attempt.status = "UNKNOWN"
-        attempt.next_check_at = now + timedelta(minutes=1)
+        age = now - as_aware(attempt.created_at)
+        attempt.next_check_at = now + (timedelta(minutes=1) if age < UNKNOWN_SLOW_AFTER else UNKNOWN_SLOW_AFTER)
         session.add(attempt)
+        if age >= UNKNOWN_ESCALATE_AFTER:
+            notify.publish(session, notify.Notice(key=f"REFUND_UNKNOWN:{attempt.id}", event_type="REFUND_ESCALATED", aggregate_type="REFUND_REQUEST",
+                                                  aggregate_id=request.id, title="Refund result is unknown",
+                                                  body=f"The bank has not confirmed the refund for order {order.order_number}. Check it in the bank cabinet.",
+                                                  inbox_user_ids=admin_ids(session)))
         session.commit()
         return
     attempt.status = outcome
@@ -292,7 +320,8 @@ def _finalize(session: Session, attempt_id: uuid.UUID, outcome: str) -> None:
         owner = organizer_id(session, order.event_id)
         if owner:
             notify.publish(session, notify.Notice(key=f"REFUND_FAILED_ORG:{request.id}", event_type="REFUND_FAILED", aggregate_type="REFUND_REQUEST", aggregate_id=request.id,
-                                                  title="Refund failed", body=f"Refund for order {order.order_number} failed.", inbox_user_ids=[owner]))
+                                                  title="Refund failed", body=f"Refund for order {order.order_number} failed.", inbox_user_ids=[owner],
+                                                  emails=organizer_email(session, owner)))
         if event.status == EventLifecycleStatus.CANCELLED:
             session.flush()
             create_request(session, order, RefundSource.EVENT_CANCELLATION, now, requested_by=None, approved=False, pending_status="PENDING_ADMIN")
@@ -302,12 +331,16 @@ def _finalize(session: Session, attempt_id: uuid.UUID, outcome: str) -> None:
 
 
 def _execute(attempt_id: uuid.UUID, reconcile: bool = False) -> None:
-    with Session(engine) as session:
+    with Session(engine, expire_on_commit=False) as session:
         attempt = session.get(refunds, attempt_id)
-        try:
-            outcome = provider_refund_status(attempt) if reconcile else provider_refund(attempt)
-        except Exception:
-            outcome = "UNKNOWN"
+        payment = session.get(payments, attempt.payment_id)
+        session.commit()
+    try:
+        outcome = provider_refund_status(attempt, payment) if reconcile else provider_refund(attempt, payment)
+    except Exception:
+        log.warning("refund attempt %s bank request failed", attempt_id, exc_info=True)
+        outcome = "UNKNOWN"
+    with Session(engine) as session:
         _finalize(session, attempt_id, outcome)
 
 
@@ -384,7 +417,8 @@ def escalate_overdue() -> int:
                 if owner:
                     notify.publish(session, notify.Notice(key=f"REFUND_REMINDER:{request.id}", event_type="REFUND_REMINDER", aggregate_type="REFUND_REQUEST",
                                                           aggregate_id=request.id, title="Refund decision pending",
-                                                          body=f"Please decide on the refund request for order {order.order_number}.", inbox_user_ids=[owner]))
+                                                          body=f"Please decide on the refund request for order {order.order_number}.", inbox_user_ids=[owner],
+                                                          emails=organizer_email(session, owner)))
             session.commit()
             handled += 1
     return handled

@@ -3,14 +3,16 @@ import uuid
 from datetime import timedelta
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from backend.core import crypto
-from backend.core.clock import db_now
-from backend.core.config import ACTIVATION_FEE_MINOR, FRONTEND_URL, PAID_SALES_TERMS_VERSION, PAYMENT_SIMULATOR_ENABLED
+from backend.core.clock import as_aware, db_now
+from backend.core.config import ACTIVATION_FEE_MINOR, FRONTEND_URL, PAID_SALES_TERMS_VERSION, PAYMENT_SIMULATOR_ENABLED, PUBLIC_API_URL
 from backend.modules.activation.schemas import (ActivationPublic, ActivationRequestCreate, CurrentTerms, FeeDecision, FeeOutcome, FeePaymentCreate,
                                                 FeePaymentPublic, RejectRequest, RequestPublic, SuspendRequest)
+from backend.modules.activation.service import UNFINISHED_FEE, lock_fee, notify_organizer, settle_fee, sync_fee
 from backend.modules.admin.router import require_admin
 from backend.modules.audit import service as audit
 from backend.modules.auth.dependencies import get_current_user
@@ -18,6 +20,7 @@ from backend.modules.events.access import get_event_or_404, require_event_role, 
 from backend.modules.events.models import events
 from backend.modules.events.schemas import EventLifecycleStatus
 from backend.modules.notifications import service as notify
+from backend.modules.payments import bank, halyk, pages
 from backend.modules.payments.activation import get_activation
 from backend.modules.payments.models import activation_fee_payments, paid_sales_activation_requests, paid_sales_activations, payout_accounts
 from backend.modules.payments.schemas import ActivationStatus
@@ -26,7 +29,7 @@ from database.database import get_session
 
 router = APIRouter(tags=["paid sales"])
 
-UNFINISHED_FEE = ("PENDING", "PROCESSING", "UNKNOWN")
+FEE_PAGE_TTL = timedelta(minutes=30)
 
 
 def mask(value: str, keep: int = 4) -> str:
@@ -47,9 +50,11 @@ def request_to_public(session: Session, request: paid_sales_activation_requests)
 
 def fee_to_public(payment: activation_fee_payments) -> FeePaymentPublic:
     unfinished = payment.status in UNFINISHED_FEE and payment.payment_mode == "SIMULATION"
+    payable = payment.status == "PENDING" and payment.payment_mode == "SANDBOX"
     return FeePaymentPublic(id=payment.id, amount_minor=payment.amount_minor, currency=payment.currency, status=payment.status, payment_mode=payment.payment_mode,
                             provider_operation_ref=payment.provider_operation_ref, created_at=payment.created_at, finalized_at=payment.finalized_at,
-                            simulator_url=f"{FRONTEND_URL}/paid-sales/fee-payments/{payment.id}/simulator" if unfinished else None)
+                            simulator_url=f"{FRONTEND_URL}/paid-sales/fee-payments/{payment.id}/simulator" if unfinished else None,
+                            payment_url=f"{PUBLIC_API_URL}/paid-sales/fee-payments/{payment.id}/halyk" if payable else None)
 
 
 def activation_to_public(session: Session, event_id: uuid.UUID) -> ActivationPublic:
@@ -64,20 +69,6 @@ def activation_to_public(session: Session, event_id: uuid.UUID) -> ActivationPub
     return ActivationPublic(event_id=event_id, status=activation.status.value, fee_amount_minor=activation.fee_amount_minor or ACTIVATION_FEE_MINOR,
                             fee_currency=activation.fee_currency, paid_terms_version=activation.paid_terms_version, activated_at=activation.activated_at,
                             suspended_at=activation.suspended_at, requests=[request_to_public(session, r) for r in requests], fee_payments=[fee_to_public(f) for f in fees])
-
-
-def organizer_of(session: Session, event_id: uuid.UUID) -> uuid.UUID | None:
-    return session.exec(select(event_user_roles.user_id).where(event_user_roles.event_id == event_id, event_user_roles.event_role == EventRole.ORGANIZER)).first()
-
-
-def notify_organizer(session: Session, event: events, key: str, event_type: str, title: str, body: str) -> None:
-    owner_id = organizer_of(session, event.id)
-    owner = session.get(users, owner_id) if owner_id else None
-    if owner is None:
-        return
-    notify.publish(session, notify.Notice(key=key, event_type=event_type, aggregate_type="EVENT", aggregate_id=event.id, title=title, body=body,
-                                          action_url=f"{FRONTEND_URL}/events/{event.id}/paid-sales", inbox_user_ids=[owner.id],
-                                          emails=[notify.Email(address=owner.email, user_id=owner.id)]))
 
 
 @router.get("/paid-sales/terms/current", response_model=CurrentTerms)
@@ -213,7 +204,7 @@ def reject_request(request_id: uuid.UUID, data: RejectRequest, background: Backg
 @router.post("/events/{event_id}/paid-sales/fee-payments", response_model=FeePaymentPublic, status_code=status.HTTP_201_CREATED)
 def start_fee_payment(event_id: uuid.UUID, data: FeePaymentCreate, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
     require_event_role(session, event_id, current_user, (EventRole.ORGANIZER,), allow_platform_admin=False)
-    if not PAYMENT_SIMULATOR_ENABLED:
+    if not PAYMENT_SIMULATOR_ENABLED and not halyk.enabled():
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Payment provider is not configured")
     if data.idempotency_key:
         same = session.exec(select(activation_fee_payments).where(activation_fee_payments.idempotency_key == data.idempotency_key)).first()
@@ -237,8 +228,9 @@ def start_fee_payment(event_id: uuid.UUID, data: FeePaymentCreate, session: Sess
             raise HTTPException(status.HTTP_409_CONFLICT, "Previous fee payment is being verified with the bank")
         return fee_to_public(unfinished)
     payment = activation_fee_payments(activation_id=activation.id, amount_minor=activation.fee_amount_minor, currency=activation.fee_currency, status="PENDING",
-                                      idempotency_key=data.idempotency_key or secrets.token_urlsafe(24), provider_operation_ref="SIMFEE-" + secrets.token_hex(8).upper(),
-                                      payment_mode="SIMULATION")
+                                      idempotency_key=data.idempotency_key or secrets.token_urlsafe(24), payment_mode="SANDBOX" if halyk.enabled() else "SIMULATION",
+                                      provider_operation_ref=bank.new_invoice(session) if halyk.enabled() else "SIMFEE-" + secrets.token_hex(8).upper(),
+                                      next_check_at=db_now(session) + bank.OPERATION_LEASE if halyk.enabled() else None)
     session.add(payment)
     session.commit()
     session.refresh(payment)
@@ -254,35 +246,46 @@ def simulate_fee(payment_id: uuid.UUID, data: FeeDecision, background: Backgroun
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Fee payment not found")
     activation_snapshot = session.get(paid_sales_activations, snapshot.activation_id)
     require_event_role(session, activation_snapshot.event_id, current_user, (EventRole.ORGANIZER,))
-    event = get_event_or_404(session, activation_snapshot.event_id, for_update=True)
-    activation = get_activation(session, event.id, lock=True)
-    payment = session.exec(select(activation_fee_payments).where(activation_fee_payments.id == payment_id).with_for_update().execution_options(populate_existing=True)).first()
+    event, activation, payment = lock_fee(session, payment_id)
     if payment.status not in UNFINISHED_FEE:
         return activation_to_public(session, event.id)
-    now = db_now(session)
-    if data.outcome == FeeOutcome.TIMEOUT:
-        payment.status = "UNKNOWN"
-        payment.next_check_at = now + timedelta(minutes=1)
-    elif data.outcome == FeeOutcome.DECLINE:
-        payment.status = "FAILED"
-        payment.finalized_at = now
-        payment.next_check_at = None
-    else:
-        payment.status = "SUCCEEDED"
-        payment.finalized_at = now
-        payment.next_check_at = None
-        if activation.status == ActivationStatus.FEE_PENDING:
-            activation.status = ActivationStatus.ACTIVE
-            activation.activated_at = now
-            session.add(activation)
-            notify_organizer(session, event, f"PSA_ACTIVATED:{activation.id}", "PAID_SALES_ACTIVATED", "Paid sales activated",
-                             f"Paid ticket sales are now available for \"{event.title}\".")
-            audit.record(session, action="PAID_SALES_ACTIVATED", entity_type="PAID_SALES_ACTIVATION", entity_id=activation.id, event_id=event.id,
-                         actor_user_id=current_user.id, details={"fee_payment_id": str(payment.id), "amount_minor": payment.amount_minor})
-    session.add(payment)
+    outcome = {FeeOutcome.TIMEOUT: "UNKNOWN", FeeOutcome.DECLINE: "FAILED"}.get(data.outcome, "SUCCEEDED")
+    settle_fee(session, event, activation, payment, outcome, db_now(session), current_user.id)
     session.commit()
     background.add_task(notify.deliver_due)
     return activation_to_public(session, event.id)
+
+
+def get_sandbox_fee(session: Session, payment_id: uuid.UUID) -> tuple[activation_fee_payments, events]:
+    payment = session.get(activation_fee_payments, payment_id)
+    if payment is None or payment.payment_mode != "SANDBOX":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Fee payment not found")
+    return payment, session.get(events, session.get(paid_sales_activations, payment.activation_id).event_id)
+
+
+@router.get("/paid-sales/fee-payments/{payment_id}/halyk", response_class=HTMLResponse)
+def halyk_fee_page(payment_id: uuid.UUID, session: Session = Depends(get_session)):
+    payment, event = get_sandbox_fee(session, payment_id)
+    activation = session.get(paid_sales_activations, payment.activation_id)
+    recent = db_now(session) - as_aware(payment.created_at) < FEE_PAGE_TTL
+    if payment.status != "PENDING" or activation.status != ActivationStatus.FEE_PENDING or not bank.event_open(event) or not recent or not halyk.enabled():
+        return RedirectResponse(f"{FRONTEND_URL}/events/{event.id}/paid-sales", status_code=status.HTTP_303_SEE_OTHER)
+    invoice, amount, currency = payment.provider_operation_ref, payment.amount_minor, payment.currency
+    session.commit()
+    try:
+        return pages.halyk_page(invoice, amount, currency, "BiletFlow paid sales activation", f"{PUBLIC_API_URL}/paid-sales/fee-payments/{payment_id}/halyk/return")
+    except halyk.HalykError:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "The bank is not available, please try again")
+
+
+@router.get("/paid-sales/fee-payments/{payment_id}/halyk/return")
+def halyk_fee_return(payment_id: uuid.UUID, background: BackgroundTasks, session: Session = Depends(get_session)):
+    payment, event = get_sandbox_fee(session, payment_id)
+    event_id = event.id
+    if payment.status in UNFINISHED_FEE:
+        sync_fee(session, payment_id)
+        background.add_task(notify.deliver_due)
+    return RedirectResponse(f"{FRONTEND_URL}/events/{event_id}/paid-sales", status_code=status.HTTP_303_SEE_OTHER)
 
 
 def _set_suspension(session: Session, event_id: uuid.UUID, admin: users, suspend: bool, reason: str | None) -> ActivationPublic:

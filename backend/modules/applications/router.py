@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import delete
 from sqlmodel import Session, select
 
@@ -17,6 +17,7 @@ from backend.modules.events.access import require_organizer
 from backend.modules.events.models import (event_application_agreements, event_application_categories, event_application_images, event_applications,
                                            event_categories, event_images)
 from backend.modules.events.schemas import EventStatus
+from backend.modules.notifications import service as notify
 from backend.modules.users.user_model import users
 from database.database import get_session
 
@@ -33,6 +34,16 @@ def current_agreements():
 def my_applications(session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
     rows = session.exec(select(event_applications).where(event_applications.applicant_user_id == current_user.id).order_by(event_applications.created_at.desc())).all()
     return [service.to_public(session, a) for a in rows]
+
+
+@router.post("", response_model=ApplicationPublic, status_code=status.HTTP_201_CREATED)
+def create_application(data: ApplicationInput, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
+    application = service.new_application(session, current_user)
+    service.apply_changes(session, application, data.model_dump(exclude_unset=True))
+    session.add(application)
+    session.commit()
+    session.refresh(application)
+    return service.to_public(session, application)
 
 
 @router.get("/{application_id}", response_model=ApplicationPublic)
@@ -207,7 +218,7 @@ def admin_list(application_status: EventStatus | None = Query(default=EventStatu
 
 
 @admin_router.post("/{application_id}/approve", response_model=ApplicationPublic)
-def admin_approve(application_id: uuid.UUID, data: ApprovalRequest, session: Session = Depends(get_session), admin: users = Depends(require_admin)):
+def admin_approve(application_id: uuid.UUID, data: ApprovalRequest, background: BackgroundTasks, session: Session = Depends(get_session), admin: users = Depends(require_admin)):
     if not data.confirm_responsible_organizer:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Confirm that the responsible organizer was verified")
     application = service.get_application(session, application_id, for_update=True)
@@ -217,12 +228,13 @@ def admin_approve(application_id: uuid.UUID, data: ApprovalRequest, session: Ses
         raise HTTPException(status.HTTP_403_FORBIDDEN, "You cannot review your own application")
     service.approve(session, application, admin, data.review_comment)
     session.commit()
+    background.add_task(notify.deliver_due)
     session.refresh(application)
     return service.to_public(session, application)
 
 
 @admin_router.post("/{application_id}/reject", response_model=ApplicationPublic)
-def admin_reject(application_id: uuid.UUID, data: RejectionRequest, session: Session = Depends(get_session), admin: users = Depends(require_admin)):
+def admin_reject(application_id: uuid.UUID, data: RejectionRequest, background: BackgroundTasks, session: Session = Depends(get_session), admin: users = Depends(require_admin)):
     application = service.get_application(session, application_id, for_update=True)
     if application.status != EventStatus.PENDING:
         raise HTTPException(status.HTTP_409_CONFLICT, "Only applications under review can be rejected")
@@ -236,6 +248,8 @@ def admin_reject(application_id: uuid.UUID, data: RejectionRequest, session: Ses
     session.add(application)
     audit.record(session, action="EVENT_APPLICATION_REJECTED", entity_type="EVENT_APPLICATION", entity_id=application.id, actor_user_id=admin.id,
                  details={"application_number": application.application_number, "comment": application.review_comment})
+    service.notify_decision(session, application, False)
     session.commit()
+    background.add_task(notify.deliver_due)
     session.refresh(application)
     return service.to_public(session, application)

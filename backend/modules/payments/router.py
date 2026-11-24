@@ -1,17 +1,20 @@
 import html
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Form, Header, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Form, Header, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 
-from backend.core.config import FRONTEND_URL, PAYMENT_SIMULATOR_ENABLED
+from backend.core.clock import as_aware, db_now
+from backend.core.config import FRONTEND_URL, PAYMENT_SIMULATOR_ENABLED, PUBLIC_API_URL
+from backend.modules.activation.service import sync_fee
 from backend.modules.auth.dependencies import get_current_user
-from backend.modules.orders.models import orders
-from backend.modules.payments import service
-from backend.modules.payments.models import payments
-from backend.modules.payments.schemas import PaymentPublic, PaymentStatus, SimulatedOutcome, SimulatorDecision
-from backend.modules.tickets.notify import queue_ticket_email
+from backend.modules.orders.models import orders, reservations
+from backend.modules.orders.schemas import OrderStatus, ReservationStatus
+from backend.modules.payments import bank, halyk, pages, service
+from backend.modules.payments.models import activation_fee_payments, payments
+from backend.modules.payments.schemas import PaymentPublic, PaymentStatus, SimulatedOutcome, SimulatorDecision, UNFINISHED_PAYMENT_STATUSES, WebhookProcessingStatus
+from backend.modules.tickets.notify import deliver_notices
 from backend.modules.users.user_model import users, Role
 from database.database import get_session
 
@@ -33,7 +36,7 @@ def get_simulated_payment(session: Session, payment_id: uuid.UUID) -> payments:
 
 @router.post("/orders/{order_id}/payments", response_model=PaymentPublic, status_code=status.HTTP_201_CREATED)
 def start_payment(order_id: uuid.UUID, idempotency_key: str | None = Header(default=None, max_length=200), session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
-    if not PAYMENT_SIMULATOR_ENABLED:
+    if not PAYMENT_SIMULATOR_ENABLED and not halyk.enabled():
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "No payment provider is configured")
     return service.to_public(service.start_payment(session, order_id, current_user, idempotency_key))
 
@@ -53,8 +56,8 @@ async def payment_webhook(request: Request, background: BackgroundTasks, x_signa
     journal = service.record_webhook(session, body, x_signature)
     if journal.processing_status.value == "REJECTED":
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid signature")
-    issued = service.process_webhook(session, journal)
-    queue_ticket_email(background, session, issued)
+    service.process_webhook(session, journal)
+    deliver_notices(background)
     return {"status": journal.processing_status.value}
 
 
@@ -78,25 +81,85 @@ def simulator_page(payment_id: uuid.UUID, session: Session = Depends(get_session
 @router.post("/payments/simulator/{payment_id}")
 def simulator_submit(payment_id: uuid.UUID, background: BackgroundTasks, outcome: SimulatedOutcome = Form(...), session: Session = Depends(get_session)):
     payment = get_simulated_payment(session, payment_id)
-    issued = service.simulate_bank(session, payment_id, outcome)
-    queue_ticket_email(background, session, issued)
+    service.simulate_bank(session, payment_id, outcome)
+    deliver_notices(background)
     return RedirectResponse(f"{FRONTEND_URL}/orders/{payment.order_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/payments/simulator/{payment_id}/decision", response_model=PaymentPublic)
 def simulator_decision(payment_id: uuid.UUID, data: SimulatorDecision, background: BackgroundTasks, session: Session = Depends(get_session)):
     get_simulated_payment(session, payment_id)
-    issued = service.simulate_bank(session, payment_id, data.outcome)
-    queue_ticket_email(background, session, issued)
+    service.simulate_bank(session, payment_id, data.outcome)
+    deliver_notices(background)
     session.expire_all()
     return service.to_public(session.get(payments, payment_id))
+
+
+@router.post("/payments/halyk/postlink")
+def halyk_postlink(background: BackgroundTasks, payload: dict = Body(...), session: Session = Depends(get_session)):
+    journal, invoice = bank.record_postlink(session, payload)
+    if invoice is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid notification")
+    journal_id = journal.id
+    payment = session.exec(select(payments).where(payments.provider_invoice_id == invoice)).first()
+    if payment is not None:
+        payment_id = payment.id
+        finished_before = payment.status not in UNFINISHED_PAYMENT_STATUSES
+        bank.sync(session, payment_id)
+        deliver_notices(background)
+        if session.get(payments, payment_id).status in UNFINISHED_PAYMENT_STATUSES:
+            return {"status": "PENDING"}
+        bank.close_journal(session, journal_id, WebhookProcessingStatus.IGNORED if finished_before else WebhookProcessingStatus.PROCESSED, payment_id)
+        return {"status": "IGNORED" if finished_before else "PROCESSED"}
+    fee = session.exec(select(activation_fee_payments).where(activation_fee_payments.provider_operation_ref == invoice)).first()
+    if fee is not None:
+        done = sync_fee(session, fee.id)
+        deliver_notices(background)
+        if done:
+            bank.close_journal(session, journal_id, WebhookProcessingStatus.PROCESSED)
+        return {"status": "PROCESSED" if done else "PENDING"}
+    bank.close_journal(session, journal_id, WebhookProcessingStatus.IGNORED)
+    return {"status": "IGNORED"}
+
+
+def get_bank_payment(session: Session, payment_id: uuid.UUID) -> payments:
+    payment = session.get(payments, payment_id)
+    if payment is None or service.is_simulated(payment):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Payment not found")
+    return payment
+
+
+@router.get("/payments/halyk/{payment_id}", response_class=HTMLResponse)
+def halyk_payment_page(payment_id: uuid.UUID, session: Session = Depends(get_session)):
+    payment = get_bank_payment(session, payment_id)
+    order = session.get(orders, payment.order_id)
+    reservation = session.get(reservations, order.reservation_id)
+    payable = (payment.status == PaymentStatus.PENDING and payment.cancellation_reason is None and order.status == OrderStatus.PENDING
+               and reservation.status == ReservationStatus.ACTIVE and as_aware(reservation.expires_at) > db_now(session))
+    if not payable or not halyk.enabled():
+        return RedirectResponse(f"{FRONTEND_URL}/orders/{order.id}", status_code=status.HTTP_303_SEE_OTHER)
+    invoice, amount, currency, number = payment.provider_invoice_id, payment.amount_minor, payment.currency, order.order_number
+    session.commit()
+    try:
+        return pages.halyk_page(invoice, amount, currency, f"BiletFlow order {number}", f"{PUBLIC_API_URL}/payments/halyk/{payment_id}/return")
+    except halyk.HalykError:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "The bank is not available, please try again")
+
+
+@router.get("/payments/halyk/{payment_id}/return")
+def halyk_return(payment_id: uuid.UUID, background: BackgroundTasks, session: Session = Depends(get_session)):
+    payment = get_bank_payment(session, payment_id)
+    order_id = payment.order_id
+    if payment.status in UNFINISHED_PAYMENT_STATUSES:
+        bank.sync(session, payment_id)
+        deliver_notices(background)
+    return RedirectResponse(f"{FRONTEND_URL}/orders/{order_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/admin/payments/reconcile")
 def reconcile(background: BackgroundTasks, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
     if current_user.personal_role != Role.PLATFORM_ADMIN:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin only")
-    handled, issued_batches = service.reconcile_due(session)
-    for issued in issued_batches:
-        queue_ticket_email(background, session, issued)
+    handled, _ = service.reconcile_due(session)
+    deliver_notices(background)
     return {"handled": handled}
