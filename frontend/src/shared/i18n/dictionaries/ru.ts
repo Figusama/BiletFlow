@@ -143,6 +143,11 @@ export const ru: Dictionary = {
         title: 'Страница не найдена',
         text: 'Такой страницы нет или она была перемещена.',
     },
+    errorPage: {
+        title: 'Что-то пошло не так',
+        text: 'Не удалось открыть страницу. Обновите её или вернитесь к событиям.',
+        reload: 'Обновить страницу',
+    },
     dates: {
         months: ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'],
         monthsGenitive: ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'],
@@ -194,7 +199,10 @@ export const ru: Dictionary = {
         googleCalendar: 'Google Календарь',
         downloadIcs: 'Скачать файл .ics',
         share: 'Поделиться',
-        linkCopied: 'Ссылка скопирована',
+        linkCopied: 'Скопировано',
+        copyLink: 'Копировать',
+        pageLink: 'Ссылка на страницу',
+        moreShareOptions: 'Другие способы…',
         about: 'О событии',
         organizer: 'Организатор',
         moreEvents: 'Другие события',
@@ -244,7 +252,6 @@ export const ru: Dictionary = {
         summary: 'Ваш заказ',
         empty: 'Выберите хотя бы один билет.',
         continue: 'Продолжить',
-        seatingSoon: 'Выбор мест для этого события скоро появится.',
     },
     checkout: {
         attendees: 'Посетители',
@@ -316,6 +323,16 @@ export const ru: Dictionary = {
         downloadFailed: 'Не удалось скачать билет. Попробуйте ещё раз.',
         qrAlt: 'QR-код билета',
         qrFailed: 'Не удалось загрузить QR-код.',
+    },
+    seats: {
+        title: 'Выбор мест',
+        stage: 'Сцена',
+        yourSeats: 'Ваши места',
+        taken: 'Занято',
+        unavailable: 'Недоступно',
+        seatLabel: (section: string, row: string, seat: string) => `${section}, ряд ${row}, место ${seat}`,
+        limit: (type: string, max: number) => `В одном заказе можно выбрать не больше ${max} мест ${type}.`,
+        seatTaken: 'Часть мест только что заняли. Выберите другие.',
     },
     footer: {
         help: 'Помощь',

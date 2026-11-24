@@ -1,6 +1,7 @@
 import { useId } from 'react'
 import { useTheme } from '../../app/providers/Theme'
 import { useLanguage } from '../../shared/i18n/language'
+import Icon from './Icon'
 import { themeOptions } from './themeOptions'
 
 const ThemeSelect = () => {
@@ -36,14 +37,7 @@ const ThemeSelect = () => {
                         />
 
                         <span className="grid size-full place-items-center rounded-full text-muted peer-checked:text-foreground transition-colors duration-400 ease-out motion-reduce:transition-none peer-focus-visible:ring-2 peer-focus-visible:ring-accent">
-                            <span
-                                aria-hidden="true"
-                                className="size-5 bg-current"
-                                style={{
-                                    mask: `url("${icon}") center / contain no-repeat`,
-                                    WebkitMask: `url("${icon}") center / contain no-repeat`,
-                                }}
-                            />
+                            <Icon name={icon} />
                         </span>
 
                         <span className="sr-only">{t.theme[value]}</span>

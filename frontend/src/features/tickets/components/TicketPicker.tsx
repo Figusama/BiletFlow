@@ -1,3 +1,4 @@
+import Icon from '../../../components/ui/Icon'
 import type { Dictionary } from '../../../shared/i18n/dictionaries/en'
 import { useLanguage } from '../../../shared/i18n/language'
 import { formatTime, getDateParts } from '../../../shared/lib/date'
@@ -72,7 +73,7 @@ const TicketPicker = ({ ticketTypes, quantities, onChange, timeZone }: TicketPic
                                         onClick={() => onChange(ticketType.id, quantity - 1)}
                                         className={stepButtonClass}
                                     >
-                                        −
+                                        <Icon name="minus" className="size-3.5" />
                                     </button>
                                     <span aria-live="polite" className="w-7 text-center font-bold text-foreground">
                                         {quantity}
@@ -84,7 +85,7 @@ const TicketPicker = ({ ticketTypes, quantities, onChange, timeZone }: TicketPic
                                         onClick={() => onChange(ticketType.id, quantity + 1)}
                                         className={stepButtonClass}
                                     >
-                                        +
+                                        <Icon name="plus" className="size-3.5" />
                                     </button>
                                 </div>
                             )}

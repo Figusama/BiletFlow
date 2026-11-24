@@ -4,8 +4,8 @@ import { useLanguage } from '../../../shared/i18n/language'
 import { useSwipe } from '../../../shared/lib/useSwipe'
 import type { EventSummary } from '../api'
 import { formatEventDate, getCategoryLabel, getPriceLabel } from '../labels'
-import { ChevronIcon } from '../../../components/ui/icons'
 import EventBanner from './EventBanner'
+import Icon from '../../../components/ui/Icon'
 
 interface EventHeroProps {
     events: EventSummary[]
@@ -65,7 +65,7 @@ const EventHero = ({ events }: EventHeroProps) => {
                         onClick={() => goTo(index - 1)}
                         className={`${arrowClass} -left-4`}
                     >
-                        <ChevronIcon className="h-8 w-4" />
+                        <Icon name="chevron-left" className="size-5" />
                     </button>
                     <button
                         type="button"
@@ -73,7 +73,7 @@ const EventHero = ({ events }: EventHeroProps) => {
                         onClick={() => goTo(index + 1)}
                         className={`${arrowClass} -right-4`}
                     >
-                        <ChevronIcon className="h-8 w-4 rotate-180" />
+                        <Icon name="chevron-left" className="size-5 rotate-180" />
                     </button>
                 </>
             )}

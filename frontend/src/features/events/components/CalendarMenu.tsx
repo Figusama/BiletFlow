@@ -1,9 +1,9 @@
 import { useCallback, useId, useRef, useState } from 'react'
-import { CalendarIcon } from '../../../components/ui/icons'
 import { useLanguage } from '../../../shared/i18n/language'
 import { useDismiss } from '../../../shared/lib/useDismiss'
 import type { EventDetails } from '../api'
 import { textButtonClass } from './chip'
+import Icon from '../../../components/ui/Icon'
 
 const itemClass = 'block px-4 py-2 text-sm text-foreground hover:bg-surface-sunk'
 
@@ -27,7 +27,7 @@ const CalendarMenu = ({ event }: { event: EventDetails }) => {
                 onClick={() => setIsOpen((open) => !open)}
                 className={textButtonClass}
             >
-                <CalendarIcon className="size-4" />
+                <Icon name="calendar" className="size-4" />
                 {t.eventPage.addToCalendar}
             </button>
 

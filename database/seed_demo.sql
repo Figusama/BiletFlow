@@ -179,4 +179,60 @@ FROM demo_events d
 WHERE EXISTS (SELECT 1 FROM demo_ticket_types t WHERE t.event_id = d.event_id AND t.price_kzt > 0)
 ON CONFLICT (event_id) DO UPDATE SET status = 'ACTIVE';
 
+INSERT INTO venue_layouts (id, venue_id, name, version, is_active) VALUES
+  ('d0000000-0000-4000-8000-000000000501', 'd0000000-0000-4000-8000-000000000001', 'Main hall', 1, true)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO venue_sections (id, layout_id, name) VALUES
+  ('d0000000-0000-4000-8000-000000000511', 'd0000000-0000-4000-8000-000000000501', 'Left'),
+  ('d0000000-0000-4000-8000-000000000512', 'd0000000-0000-4000-8000-000000000501', 'Center'),
+  ('d0000000-0000-4000-8000-000000000513', 'd0000000-0000-4000-8000-000000000501', 'Right')
+ON CONFLICT (id) DO NOTHING;
+
+CREATE TEMP TABLE demo_seats ON COMMIT DROP AS
+SELECT
+  s.section_id,
+  s.section_name,
+  r.label AS row_label,
+  n::text AS seat_number,
+  md5('demo-row-' || s.section_name || r.label)::uuid AS row_id,
+  md5('demo-seat-' || s.section_name || r.label || n)::uuid AS seat_id,
+  md5('demo-event-seat-' || s.section_name || r.label || n)::uuid AS event_seat_id
+FROM (VALUES
+  ('d0000000-0000-4000-8000-000000000511'::uuid, 'Left', 6),
+  ('d0000000-0000-4000-8000-000000000512'::uuid, 'Center', 10),
+  ('d0000000-0000-4000-8000-000000000513'::uuid, 'Right', 6)
+) AS s(section_id, section_name, seats_per_row)
+CROSS JOIN unnest(ARRAY['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']) AS r(label)
+CROSS JOIN LATERAL generate_series(1, s.seats_per_row) AS n;
+
+INSERT INTO venue_rows (id, section_id, label)
+SELECT DISTINCT row_id, section_id, row_label FROM demo_seats
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO venue_seats (id, row_id, seat_number, is_accessible)
+SELECT seat_id, row_id, seat_number, row_label = 'H' FROM demo_seats
+ON CONFLICT (id) DO NOTHING;
+
+UPDATE event_applications
+SET seating_mode = 'ASSIGNED_SEATING', venue_layout_id = 'd0000000-0000-4000-8000-000000000501'
+WHERE id = 'd0000000-0000-4000-8000-000000000201';
+
+UPDATE events
+SET seating_mode = 'ASSIGNED_SEATING', venue_layout_id = 'd0000000-0000-4000-8000-000000000501', ga_capacity = NULL
+WHERE id = 'd0000000-0000-4000-8000-000000000101';
+
+INSERT INTO event_seats (id, event_id, seat_id, ticket_type_id, is_enabled)
+SELECT
+  event_seat_id,
+  'd0000000-0000-4000-8000-000000000101',
+  seat_id,
+  CASE
+    WHEN section_name = 'Center' AND row_label IN ('A', 'B', 'C') THEN 'd0000000-0000-4000-8000-000000000302'::uuid
+    ELSE 'd0000000-0000-4000-8000-000000000301'::uuid
+  END,
+  true
+FROM demo_seats
+ON CONFLICT (id) DO UPDATE SET ticket_type_id = EXCLUDED.ticket_type_id, is_enabled = EXCLUDED.is_enabled;
+
 COMMIT;

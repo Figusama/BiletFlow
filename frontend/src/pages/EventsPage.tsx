@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowIcon, ChevronIcon } from '../components/ui/icons'
 import Select from '../components/ui/Select'
 import { useCity } from '../features/events/city'
 import { usePricedEvents } from '../features/events/usePricedEvents'
@@ -19,6 +18,7 @@ import {
 } from '../features/events/filters'
 import { useLanguage } from '../shared/i18n/language'
 import { getNextDays } from '../shared/lib/date'
+import Icon from '../components/ui/Icon'
 
 const PAGE_SIZE = 4
 const HERO_EVENTS = 3
@@ -166,7 +166,7 @@ const EventsPage = () => {
                             className="inline-flex items-center gap-2 font-semibold text-accent hover:underline"
                         >
                             {t.discover.seeMore}
-                            <ChevronIcon className="size-4 -rotate-90" />
+                            <Icon name="chevron-left" className="size-4 -rotate-90" />
                         </button>
                     </div>
                 )}
@@ -179,7 +179,7 @@ const EventsPage = () => {
                     className="inline-flex items-center gap-2 font-semibold text-accent hover:underline"
                 >
                     {t.organizer.createEvent}
-                    <ArrowIcon className="size-4 rotate-90" />
+                    <Icon name="arrow-up" className="size-4 rotate-90" />
                 </Link>
             </div>
         </div>

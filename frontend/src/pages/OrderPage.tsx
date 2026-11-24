@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Button from '../components/ui/Button'
-import { CheckCircleIcon } from '../components/ui/icons'
 import { useEvent } from '../features/events/api'
 import CalendarMenu from '../features/events/components/CalendarMenu'
 import { startPayment, useOrder, type OrderStatus } from '../features/orders/api'
@@ -10,6 +9,7 @@ import { useMyTickets } from '../features/tickets/api'
 import TicketCard from '../features/tickets/components/TicketCard'
 import { useLanguage } from '../shared/i18n/language'
 import { formatKzt } from '../shared/lib/money'
+import Icon from '../components/ui/Icon'
 
 const statusClass: Record<OrderStatus, string> = {
     CONFIRMED: 'bg-badge-success-bg text-badge-success-fg',
@@ -82,7 +82,7 @@ const OrderPage = () => {
                     role="status"
                     className={`flex items-start gap-2 rounded-xl px-4 py-3 text-sm font-semibold ${statusClass[order.status]}`}
                 >
-                    {order.status === 'CONFIRMED' && <CheckCircleIcon className="mt-0.5 size-4 shrink-0" />}
+                    {order.status === 'CONFIRMED' && <Icon name="check-circle" className="mt-0.5 size-4 shrink-0" />}
                     {statusText[order.status]}
                 </p>
 

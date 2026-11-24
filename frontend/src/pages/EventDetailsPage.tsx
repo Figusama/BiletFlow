@@ -97,7 +97,7 @@ const EventDetailsPage = () => {
                     <p className="mt-4 leading-7 whitespace-pre-line text-foreground">{event.description}</p>
                     <div className="mt-4 -ml-3 flex flex-wrap gap-1">
                         <CalendarMenu event={event} />
-                        <ShareButton title={event.title} />
+                        <ShareButton title={event.title} path={`/events/${event.slug}`} />
                     </div>
                 </section>
 

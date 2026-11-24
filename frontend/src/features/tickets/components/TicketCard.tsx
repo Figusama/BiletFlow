@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Icon from '../../../components/ui/Icon'
 import { useLanguage } from '../../../shared/i18n/language'
 import { fetchTicketFile, type Ticket } from '../api'
 import TicketQr from './TicketQr'
@@ -55,8 +56,9 @@ const TicketCard = ({ ticket }: { ticket: Ticket }) => {
                         type="button"
                         onClick={handleDownload}
                         disabled={isDownloading}
-                        className="mt-auto self-start text-sm font-semibold text-accent hover:underline disabled:opacity-60"
+                        className="mt-auto inline-flex items-center gap-2 self-start text-sm font-semibold text-accent hover:underline disabled:opacity-60"
                     >
+                        <Icon name="download" className="size-4" />
                         {isDownloading ? t.ticketsPage.downloading : t.ticketsPage.downloadPdf}
                     </button>
                 )}

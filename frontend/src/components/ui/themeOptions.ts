@@ -1,7 +1,8 @@
 import type { Theme } from '../../app/providers/Theme'
+import type { IconName } from './Icon'
 
 export const themeOptions = [
-    { value: 'light', icon: '/icons/sun.svg' },
-    { value: 'system', icon: '/icons/desktop.svg' },
-    { value: 'dark', icon: '/icons/moon.svg' },
-] satisfies { value: Theme; icon: string }[]
+    { value: 'light', icon: 'sun' },
+    { value: 'system', icon: 'desktop' },
+    { value: 'dark', icon: 'moon' },
+] satisfies { value: Theme; icon: IconName }[]

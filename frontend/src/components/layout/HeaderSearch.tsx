@@ -1,6 +1,7 @@
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLanguage } from '../../shared/i18n/language'
+import Icon from '../ui/Icon'
 
 interface HeaderSearchProps {
     className?: string
@@ -22,18 +23,7 @@ const HeaderSearch = ({ className = '', onSearch }: HeaderSearchProps) => {
     return (
         <form role="search" onSubmit={handleSubmit} className={className}>
             <label className="flex h-10 items-center gap-2 rounded-full bg-surface-sunk px-4 text-muted focus-within:outline-2 focus-within:outline-accent">
-                <svg
-                    aria-hidden="true"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    className="size-4 shrink-0"
-                >
-                    <circle cx="11" cy="11" r="7" />
-                    <path d="m20 20-3.5-3.5" />
-                </svg>
+                <Icon name="search" className="size-4" />
 
                 <span className="sr-only">{t.nav.search}</span>
                 <input

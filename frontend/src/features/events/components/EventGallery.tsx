@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { ChevronIcon } from '../../../components/ui/icons'
 import { useLanguage } from '../../../shared/i18n/language'
 import { useSwipe } from '../../../shared/lib/useSwipe'
 import EventImage from './EventImage'
+import Icon from '../../../components/ui/Icon'
 
 interface EventGalleryProps {
     images: string[]
@@ -33,10 +33,10 @@ const EventGallery = ({ images, title, className = '' }: EventGalleryProps) => {
             <EventImage src={images[index]} className="size-full" />
 
             <button type="button" aria-label={t.eventPage.previousPhoto} onClick={() => goTo(index - 1)} className={`${arrowClass} left-4`}>
-                <ChevronIcon className="size-5" />
+                <Icon name="chevron-left" className="size-5" />
             </button>
             <button type="button" aria-label={t.eventPage.nextPhoto} onClick={() => goTo(index + 1)} className={`${arrowClass} right-4`}>
-                <ChevronIcon className="size-5 rotate-180" />
+                <Icon name="chevron-left" className="size-5 rotate-180" />
             </button>
 
             <div className="absolute inset-x-0 bottom-4 flex justify-center gap-2">

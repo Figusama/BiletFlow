@@ -1,4 +1,4 @@
-import type { BadgeTone } from '../../components/ui/StatusBadge'
+import type { BadgeIcon, BadgeTone } from '../../components/ui/StatusBadge'
 import type { Dictionary } from '../../shared/i18n/dictionaries/en'
 import type { EventDetails } from '../events/api'
 import type { SaleState, TicketType } from './api'
@@ -16,21 +16,25 @@ export const getSaleState = (ticketTypes: TicketType[]): SaleState | null => {
     return ticketTypes[0].sale_state
 }
 
-const saleStateTone: Record<SaleState, BadgeTone> = {
-    ON_SALE: 'success',
-    SOLD_OUT: 'neutral',
-    ENDED: 'neutral',
-    NOT_STARTED: 'warning',
-    PAUSED: 'warning',
-    DISABLED: 'neutral',
-    NOT_ON_SALE: 'neutral',
+const saleStateBadge: Record<SaleState, { tone: BadgeTone; icon: BadgeIcon }> = {
+    ON_SALE: { tone: 'success', icon: 'check-circle' },
+    SOLD_OUT: { tone: 'neutral', icon: 'ban' },
+    ENDED: { tone: 'neutral', icon: 'ban' },
+    NOT_STARTED: { tone: 'warning', icon: 'clock' },
+    PAUSED: { tone: 'warning', icon: 'pause' },
+    DISABLED: { tone: 'neutral', icon: 'ban' },
+    NOT_ON_SALE: { tone: 'neutral', icon: 'ban' },
 }
 
 export const getEventStatus = (event: EventDetails, ticketTypes: TicketType[], t: Dictionary) => {
-    if (event.status === 'CANCELLED') return { label: t.eventPage.statusCancelled, tone: 'danger' as const }
-    if (event.is_suspended) return { label: t.eventPage.statusSuspended, tone: 'warning' as const }
+    if (event.status === 'CANCELLED') {
+        return { label: t.eventPage.statusCancelled, tone: 'danger' as const, icon: 'x-circle' as const }
+    }
+    if (event.is_suspended) {
+        return { label: t.eventPage.statusSuspended, tone: 'warning' as const, icon: 'pause' as const }
+    }
 
     const state = getSaleState(ticketTypes)
     if (!state) return null
-    return { label: t.tickets.states[state], tone: saleStateTone[state] }
+    return { label: t.tickets.states[state], ...saleStateBadge[state] }
 }

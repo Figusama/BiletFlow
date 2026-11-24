@@ -3,6 +3,8 @@ import { api, apiBlob } from '../../shared/api/client'
 
 export type SaleState = 'ON_SALE' | 'SOLD_OUT' | 'NOT_STARTED' | 'ENDED' | 'PAUSED' | 'DISABLED' | 'NOT_ON_SALE'
 
+export type TicketTypeColor = 'violet' | 'amber' | 'sky' | 'orange' | 'lime' | 'pink' | 'emerald' | 'rose'
+
 export interface TicketType {
     id: string
     event_id: string
@@ -16,6 +18,7 @@ export interface TicketType {
     max_per_order: number
     sale_state: SaleState
     available: number | null
+    color?: TicketTypeColor | null
 }
 
 export interface Reservation {
@@ -37,10 +40,31 @@ export interface ReservationLine {
     quantity: number
 }
 
-export const createReservation = (eventId: string, items: ReservationLine[]) =>
+export type ReservationRequest = { items: ReservationLine[] } | { event_seat_ids: string[] }
+
+export const createReservation = (eventId: string, request: ReservationRequest) =>
     api<Reservation>(`/events/${eventId}/reservations`, {
         method: 'POST',
-        json: { items },
+        json: request,
+    })
+
+export type SeatState = 'AVAILABLE' | 'TAKEN' | 'UNAVAILABLE'
+
+export interface Seat {
+    id: string
+    section: string
+    row: string
+    seat_number: string
+    is_accessible: boolean
+    ticket_type_id: string | null
+    state: SeatState
+}
+
+export const useSeats = (eventId: string | undefined, enabled: boolean) =>
+    useQuery({
+        queryKey: ['seats', eventId],
+        queryFn: () => api<Seat[]>(`/events/${eventId}/seats`),
+        enabled: Boolean(eventId) && enabled,
     })
 
 export type TicketStatus = 'VALID' | 'CHECKED_IN' | 'CANCELLED' | 'REFUNDED'

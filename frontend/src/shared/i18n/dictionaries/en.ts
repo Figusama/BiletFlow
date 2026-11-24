@@ -138,6 +138,11 @@ export const en = {
         title: 'Page not found',
         text: 'The page you’re looking for doesn’t exist or may have been moved.',
     },
+    errorPage: {
+        title: 'Something went wrong',
+        text: 'We could not open this page. Reload it or go back to the events.',
+        reload: 'Reload page',
+    },
     dates: {
         months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
         monthsGenitive: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
@@ -189,7 +194,10 @@ export const en = {
         googleCalendar: 'Google Calendar',
         downloadIcs: 'Download .ics file',
         share: 'Share',
-        linkCopied: 'Link copied',
+        linkCopied: 'Copied',
+        copyLink: 'Copy',
+        pageLink: 'Page link',
+        moreShareOptions: 'More options…',
         about: 'About the event',
         organizer: 'Organizer',
         moreEvents: 'More events',
@@ -239,7 +247,6 @@ export const en = {
         summary: 'Your order',
         empty: 'Choose at least one ticket.',
         continue: 'Continue',
-        seatingSoon: 'Seat selection for this event is coming soon.',
     },
     checkout: {
         attendees: 'Attendees',
@@ -304,6 +311,16 @@ export const en = {
         downloadFailed: 'Could not download the ticket. Try again.',
         qrAlt: 'Ticket QR code',
         qrFailed: 'Could not load the QR code.',
+    },
+    seats: {
+        title: 'Choose seats',
+        stage: 'Stage',
+        yourSeats: 'Your seats',
+        taken: 'Taken',
+        unavailable: 'Unavailable',
+        seatLabel: (section: string, row: string, seat: string) => `${section}, row ${row}, seat ${seat}`,
+        limit: (type: string, max: number) => `You can choose up to ${max} ${type} seats per order.`,
+        seatTaken: 'Some of these seats were just taken. Choose other seats.',
     },
     footer: {
         help: 'Help',

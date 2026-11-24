@@ -3,9 +3,9 @@ import { formatTime } from '../../../shared/lib/date'
 import { useLanguage } from '../../../shared/i18n/language'
 import type { EventSummary } from '../api'
 import { getCategoryLabel, getPriceLabel } from '../labels'
-import { ChevronIcon } from '../../../components/ui/icons'
 import DateStub from './DateStub'
 import EventImage from './EventImage'
+import Icon from '../../../components/ui/Icon'
 
 interface EventListItemProps {
     event: EventSummary
@@ -48,7 +48,7 @@ const EventListItem = ({ event }: EventListItemProps) => {
             )}
 
             <div className="hidden w-[72px] shrink-0 place-items-center border-l border-border text-accent md:my-4 md:grid">
-                <ChevronIcon className="size-6 rotate-180 transition-transform group-hover:translate-x-1" />
+                <Icon name="chevron-left" className="size-6 rotate-180 transition-transform group-hover:translate-x-1" />
             </div>
         </Link>
     )

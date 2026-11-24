@@ -143,6 +143,11 @@ export const kk: Dictionary = {
         title: 'Бет табылмады',
         text: 'Сіз іздеген бет жоқ немесе басқа жерге көшірілген.',
     },
+    errorPage: {
+        title: 'Бірдеңе дұрыс болмады',
+        text: 'Бетті ашу мүмкін болмады. Бетті жаңартыңыз немесе іс-шараларға оралыңыз.',
+        reload: 'Бетті жаңарту',
+    },
     dates: {
         months: ['қаңтар', 'ақпан', 'наурыз', 'сәуір', 'мамыр', 'маусым', 'шілде', 'тамыз', 'қыркүйек', 'қазан', 'қараша', 'желтоқсан'],
         monthsGenitive: ['қаңтар', 'ақпан', 'наурыз', 'сәуір', 'мамыр', 'маусым', 'шілде', 'тамыз', 'қыркүйек', 'қазан', 'қараша', 'желтоқсан'],
@@ -194,7 +199,10 @@ export const kk: Dictionary = {
         googleCalendar: 'Google Күнтізбе',
         downloadIcs: '.ics файлын жүктеу',
         share: 'Бөлісу',
-        linkCopied: 'Сілтеме көшірілді',
+        linkCopied: 'Көшірілді',
+        copyLink: 'Көшіру',
+        pageLink: 'Бет сілтемесі',
+        moreShareOptions: 'Басқа тәсілдер…',
         about: 'Іс-шара туралы',
         organizer: 'Ұйымдастырушы',
         moreEvents: 'Басқа іс-шаралар',
@@ -244,7 +252,6 @@ export const kk: Dictionary = {
         summary: 'Сіздің тапсырысыңыз',
         empty: 'Кемінде бір билет таңдаңыз.',
         continue: 'Жалғастыру',
-        seatingSoon: 'Бұл іс-шара үшін орын таңдау жақында қосылады.',
     },
     checkout: {
         attendees: 'Келушілер',
@@ -309,6 +316,16 @@ export const kk: Dictionary = {
         downloadFailed: 'Билетті жүктеу мүмкін болмады. Қайталап көріңіз.',
         qrAlt: 'Билеттің QR-коды',
         qrFailed: 'QR-кодты жүктеу мүмкін болмады.',
+    },
+    seats: {
+        title: 'Орын таңдау',
+        stage: 'Сахна',
+        yourSeats: 'Сіздің орындарыңыз',
+        taken: 'Бос емес',
+        unavailable: 'Қолжетімсіз',
+        seatLabel: (section: string, row: string, seat: string) => `${section}, ${row} қатар, ${seat} орын`,
+        limit: (type: string, max: number) => `Бір тапсырыста ${type} түріндегі ${max} орыннан артық таңдауға болмайды.`,
+        seatTaken: 'Кейбір орындарды жаңа ғана біреу алды. Басқа орындарды таңдаңыз.',
     },
     footer: {
         help: 'Көмек',

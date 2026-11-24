@@ -1,5 +1,5 @@
 import * as RadixSelect from '@radix-ui/react-select'
-import { ChevronIcon } from './icons'
+import Icon from './Icon'
 
 interface SelectOption<T extends string> {
 	value: T
@@ -53,7 +53,7 @@ const Select = <T extends string>({
 				<RadixSelect.Value placeholder={placeholder} />
 
 				<RadixSelect.Icon className="text-muted">
-					<ChevronIcon className="size-4 -rotate-90" />
+					<Icon name="chevron-left" className="size-4 -rotate-90" />
 				</RadixSelect.Icon>
 			</RadixSelect.Trigger>
 

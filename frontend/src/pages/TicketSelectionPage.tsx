@@ -4,10 +4,13 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { RootState } from '../app/store'
 import { useEvent } from '../features/events/api'
 import { formatEventTimeRange } from '../features/events/labels'
-import { createReservation, useTicketTypes } from '../features/tickets/api'
 import CheckoutSteps from '../features/orders/components/CheckoutSteps'
-import OrderSummary, { type OrderLine } from '../features/tickets/components/OrderSummary'
+import { createReservation, useSeats, useTicketTypes, type ReservationRequest, type Seat } from '../features/tickets/api'
+import OrderSummary, { type SummaryItem } from '../features/tickets/components/OrderSummary'
+import SeatMap from '../features/tickets/components/SeatMap'
 import TicketPicker from '../features/tickets/components/TicketPicker'
+import { getTypeColor, groupSeats } from '../features/tickets/seats'
+import { ApiError } from '../shared/api/client'
 import { useLanguage } from '../shared/i18n/language'
 
 const TicketSelectionPage = () => {
@@ -17,9 +20,12 @@ const TicketSelectionPage = () => {
     const { eventId = '' } = useParams()
     const user = useSelector((state: RootState) => state.auth.user)
     const { data: event, isPending } = useEvent(eventId)
+    const isAssigned = event?.seating_mode === 'ASSIGNED_SEATING'
     const { data: ticketTypes = [] } = useTicketTypes(event?.id)
+    const { data: seats = [], refetch: refetchSeats } = useSeats(event?.id, isAssigned)
 
     const [quantities, setQuantities] = useState<Record<string, number>>({})
+    const [selectedSeatIds, setSelectedSeatIds] = useState<string[]>([])
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [error, setError] = useState('')
 
@@ -38,13 +44,46 @@ const TicketSelectionPage = () => {
         )
     }
 
-    const lines: OrderLine[] = ticketTypes
-        .filter((ticketType) => (quantities[ticketType.id] ?? 0) > 0)
-        .map((ticketType) => ({ ticketType, quantity: quantities[ticketType.id] }))
+    const typeById = new Map(ticketTypes.map((type) => [type.id, type]))
+    const colorOf = (ticketTypeId: string | null) => getTypeColor(ticketTypes, ticketTypeId)
+
+    const seatsForSale = seats.map((seat) => {
+        const type = seat.ticket_type_id ? typeById.get(seat.ticket_type_id) : undefined
+        const isOnSale = type?.sale_state === 'ON_SALE'
+        return seat.state === 'AVAILABLE' && !isOnSale ? { ...seat, state: 'UNAVAILABLE' as const } : seat
+    })
+    const seatById = new Map(seats.map((seat) => [seat.id, seat]))
+
+    const items: SummaryItem[] = isAssigned
+        ? selectedSeatIds.flatMap((id) => {
+              const seat = seatById.get(id)
+              const type = seat?.ticket_type_id ? typeById.get(seat.ticket_type_id) : undefined
+              if (!seat || !type) return []
+              return [{ key: id, label: `${type.name}, ${t.seats.seatLabel(seat.section, seat.row, seat.seat_number)}`, price: type.price_minor }]
+          })
+        : ticketTypes
+              .filter((type) => (quantities[type.id] ?? 0) > 0)
+              .map((type) => ({ key: type.id, label: `${type.name} × ${quantities[type.id]}`, price: type.price_minor * quantities[type.id] }))
 
     const changeQuantity = (ticketTypeId: string, quantity: number) => {
         setQuantities((current) => ({ ...current, [ticketTypeId]: quantity }))
         setError('')
+    }
+
+    const toggleSeat = (seat: Seat) => {
+        setError('')
+        if (selectedSeatIds.includes(seat.id)) {
+            setSelectedSeatIds((current) => current.filter((id) => id !== seat.id))
+            return
+        }
+
+        const type = seat.ticket_type_id ? typeById.get(seat.ticket_type_id) : undefined
+        const sameType = selectedSeatIds.filter((id) => seatById.get(id)?.ticket_type_id === seat.ticket_type_id).length
+        if (type && sameType >= type.max_per_order) {
+            setError(t.seats.limit(type.name, type.max_per_order))
+            return
+        }
+        setSelectedSeatIds((current) => [...current, seat.id])
     }
 
     const handleContinue = async () => {
@@ -56,14 +95,22 @@ const TicketSelectionPage = () => {
         setIsSubmitting(true)
         setError('')
 
+        const request: ReservationRequest = isAssigned
+            ? { event_seat_ids: selectedSeatIds }
+            : { items: items.map(({ key }) => ({ ticket_type_id: key, quantity: quantities[key] })) }
+
         try {
-            const reservation = await createReservation(
-                event.id,
-                lines.map(({ ticketType, quantity }) => ({ ticket_type_id: ticketType.id, quantity })),
-            )
+            const reservation = await createReservation(event.id, request)
             navigate(`/checkout/${reservation.id}`)
-        } catch {
-            setError(t.tickets.reserveFailed)
+        } catch (reserveError) {
+            if (isAssigned && reserveError instanceof ApiError && reserveError.status === 409) {
+                const { data: fresh = [] } = await refetchSeats()
+                const available = new Set(fresh.filter((seat) => seat.state === 'AVAILABLE').map((seat) => seat.id))
+                setSelectedSeatIds((current) => current.filter((id) => available.has(id)))
+                setError(t.seats.seatTaken)
+            } else {
+                setError(t.tickets.reserveFailed)
+            }
             setIsSubmitting(false)
         }
     }
@@ -72,7 +119,9 @@ const TicketSelectionPage = () => {
         <div className="mx-auto max-w-[1224px] px-4 pt-8 pb-16 sm:px-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-foreground">{t.ticketSelection.title}</h1>
+                    <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                        {isAssigned ? t.seats.title : t.ticketSelection.title}
+                    </h1>
                     <Link to={`/events/${event.slug}`} className="mt-2 block font-semibold text-foreground hover:text-accent">
                         {event.title}
                     </Link>
@@ -85,36 +134,33 @@ const TicketSelectionPage = () => {
                 <CheckoutSteps current={0} />
             </div>
 
-            {event.seating_mode === 'ASSIGNED_SEATING' ? (
-                <p className="mt-10 rounded-2xl border border-dashed border-border py-12 text-center text-muted">
-                    {t.ticketSelection.seatingSoon}
-                </p>
-            ) : (
-                <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
-                    <section aria-label={t.tickets.title}>
-                        {ticketTypes.length === 0 ? (
-                            <p className="text-muted">{t.tickets.noTickets}</p>
-                        ) : (
-                            <TicketPicker
-                                ticketTypes={ticketTypes}
-                                quantities={quantities}
-                                onChange={changeQuantity}
-                                timeZone={event.timezone}
-                            />
-                        )}
-                    </section>
-
-                    <aside className="lg:sticky lg:top-24">
-                        <OrderSummary
-                            lines={lines}
-                            isSignedIn={Boolean(user)}
-                            isSubmitting={isSubmitting}
-                            error={error}
-                            onContinue={handleContinue}
+            <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+                <section aria-label={t.tickets.title} className="min-w-0">
+                    {ticketTypes.length === 0 ? (
+                        <p className="text-muted">{t.tickets.noTickets}</p>
+                    ) : isAssigned ? (
+                        <SeatMap
+                            sections={groupSeats(seatsForSale)}
+                            ticketTypes={ticketTypes}
+                            colorOf={colorOf}
+                            selectedIds={selectedSeatIds}
+                            onToggle={toggleSeat}
                         />
-                    </aside>
-                </div>
-            )}
+                    ) : (
+                        <TicketPicker ticketTypes={ticketTypes} quantities={quantities} onChange={changeQuantity} timeZone={event.timezone} />
+                    )}
+                </section>
+
+                <aside className="lg:sticky lg:top-24">
+                    <OrderSummary
+                        items={items}
+                        isSignedIn={Boolean(user)}
+                        isSubmitting={isSubmitting}
+                        error={error}
+                        onContinue={handleContinue}
+                    />
+                </aside>
+            </div>
         </div>
     )
 }

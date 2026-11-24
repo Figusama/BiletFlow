@@ -8,7 +8,6 @@ import { signedOut } from '../../features/auth/authSlice'
 import { useLanguage } from '../../shared/i18n/language'
 import { useDismiss } from '../../shared/lib/useDismiss'
 import Collapse from '../ui/Collapse'
-import { BellIcon } from '../ui/icons'
 import CityMenu from '../../features/events/components/CityMenu'
 import LanguageMenu from '../ui/LanguageMenu'
 import ThemeSelect from '../ui/ThemeSelect'
@@ -18,6 +17,7 @@ import MobileMenu from './MobileMenu'
 import OrganizerPanel from './OrganizerPanel'
 import ProfileMenu from './ProfileMenu'
 import { mainLinks, navLinkClass } from './navigation'
+import Icon from '../ui/Icon'
 
 type OpenMenu = 'organizers' | 'mobile' | null
 
@@ -123,7 +123,7 @@ const Header = () => {
                                         aria-label={t.nav.notifications}
                                         className="grid size-10 shrink-0 place-items-center rounded-full text-foreground hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-accent"
                                     >
-                                        <BellIcon className="size-5" />
+                                        <Icon name="bell" className="size-5" />
                                     </Link>
                                     <ProfileMenu fullName={user.fullName} onLogout={handleLogout} />
                                 </>
@@ -145,17 +145,7 @@ const Header = () => {
                                 onClick={() => toggleMenu('mobile')}
                                 className="grid size-10 shrink-0 place-items-center rounded-full text-foreground hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-accent lg:hidden"
                             >
-                                <svg
-                                    aria-hidden="true"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    className="size-5"
-                                >
-                                    <path d={openMenu === 'mobile' ? 'M6 6l12 12M18 6L6 18' : 'M4 7h16M4 12h16M4 17h16'} />
-                                </svg>
+                                <Icon name={openMenu === 'mobile' ? 'close' : 'menu'} className="size-5" />
                             </button>
                         </div>
                     </div>

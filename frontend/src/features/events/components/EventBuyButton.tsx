@@ -34,7 +34,11 @@ const EventBuyButton = ({ event, ticketTypes }: EventBuyButtonProps) => {
                     {t.eventPage.buyTickets}
                 </span>
             )}
-            {status && <StatusBadge tone={status.tone}>{status.label}</StatusBadge>}
+            {status && (
+                <StatusBadge tone={status.tone} icon={status.icon}>
+                    {status.label}
+                </StatusBadge>
+            )}
         </div>
     )
 }
