@@ -7,7 +7,7 @@ from backend.modules.auth.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPI
 from sqlmodel import Session, select
 from datetime import timezone
 from database.database import get_session
-from backend.modules.users.user_model import users, pending_registrations, refresh_session
+from backend.modules.users.user_model import users, pending_registrations, refresh_sessions
 import hashlib
 import secrets
 
@@ -84,7 +84,7 @@ def set_refresh_cookie(response: Response, token: str):
 
 def create_refresh_session(session, user_id) -> str:
     raw = secrets.token_urlsafe(48)
-    session.add(refresh_session(
+    session.add(refresh_sessions(
         user_id=user_id,
         refresh_token_hash=hash_token(raw),
         expires_at=datetime.now(timezone.utc) + timedelta(days=REFRESH_DAYS)
@@ -93,5 +93,5 @@ def create_refresh_session(session, user_id) -> str:
 
 def revoke_all_sessions(session, user_id):
     now = datetime.now(timezone.utc)
-    for rs in session.exec(select(refresh_session).where(refresh_session.user_id == user_id, refresh_session.revoked_at.is_(None))):
+    for rs in session.exec(select(refresh_sessions).where(refresh_sessions.user_id == user_id, refresh_sessions.revoked_at.is_(None))):
         rs.revoked_at = now

@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 
 from database.database import get_session
 from backend.modules.users.schemas import UserCreate, UserPublic, Token, Message
-from backend.modules.users.user_model import users, profiles, pending_registrations, refresh_session, password_reset_tokens
+from backend.modules.users.user_model import users, profiles, pending_registrations, refresh_sessions, password_reset_tokens
 from backend.modules.auth.dependencies import get_current_active_user, get_password_hash, verify_password, get_session, authenticate_user, create_access_token, get_user, get_pending_registration, hash_token, create_refresh_session, set_refresh_cookie, revoke_all_sessions
 from backend.modules.auth.email import send_email
 from backend.modules.auth.schema import ForgotPassword, ResetPassword
@@ -89,7 +89,7 @@ async def login(response: Response, form_data: OAuth2PasswordRequestForm = Depen
 async def refresh(response: Response, refresh_token: str | None = Cookie(default=None), session: Session = Depends(get_session)):
     if not refresh_token:
         raise HTTPException(401, "Missing refresh token")
-    rs = session.exec(select(refresh_session).where(refresh_session.refresh_token_hash == hash_token(refresh_token))).first()
+    rs = session.exec(select(refresh_sessions).where(refresh_sessions.refresh_token_hash == hash_token(refresh_token))).first()
     now = datetime.now(timezone.utc)
     if rs is None or rs.expires_at <= now:
         raise HTTPException(401, "Invalid refresh token")
@@ -108,7 +108,7 @@ async def refresh(response: Response, refresh_token: str | None = Cookie(default
 @router.post("/logout", status_code=204)
 async def logout(response: Response, refresh_token: str | None = Cookie(default=None), session: Session = Depends(get_session)):
     if refresh_token:
-        rs = session.exec(select(refresh_session).where(refresh_session.refresh_token_hash == hash_token(refresh_token))).first()
+        rs = session.exec(select(refresh_sessions).where(refresh_sessions.refresh_token_hash == hash_token(refresh_token))).first()
         if rs and rs.revoked_at is None:
             rs.revoked_at = datetime.now(timezone.utc)
             session.commit()

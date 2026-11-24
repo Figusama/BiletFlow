@@ -5,9 +5,14 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 from database.database import engine
 from backend.main import app
-from test_auth import login, USER, verified_user, NEW_PASSWORD
+from test_auth import login, USER, verified_user, NEW_PASSWORD, clean_user
 client = TestClient(app)
 
+update_json = {
+    "full_name" : "Almaz Baktygali",
+    "phone" : "+77777777777",
+    "locale" : "kz"
+}
 
 
 def test_read_me(verified_user):
@@ -24,7 +29,7 @@ def test_delete_me(verified_user):
 
 def test_update_me(verified_user):
     token = login(USER['email'], USER['password']).json()['access_token']
-    r = client.patch(url="/users/me", headers={"Authorization": f"Bearer {token}"})
+    r = client.patch(url="/users/me", json=update_json ,headers={"Authorization": f"Bearer {token}"})
 
     assert r.status_code == status.HTTP_200_OK
 
@@ -40,24 +45,23 @@ def test_change_password(verified_user):
     assert login(USER["email"], NEW_PASSWORD).status_code == status.HTTP_200_OK
 
 def test_list_users(verified_user):
-    token = login(USER['email'], USER['password'])
+    token = login(USER['email'], USER['password']).json()["access_token"]
     r = client.get(url="/users/", headers={'Authorization': f"Bearer {token}"})
 
-    assert r.status_code == status.HTTP_200_OK
+    assert r.status_code == status.HTTP_403_FORBIDDEN #because it is a normal user not an admin
 
 def get_user_id(email : str):
     with engine.connect() as conn:
-        row = conn.execute(text("select user_id from users where email = :e", {"e": email}))
+        row = conn.execute(text("select id from users where email = :e"), {"e": email}).scalar_one()
     return str(row)
 
 
 
+def test_read_user(verified_user):
+    token = login(USER['email'], USER['password']).json()['access_token']
+    user_id = get_user_id(USER['email'])
+    r = client.get(url=f"/users/{user_id}", headers={"Authorization": f"Bearer {token}"})
 
-
-
-def test_read_user():
-    r = client.get(url="/users/{user_id}", params={"user_id": get_user_id(USER['email'])})
-
-    assert r.status_code == status.HTTP_200_OK
+    assert r.status_code == status.HTTP_403_FORBIDDEN #because it is a normal user not an admin
 
     

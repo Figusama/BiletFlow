@@ -162,3 +162,18 @@ class event_change_request_items(SQLModel, table=True):
     old_value: dict | list | str | int | float | bool | None = Field(sa_column=Column(pg.JSONB, nullable=False))
     new_value: dict | list | str | int | float | bool | None = Field(sa_column=Column(pg.JSONB, nullable=False))
     created_at: datetime = Field(default_factory=_now, sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False, server_default=func.now()))
+
+class event_categories(SQLModel, table=True):
+    __tablename__ = "event_categories"
+    event_id : UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), sa.ForeignKey("events.id"), primary_key=True))
+    category_id : UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), sa.ForeignKey("categories.id"), primary_key=True))
+
+
+class event_images(SQLModel, table=True):
+    __tablename__ = "event_images"
+    __table_args__ = (UniqueConstraint("event_id", "position"),)
+    id : UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True))
+    event_id : UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), sa.ForeignKey("events.id"), nullable=False))
+    storage_key : str = Field(sa_column=Column(pg.TEXT, nullable=False))
+    position : int = Field(sa_column=Column(pg.INTEGER, nullable=False))
+    created_at : datetime = Field(default_factory=_now, sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False, server_default=func.now()))

@@ -39,6 +39,32 @@ class EventUpdate(SQLModel):
     public_contact_email: str | None = None
     public_contact_phone: str | None = None
 
+class CreateEvent(SQLModel):
+
+    title : str | None = None
+    description : str | None = None
+
+    venue_name_snapshot : str | None = None
+    venue_address_snapshot : str | None = None
+    venue_city_snapshot : str | None = None
+
+    starts_at : datetime | None = None
+    ends_at : datetime | None = None
+    timezone : str | None = None
+
+    visibility : Visibility | None = None
+    seating_mode : SeatingMode | None = None
+
+    responsible_name : str | None = None
+    responsible_email : str | None = None
+    responsible_phone : str | None = None
+
+    intends_paid_sales : bool = False
+
+
+
+
+
 class EventPublic(SQLModel):
     id: uuid.UUID
     public_id: str

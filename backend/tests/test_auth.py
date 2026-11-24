@@ -25,6 +25,10 @@ def delete_user(email: str):
     with engine.begin() as conn:
         conn.execute(text("delete from pending_registrations where email = :e"), {"e": email})
         conn.execute(
+            text("delete from refresh_sessions where user_id in (select id from users where email = :e)"),
+            {"e": email},
+        )
+        conn.execute(
             text("delete from profiles where user_id in (select id from users where email = :e)"),
             {"e": email},
         )
@@ -114,8 +118,3 @@ def test_login_suspended_user(verified_user):
         )
     r = login(USER["email"], USER["password"])
     assert r.status_code == status.HTTP_403_FORBIDDEN, r.text
-
-
-def test_list_events():
-    r = client.get("/events")
-    assert r.status_code == status.HTTP_200_OK

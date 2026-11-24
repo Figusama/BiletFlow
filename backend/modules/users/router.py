@@ -3,13 +3,13 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from jose import jwt
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, SQLModel, Field, select
+from sqlmodel import Session, SQLModel, Field, select, delete
 from database.database import get_session
 from backend.modules.audit import service as audit
 from backend.modules.auth.dependencies import oauth_2_scheme, get_current_user, authenticate_user, create_access_token, get_password_hash, verify_password
 from backend.modules.auth.config import SECRET_KEY, ALGORITHM
 from backend.modules.users.schemas import Role
-from backend.modules.users.user_model import users, profiles
+from backend.modules.users.user_model import users, profiles, refresh_sessions, password_reset_tokens
 from backend.modules.users.schemas import UserCreate, UserPublic, Token, ProfileUpdate, PasswordChange
 import uuid
 
@@ -52,6 +52,9 @@ def change_password(data: PasswordChange, session: Session = Depends(get_session
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 def delete_me(session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
+    session.exec(delete(refresh_sessions).where(refresh_sessions.user_id == current_user.id))
+    session.exec(delete(password_reset_tokens).where(password_reset_tokens.user_id == current_user.id))
+    
     profile = get_profile(session, current_user.id)
     if profile:
         session.delete(profile)

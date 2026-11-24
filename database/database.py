@@ -33,8 +33,8 @@ if "supabase.co" in DATABASE_URL or "supabase.com" in DATABASE_URL:
 engine = create_engine(
     DATABASE_URL,
     echo=os.getenv("SQL_ECHO", "true").lower() == "true",
-    pool_size=2,
-    max_overflow=3,
+    pool_size=5,
+    max_overflow=5,
     pool_timeout=40,
     pool_recycle=1800,
     pool_pre_ping=True,
