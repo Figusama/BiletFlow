@@ -5,6 +5,7 @@ import type { RootState } from '../app/store'
 import { useEvent } from '../features/events/api'
 import { formatEventTimeRange } from '../features/events/labels'
 import { createReservation, useTicketTypes } from '../features/tickets/api'
+import CheckoutSteps from '../features/orders/components/CheckoutSteps'
 import OrderSummary, { type OrderLine } from '../features/tickets/components/OrderSummary'
 import TicketPicker from '../features/tickets/components/TicketPicker'
 import { useLanguage } from '../shared/i18n/language'
@@ -81,22 +82,7 @@ const TicketSelectionPage = () => {
                     </p>
                 </div>
 
-                <ol className="flex items-center gap-2 text-sm">
-                    {t.ticketSelection.steps.map((step, index) => (
-                        <li key={step} className="flex items-center gap-2">
-                            {index > 0 && <span aria-hidden="true" className="h-px w-6 bg-border-strong" />}
-                            <span
-                                aria-current={index === 0 ? 'step' : undefined}
-                                className={`grid size-6 place-items-center rounded-full text-xs font-bold ${
-                                    index === 0 ? 'bg-accent text-accent-foreground' : 'bg-surface-sunk text-muted'
-                                }`}
-                            >
-                                {index + 1}
-                            </span>
-                            <span className={index === 0 ? 'font-semibold text-foreground' : 'text-muted'}>{step}</span>
-                        </li>
-                    ))}
-                </ol>
+                <CheckoutSteps current={0} />
             </div>
 
             {event.seating_mode === 'ASSIGNED_SEATING' ? (

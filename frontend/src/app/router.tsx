@@ -11,6 +11,8 @@ import VerifyEmailPage from '../pages/VerifyEmailPage'
 import ForgotPasswordPage from '../pages/ForgotPasswordPage'
 import ResetPasswordPage from '../pages/ResetPasswordPage'
 import MyTicketsPage from '../pages/MyTicketsPage'
+import CheckoutPage from '../pages/CheckoutPage'
+import OrderPage from '../pages/OrderPage'
 import RequireAuth from '../features/auth/requireAuth'
 import { verifyEmail } from '../features/auth/auth'
 import { ApiError } from '../shared/api/client'
@@ -75,6 +77,14 @@ export const router = createBrowserRouter([
                         path: 'tickets',
                         element: <MyTicketsPage />,
                     },
+                    {
+                        path: 'checkout/:reservationId',
+                        element: <CheckoutPage />,
+                    },
+                    {
+                        path: 'orders/:orderId',
+                        element: <OrderPage />,
+                    },
                 ],
             },
             {
@@ -88,10 +98,6 @@ export const router = createBrowserRouter([
             {
                 path: 'organizer/help',
                 element: <ComingSoonPage titleKey="organizerHelp" />,
-            },
-            {
-                path: 'checkout/:reservationId',
-                element: <ComingSoonPage titleKey="checkout" />,
             },
             {
                 path: 'notifications',

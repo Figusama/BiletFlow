@@ -38,6 +38,7 @@ export const useEvent = (ref: string) =>
     useQuery({
         queryKey: ['events', ref],
         queryFn: () => api<EventDetails>(`/events/${ref}`),
+        enabled: Boolean(ref),
     })
 
 export const useEvents = () =>

@@ -29,12 +29,18 @@ type ApiInit = Omit<RequestInit, 'body' | 'headers'> & {
     idempotencyKey?: string;
 }
 
+const REQUEST_TIMEOUT_MS = 20_000
+
 const AUTH_PATHS_WITHOUT_REFRESH = ['/auth/token', '/auth/refresh', '/auth/logout']
 
 let refreshPromise: Promise<boolean> | null = null
 
 export const refreshAccessToken = (): Promise<boolean> => {
-    refreshPromise ??= fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'include' })
+    refreshPromise ??= fetch(`${BASE}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    })
         .then(async (response) => {
             if (!response.ok) return false
             const data: { access_token: string } = await response.json()
@@ -53,6 +59,7 @@ const send = (path: string, init: ApiInit) => {
     const { json, form, headers, idempotencyKey, ...rest } = init
     return fetch(`${BASE}${path}`, {
         ...rest,
+        signal: rest.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         credentials: 'include',
         body: form ?? JSON.stringify(json),
         headers: {

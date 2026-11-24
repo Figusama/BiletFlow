@@ -93,7 +93,7 @@ const EventsPage = () => {
                     <h2 id="upcoming-title" className="text-xl font-bold text-foreground">
                         {t.discover.upcoming}
                     </h2>
-                    <Select
+                    <Select<SortOrder>
                         value={sortOrder}
                         options={sortOptions}
                         onValueChange={setSortOrder}
