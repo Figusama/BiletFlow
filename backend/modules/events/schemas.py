@@ -3,7 +3,7 @@ from enum import Enum
 from pydantic import BaseModel, EmailStr, Field
 from sqlmodel import SQLModel
 from datetime import datetime
-
+from pydantic import field_validator
 
 class EventStatus(str, Enum):
     DRAFT = "DRAFT"
@@ -115,3 +115,14 @@ class EventPublic(SQLModel):
     categories: list[EventCategory] = []
     images: list[EventImage] = []
     cover_image_url: str | None = None
+
+class ApplicationReject(SQLModel):
+    review_comment: str
+
+    @field_validator("review_comment")
+    @classmethod
+    def not_blank(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("review_comment must not be empty")
+        return v
