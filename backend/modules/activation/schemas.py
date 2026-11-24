@@ -87,6 +87,7 @@ class FeePaymentPublic(BaseModel):
     created_at: datetime
     finalized_at: datetime | None
     simulator_url: str | None = None
+    payment_url: str | None = None
 
 
 class ActivationPublic(BaseModel):

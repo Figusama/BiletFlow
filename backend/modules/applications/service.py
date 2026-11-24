@@ -8,7 +8,7 @@ from sqlalchemy import delete, func
 from sqlmodel import Session, select
 
 from backend.core.clock import as_aware, db_now
-from backend.core.config import ORGANIZER_RULES_VERSION, TICKET_SALES_TERMS_VERSION
+from backend.core.config import FRONTEND_URL, ORGANIZER_RULES_VERSION, TICKET_SALES_TERMS_VERSION
 from backend.core.media import media_url
 from backend.modules.applications.schemas import AgreementPublic, AgreementType, ApplicationPublic, CategoryRef, ImagePublic
 from backend.modules.audit import service as audit
@@ -16,6 +16,7 @@ from backend.modules.events.models import (categories, event_application_agreeme
                                            event_applications, event_categories, event_images, event_seats, events)
 from backend.modules.events.router import generate_application_number
 from backend.modules.events.schemas import EventLifecycleStatus, EventStatus, SeatingMode
+from backend.modules.notifications import service as notify
 from backend.modules.users.user_model import EventRole, Role, event_user_roles, users
 from backend.modules.venues.models import venue_layouts, venue_rows, venue_seats, venue_sections, venues
 
@@ -249,6 +250,17 @@ def generate_event_seats(session: Session, event_id: uuid.UUID, layout_id: uuid.
     return len(seat_ids)
 
 
+def notify_decision(session: Session, application: event_applications, approved: bool) -> None:
+    applicant = session.get(users, application.applicant_user_id)
+    body = f"Your application {application.application_number} for \"{application.title}\" was {'approved' if approved else 'rejected'}."
+    if application.review_comment:
+        body += f" Comment: {application.review_comment}"
+    notify.publish(session, notify.Notice(key=f"APPLICATION_DECISION:{application.id}", event_type="EVENT_APPLICATION_APPROVED" if approved else "EVENT_APPLICATION_REJECTED",
+                                          aggregate_type="EVENT_APPLICATION", aggregate_id=application.id, title="Application approved" if approved else "Application rejected",
+                                          body=body, action_url=f"{FRONTEND_URL}/applications/{application.id}", inbox_user_ids=[applicant.id],
+                                          emails=[notify.Email(address=applicant.email, user_id=applicant.id)]))
+
+
 def approve(session: Session, application: event_applications, admin: users, review_comment: str | None) -> events:
     now = db_now(session)
     problems = [p for p in missing_for_submit(session, application, now) if not p.startswith("agreement:")]
@@ -296,6 +308,7 @@ def approve(session: Session, application: event_applications, admin: users, rev
     session.add(application)
     audit.record(session, action="EVENT_APPLICATION_APPROVED", entity_type="EVENT_APPLICATION", entity_id=application.id, event_id=event.id,
                  actor_user_id=admin.id, details={"application_number": application.application_number, "event_public_id": event.public_id})
+    notify_decision(session, application, True)
     return event
 
 

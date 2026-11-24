@@ -14,6 +14,7 @@ from backend.modules.events.schemas import SeatingMode
 from backend.modules.orders.models import orders, order_items
 from backend.modules.orders.schemas import OrderStatus
 from backend.modules.orders.service import OCCUPYING_TICKET_STATUSES, ga_occupancy, taken_seat_ids
+from backend.modules.payments import halyk
 from backend.modules.payments.models import payments
 from backend.modules.payments.schemas import PaymentStatus
 from backend.modules.payments.service import SIMULATED_INVOICE_PREFIX
@@ -78,7 +79,7 @@ def _financial(session: Session, event_id: uuid.UUID, date_from, date_to, ticket
         select(
             func.coalesce(func.sum(payments.amount_minor), 0),
             func.coalesce(func.sum(payments.processing_fee_minor), 0),
-            func.count().filter(payments.provider_invoice_id.like(f"{SIMULATED_INVOICE_PREFIX}%")),
+            func.count() if halyk.SANDBOX else func.count().filter(payments.provider_invoice_id.like(f"{SIMULATED_INVOICE_PREFIX}%")),
         ).join(orders, orders.id == payments.order_id).where(*succeeded)
     ).one()
     refunded = session.exec(

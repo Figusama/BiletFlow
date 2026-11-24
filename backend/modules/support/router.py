@@ -12,7 +12,7 @@ from backend.modules.notifications import service as notify
 from backend.modules.orders.models import orders
 from backend.modules.support import service
 from backend.modules.support.models import support_cases
-from backend.modules.support.schemas import Assignment, CaseCreate, CaseDetail, CasePublic, CaseScope, CaseStatus, MessageCreate, ReadMark, StatusChange
+from backend.modules.support.schemas import Assignment, CaseCategory, CaseCreate, CaseDetail, CasePublic, CaseScope, CaseStatus, MessageCreate, ReadMark, StatusChange
 from backend.modules.tickets.models import tickets
 from backend.modules.users.user_model import EventRole, users
 from database.database import get_session
@@ -38,6 +38,8 @@ def open_case(data: CaseCreate, session: Session = Depends(get_session), current
         event = get_event_or_404(session, event_id)
         if not (data.order_id or data.ticket_id) and not can_view_event(session, event, current_user):
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+    if data.category == CaseCategory.EVENT_COMPLAINT and (data.case_scope != CaseScope.PLATFORM_SUPPORT or event_id is None):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Event complaints go to the platform and need an event")
     if data.case_scope == CaseScope.EVENT_SUPPORT and event_id is None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Event support cases need an event")
     if data.previous_case_id:
@@ -80,8 +82,13 @@ def event_queue(event_id: uuid.UUID, case_status: CaseStatus | None = Query(defa
 
 
 @router.get("/admin/support/cases", response_model=list[CasePublic])
-def platform_queue(case_status: CaseStatus | None = Query(default=None, alias="status"), session: Session = Depends(get_session), admin: users = Depends(require_admin)):
+def platform_queue(case_status: CaseStatus | None = Query(default=None, alias="status"), category: CaseCategory | None = None, event_id: uuid.UUID | None = None,
+                   session: Session = Depends(get_session), admin: users = Depends(require_admin)):
     query = select(support_cases).where((support_cases.case_scope == "PLATFORM_SUPPORT") | support_cases.escalated_to_platform.is_(True))
+    if category:
+        query = query.where(support_cases.category == category.value)
+    if event_id:
+        query = query.where(support_cases.event_id == event_id)
     if case_status:
         query = query.where(support_cases.status == case_status.value)
     return [service.to_public(session, c, admin) for c in session.exec(query.order_by(support_cases.updated_at.desc())).all()]
