@@ -25,7 +25,7 @@ def delete_user(email: str):
     with engine.begin() as conn:
         conn.execute(text("delete from pending_registrations where email = :e"), {"e": email})
         conn.execute(
-            text("delete from refresh_session where user_id in (select id from users where email = :e)"),
+            text("delete from refresh_sessions where user_id in (select id from users where email = :e)"),
             {"e": email},
         )
         conn.execute(
