@@ -58,6 +58,7 @@ def delete_me(session: Session = Depends(get_session), current_user: users = Dep
     profile = get_profile(session, current_user.id)
     if profile:
         session.delete(profile)
+    session.flush()
     session.delete(current_user)
     try:
         session.commit()

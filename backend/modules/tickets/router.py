@@ -5,8 +5,8 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from backend.core.clock import as_aware, db_now
-from backend.modules.auth.dependencies import get_current_user
-from backend.modules.events.access import get_event_or_404, is_publicly_viewable, require_organizer
+from backend.modules.auth.dependencies import get_current_user, get_optional_user
+from backend.modules.events.access import can_view_event, get_event_or_404, require_organizer
 from backend.modules.events.models import events, event_seats
 from backend.modules.events.router import ever_issued
 from backend.modules.events.schemas import EventLifecycleStatus, SeatingMode
@@ -47,9 +47,9 @@ def _require_draft(event: events) -> None:
 
 
 @router.get("/events/{event_id}/ticket-types", response_model=list[TicketTypePublic])
-def list_ticket_types(event_id: uuid.UUID, session: Session = Depends(get_session)):
+def list_ticket_types(event_id: uuid.UUID, session: Session = Depends(get_session), viewer: users | None = Depends(get_optional_user)):
     event = get_event_or_404(session, event_id)
-    if not is_publicly_viewable(event):
+    if not can_view_event(session, event, viewer):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
     now = db_now(session)
     left = availability(session, event, now)
@@ -148,9 +148,9 @@ def _seat_rows(session: Session, event_id: uuid.UUID):
 
 
 @router.get("/events/{event_id}/seats", response_model=list[SeatPublic])
-def list_seats(event_id: uuid.UUID, session: Session = Depends(get_session)):
+def list_seats(event_id: uuid.UUID, session: Session = Depends(get_session), viewer: users | None = Depends(get_optional_user)):
     event = get_event_or_404(session, event_id)
-    if not is_publicly_viewable(event):
+    if not can_view_event(session, event, viewer):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
     taken = taken_seat_ids(session, event.id, db_now(session))
     result = []

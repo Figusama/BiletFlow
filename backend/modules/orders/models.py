@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, ForeignKey, func
+from sqlalchemy import Column, ForeignKey, Index, func, text
 from sqlalchemy.dialects import postgresql as pg
 from sqlmodel import SQLModel, Field
 
@@ -15,7 +15,7 @@ def _now() -> datetime:
 
 class reservations(SQLModel, table=True):
     __tablename__ = "reservations"
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True))
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()))
     event_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("events.id"), nullable=False, index=True))
     user_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("users.id"), nullable=False))
     expires_at: datetime = Field(sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False))
@@ -28,7 +28,8 @@ class reservations(SQLModel, table=True):
 
 class reservation_items(SQLModel, table=True):
     __tablename__ = "reservation_items"
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True))
+    __table_args__ = (Index("ux_reservation_ga_type", "reservation_id", "ticket_type_id", unique=True, postgresql_where=text("event_seat_id IS NULL")),)
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()))
     reservation_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("reservations.id"), nullable=False, index=True))
     event_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("events.id"), nullable=False))
     ticket_type_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("ticket_types.id"), nullable=False))
@@ -39,7 +40,7 @@ class reservation_items(SQLModel, table=True):
 
 class orders(SQLModel, table=True):
     __tablename__ = "orders"
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True))
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()))
     order_number: str = Field(sa_column=Column(pg.VARCHAR, unique=True, nullable=False))
     event_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("events.id"), nullable=False))
     buyer_user_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True))
@@ -59,7 +60,7 @@ class orders(SQLModel, table=True):
 
 class order_items(SQLModel, table=True):
     __tablename__ = "order_items"
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True))
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()))
     order_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("orders.id"), nullable=False, index=True))
     event_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("events.id"), nullable=False))
     ticket_type_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("ticket_types.id"), nullable=False))

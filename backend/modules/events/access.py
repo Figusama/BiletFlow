@@ -1,9 +1,11 @@
 import uuid
 
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlmodel import Session, select
 
-from backend.modules.events.models import events
+from backend.core.clock import db_now
+from backend.modules.events.models import events, private_event_invitations
 from backend.modules.events.schemas import EventLifecycleStatus, Visibility
 from backend.modules.users.user_model import users, event_user_roles, EventRole, Role
 
@@ -50,3 +52,26 @@ def ensure_on_sale(event: events) -> None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Event is not on sale")
     if event.is_suspended:
         raise HTTPException(status.HTTP_409_CONFLICT, "Event is suspended")
+
+
+def has_private_invitation(session: Session, event: events, user: users | None) -> bool:
+    if user is None:
+        return False
+    return session.exec(select(private_event_invitations.id).where(
+        private_event_invitations.event_id == event.id, func.lower(private_event_invitations.invited_email) == user.email.lower(),
+        private_event_invitations.expires_at > db_now(session),
+    ).limit(1)).first() is not None
+
+
+def can_view_event(session: Session, event: events, user: users | None) -> bool:
+    if user is not None and (user.personal_role == Role.PLATFORM_ADMIN or event_roles(session, event.id, user)):
+        return True
+    if is_publicly_viewable(event):
+        return True
+    return (event.visibility == Visibility.PRIVATE and event.status in (EventLifecycleStatus.PUBLISHED, EventLifecycleStatus.COMPLETED, EventLifecycleStatus.CANCELLED)
+            and has_private_invitation(session, event, user))
+
+
+def ensure_purchase_access(session: Session, event: events, user: users) -> None:
+    if event.visibility == Visibility.PRIVATE and not has_private_invitation(session, event, user):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "A valid invitation is required for this private event")

@@ -28,7 +28,7 @@ class users(SQLModel, table=True):
     __tablename__ = "users"
 
     id : uuid.UUID = Field(
-        sa_column=Column(pg.UUID, nullable=False, primary_key=True, default=uuid.uuid4)
+        sa_column=Column(pg.UUID(as_uuid=True), nullable=False, primary_key=True, default=uuid.uuid4, server_default=sa.func.gen_random_uuid())
     )
 
     public_id : str = Field(
@@ -59,7 +59,7 @@ class pending_registrations(SQLModel, table=True):
     __tablename__ = "pending_registrations"
 
     id : uuid.UUID = Field(
-        sa_column=Column(pg.UUID, nullable=False, primary_key=True, default=uuid.uuid4)
+        sa_column=Column(pg.UUID(as_uuid=True), nullable=False, primary_key=True, default=uuid.uuid4, server_default=sa.func.gen_random_uuid())
     )
     email : str = Field(sa_column=Column(pg.CITEXT, unique=True, nullable=False))
     password_hash : str = Field(sa_column=Column(pg.TEXT, nullable=False))
@@ -72,6 +72,7 @@ class pending_registrations(SQLModel, table=True):
 
 class event_user_roles(SQLModel, table=True):
     __tablename__ = "event_user_roles"
+    __table_args__ = (sa.Index("ux_one_organizer_per_event", "event_id", unique=True, postgresql_where=sa.text("event_role = 'ORGANIZER'")),)
 
     event_id : uuid.UUID = Field(
             sa_column=Column(pg.UUID(as_uuid=True), sa.ForeignKey("events.id"), primary_key=True, nullable=False)
@@ -84,20 +85,21 @@ class event_user_roles(SQLModel, table=True):
 
 class refresh_sessions(SQLModel, table=True):
     __tablename__ = "refresh_sessions"
-    id : uuid.UUID = Field(sa_column=Column(pg.UUID, unique=True, primary_key=True, default=uuid.uuid4))
-    user_id : uuid.UUID = Field(sa_column=Column(pg.UUID, sa.ForeignKey("users.id"), nullable=False))
+
+    id : uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True, server_default=sa.func.gen_random_uuid()))
+    user_id : uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False, index=True))
     refresh_token_hash : str = Field(sa_column=Column(pg.TEXT, unique=True, nullable=False))
     expires_at : datetime = Field(sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False))
-    revoked_at : datetime = Field(sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=True))
-    created_at : datetime = Field(sa_column=Column(pg.TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc)))
+    revoked_at : datetime | None = Field(default=None, sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=True))
+    created_at : datetime = Field(default_factory=_now, sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False, server_default=sa.func.now()))
 
 class password_reset_tokens(SQLModel, table=True):
     __tablename__ = "password_reset_tokens"
-    id : uuid.UUID = Field(sa_column=Column(pg.UUID, primary_key=True, default=uuid.uuid4))
-    user_id : uuid.UUID = Field(sa_column=Column(pg.UUID, sa.ForeignKey("users.id"), nullable=False))
+
+    id : uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True, server_default=sa.func.gen_random_uuid()))
+    user_id : uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False, index=True))
     token_hash : str = Field(sa_column=Column(pg.TEXT, unique=True, nullable=False))
     expires_at : datetime = Field(sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False))
-    used_at : datetime = Field(sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=True))
-    revoked_at : datetime = Field(sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=True))
-    created_at : datetime = Field(sa_column=Column(pg.TIMESTAMP(timezone=True), default=datetime.now(timezone.utc)))
-
+    used_at : datetime | None = Field(default=None, sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=True))
+    revoked_at : datetime | None = Field(default=None, sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=True))
+    created_at : datetime = Field(default_factory=_now, sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False, server_default=sa.func.now()))

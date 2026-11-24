@@ -1,17 +1,22 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import or_
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
+from pydantic import AwareDatetime
+from sqlalchemy import delete as sa_delete, exists, or_
 from sqlmodel import Session, select
 
 from backend.core.clock import as_aware, db_now
-from backend.core.config import PUBLIC_API_URL
+from backend.core.config import MAX_APPLICATION_IMAGES, PUBLIC_API_URL
+from backend.core.media import media_url, save_image
 from backend.modules.audit import service as audit
-from backend.modules.auth.dependencies import get_current_user
-from backend.modules.events.access import get_event_or_404, is_publicly_viewable, require_organizer, event_roles
+from backend.modules.auth.dependencies import get_current_user, get_optional_user
+from backend.modules.events.access import can_view_event, get_event_or_404, require_organizer, event_roles
 from backend.modules.events.calendar import build_ics, google_calendar_url
-from backend.modules.events.models import events, event_applications
-from backend.modules.events.schemas import EventLifecycleStatus, EventPublic, EventUpdate, SeatingMode, Visibility, CreateEvent, EventStatus
+from backend.modules.events.models import categories, event_applications, event_categories, event_images, events
+from backend.modules.orders.models import orders
+from backend.modules.orders.schemas import OrderStatus
+from backend.modules.events.schemas import (CreatedEvent, CreateEvent, EventCategory, EventImage, EventLifecycleStatus, EventPublic, EventStatus, EventUpdate,
+                                            SeatingMode, Visibility)
 from backend.modules.payments.activation import paid_sales_active
 from backend.modules.tickets.models import ticket_types, tickets
 from backend.modules.tickets.schemas import TicketKind
@@ -24,10 +29,21 @@ import secrets
 router = APIRouter(prefix="/events", tags=["events"])
 
 
+DERIVED_FIELDS = {"venue_name", "venue_address", "venue_city", "calendar_ics_url", "google_calendar_url", "categories", "images", "cover_image_url"}
+
+
 def to_public(session: Session, event: events) -> EventPublic:
     venue = session.get(venues, event.venue_id)
+    category_rows = session.exec(
+        select(categories).join(event_categories, event_categories.category_id == categories.id).where(event_categories.event_id == event.id).order_by(categories.name)
+    ).all()
+    image_rows = session.exec(select(event_images).where(event_images.event_id == event.id).order_by(event_images.position)).all()
+    images = [EventImage(id=i.id, position=i.position, url=media_url(i.storage_key)) for i in image_rows]
     return EventPublic(
-        **event.model_dump(include=set(EventPublic.model_fields) - {"venue_name", "venue_address", "venue_city", "calendar_ics_url", "google_calendar_url"}),
+        **event.model_dump(include=set(EventPublic.model_fields) - DERIVED_FIELDS),
+        categories=[EventCategory(id=c.id, name=c.name, slug=c.slug) for c in category_rows],
+        images=images,
+        cover_image_url=images[0].url if images else None,
         venue_name=venue.name if venue else None,
         venue_address=venue.address if venue else None,
         venue_city=venue.city if venue else None,
@@ -53,8 +69,10 @@ def generate_application_number(prefix : str = "APP"):
 def ever_issued(session: Session, event_id: uuid.UUID) -> bool:
     return session.exec(select(tickets.id).where(tickets.event_id == event_id).limit(1)).first() is not None
 
-@router.post("/create", response_model=CreateEvent)
+@router.post("/create", response_model=CreatedEvent)
 def create_event(data : CreateEvent, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
+    if data.starts_at and data.ends_at and as_aware(data.ends_at) <= as_aware(data.starts_at):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Event end must be after start")
     application = event_applications(**data.model_dump(),
                                     applicant_user_id=current_user.id,
                                     application_number=generate_application_number(),
@@ -69,13 +87,27 @@ def create_event(data : CreateEvent, session: Session = Depends(get_session), cu
 
 
 @router.get("/", response_model=list[EventPublic])
-def list_events(session: Session = Depends(get_session)):
+def list_events(q: str | None = Query(default=None, max_length=200), city: str | None = None, category: str | None = None,
+                date_from: AwareDatetime | None = None, date_to: AwareDatetime | None = None, free_only: bool = False,
+                limit: int = Query(default=50, ge=1, le=200), offset: int = Query(default=0, ge=0), session: Session = Depends(get_session)):
     now = db_now(session)
-    rows = session.exec(
-        select(events)
-        .where(events.status == EventLifecycleStatus.PUBLISHED, events.visibility == Visibility.PUBLIC, events.ends_at > now)
-        .order_by(events.starts_at)
-    ).all()
+    query = select(events).where(events.status == EventLifecycleStatus.PUBLISHED, events.visibility == Visibility.PUBLIC,
+                                 events.is_suspended.is_(False), events.ends_at > now)
+    if q and q.strip():
+        pattern = f"%{q.strip()}%"
+        query = query.where(or_(events.title.ilike(pattern), events.description.ilike(pattern)))
+    if city and city.strip():
+        query = query.where(exists().where(venues.id == events.venue_id, venues.city.ilike(city.strip())))
+    if category:
+        query = query.where(exists().where(event_categories.event_id == events.id, event_categories.category_id == categories.id,
+                                           categories.slug == category, categories.is_active.is_(True)))
+    if date_from:
+        query = query.where(events.ends_at >= date_from)
+    if date_to:
+        query = query.where(events.starts_at <= date_to)
+    if free_only:
+        query = query.where(~exists().where(ticket_types.event_id == events.id, ticket_types.is_active.is_(True), ticket_types.kind == TicketKind.PAID))
+    rows = session.exec(query.order_by(events.starts_at, events.id).limit(limit).offset(offset)).all()
     return [to_public(session, event) for event in rows]
 
 
@@ -88,9 +120,9 @@ def my_events(session: Session = Depends(get_session), current_user: users = Dep
 
 
 @router.get("/{event_ref}", response_model=EventPublic)
-def read_event(event_ref: str, session: Session = Depends(get_session)):
+def read_event(event_ref: str, session: Session = Depends(get_session), viewer: users | None = Depends(get_optional_user)):
     event = find_event(session, event_ref)
-    if not is_publicly_viewable(event):
+    if not can_view_event(session, event, viewer):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
     return to_public(session, event)
 
@@ -116,11 +148,66 @@ def update_event(event_id: uuid.UUID, data: EventUpdate, session: Session = Depe
         venue = session.get(venues, event.venue_id)
         if changes["ga_capacity"] is None or changes["ga_capacity"] <= 0 or changes["ga_capacity"] > venue.max_capacity:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Capacity must be between 1 and {venue.max_capacity}")
+    if "description" in changes and changes["description"] is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Description cannot be empty")
+    if "refund_policy" in changes:
+        policy = changes["refund_policy"] or {}
+        hours = policy.get("self_service_refund_until_hours_before_start")
+        if hours is not None and (not isinstance(hours, int) or isinstance(hours, bool) or hours < 0):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid refund policy")
+        if session.exec(select(orders.id).where(orders.event_id == event.id, orders.status == OrderStatus.CONFIRMED).limit(1)).first():
+            raise HTTPException(status.HTTP_409_CONFLICT, "Refund policy changes after the first sale need an Event Change Request")
+        changes["refund_policy"] = policy
     for key, value in changes.items():
         setattr(event, key, value)
     session.add(event)
+    if event.status != EventLifecycleStatus.DRAFT:
+        audit.record(session, action="EVENT_DETAILS_UPDATED", entity_type="EVENT", entity_id=event.id, event_id=event.id, actor_user_id=current_user.id,
+                     details={"fields": sorted(changes)})
     session.commit()
     session.refresh(event)
+    return to_public(session, event)
+
+
+@router.put("/{event_id}/categories", response_model=EventPublic)
+def set_categories(event_id: uuid.UUID, category_ids: list[uuid.UUID], session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
+    require_organizer(session, event_id, current_user)
+    event = get_event_or_404(session, event_id, for_update=True)
+    unique_ids = list(dict.fromkeys(category_ids))
+    if not unique_ids:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "At least one category is required")
+    if len(session.exec(select(categories.id).where(categories.id.in_(unique_ids), categories.is_active.is_(True))).all()) != len(unique_ids):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown or inactive category")
+    session.exec(sa_delete(event_categories).where(event_categories.event_id == event.id))
+    for category_id in unique_ids:
+        session.add(event_categories(event_id=event.id, category_id=category_id))
+    session.commit()
+    return to_public(session, event)
+
+
+@router.post("/{event_id}/images", response_model=EventPublic, status_code=status.HTTP_201_CREATED)
+def add_image(event_id: uuid.UUID, file: UploadFile = File(...), session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
+    require_organizer(session, event_id, current_user)
+    event = get_event_or_404(session, event_id, for_update=True)
+    positions = session.exec(select(event_images.position).where(event_images.event_id == event.id)).all()
+    if len(positions) >= MAX_APPLICATION_IMAGES:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"At most {MAX_APPLICATION_IMAGES} images are allowed")
+    storage_key = save_image(file, f"events/{event.id}")
+    session.add(event_images(event_id=event.id, storage_key=storage_key, position=max(positions) + 1 if positions else 0))
+    session.commit()
+    return to_public(session, event)
+
+
+@router.delete("/{event_id}/images/{image_id}", response_model=EventPublic)
+def remove_image(event_id: uuid.UUID, image_id: uuid.UUID, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
+    if current_user.personal_role != Role.PLATFORM_ADMIN:
+        require_organizer(session, event_id, current_user)
+    event = get_event_or_404(session, event_id, for_update=True)
+    image = session.get(event_images, image_id)
+    if image is None or image.event_id != event.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Image not found")
+    session.delete(image)
+    session.commit()
     return to_public(session, event)
 
 
@@ -177,9 +264,9 @@ def unpublish_event(event_id: uuid.UUID, session: Session = Depends(get_session)
 
 
 @router.get("/{event_id}/calendar.ics")
-def calendar_ics(event_id: uuid.UUID, session: Session = Depends(get_session)):
+def calendar_ics(event_id: uuid.UUID, session: Session = Depends(get_session), viewer: users | None = Depends(get_optional_user)):
     event = get_event_or_404(session, event_id)
-    if not is_publicly_viewable(event):
+    if not can_view_event(session, event, viewer):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
     body = build_ics(event, session.get(venues, event.venue_id))
     return Response(content=body, media_type="text/calendar; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="{event.slug}.ics"'})
