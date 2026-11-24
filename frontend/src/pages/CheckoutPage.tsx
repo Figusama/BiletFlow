@@ -7,6 +7,7 @@ import { useEvent } from '../features/events/api'
 import { formatEventTimeRange } from '../features/events/labels'
 import { createOrder, releaseReservation, startPayment, useReservation, type PromoQuote } from '../features/orders/api'
 import CheckoutSteps from '../features/orders/components/CheckoutSteps'
+import AttendeeFields from '../features/orders/components/AttendeeFields'
 import PromoCodeForm from '../features/orders/components/PromoCodeForm'
 import { useTicketTypes } from '../features/tickets/api'
 import { ApiError } from '../shared/api/client'
@@ -27,6 +28,7 @@ const CheckoutPage = () => {
     const secondsLeft = useSecondsLeft(reservation?.expires_at)
 
     const [quote, setQuote] = useState<PromoQuote | null>(null)
+    const [names, setNames] = useState<Record<string, string[]>>({})
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [error, setError] = useState('')
 
@@ -55,8 +57,28 @@ const CheckoutPage = () => {
     const lines = reservation.items.map((item) => {
         const ticketType = ticketTypes.find((type) => type.id === item.ticket_type_id)
         const price = ticketType?.price_minor ?? 0
-        return { id: item.ticket_type_id, name: ticketType?.name ?? '', quantity: item.quantity, total: price * item.quantity }
+        return {
+            id: item.event_seat_id ?? item.ticket_type_id,
+            item,
+            name: ticketType?.name ?? '',
+            quantity: item.quantity,
+            total: price * item.quantity,
+        }
     })
+
+    const changeName = (key: string, index: number, value: string) => {
+        setNames((current) => {
+            const list = [...(current[key] ?? [])]
+            list[index] = value
+            return { ...current, [key]: list }
+        })
+    }
+
+    const attendees = lines.map(({ id, item }) => ({
+        ticket_type_id: item.ticket_type_id,
+        event_seat_id: item.event_seat_id,
+        names: Array.from({ length: item.quantity }, (_, index) => names[id]?.[index]?.trim() ?? ''),
+    }))
     const subtotal = lines.reduce((sum, line) => sum + line.total, 0)
     const total = quote?.total_minor ?? subtotal
 
@@ -66,7 +88,7 @@ const CheckoutPage = () => {
 
         let orderId: string
         try {
-            const order = await createOrder(reservation.id, quote?.code ?? null)
+            const order = await createOrder(reservation.id, quote?.code ?? null, attendees)
             orderId = order.id
             if (!order.requires_payment) {
                 navigate(`/orders/${order.id}`)
@@ -128,6 +150,15 @@ const CheckoutPage = () => {
                             <p className="text-sm text-muted">{t.checkout.ticketsSentTo(user.email)}</p>
                         </section>
                     )}
+
+                    <div className="max-w-md">
+                        <AttendeeFields
+                            groups={lines.map(({ id, name, quantity }) => ({ key: id, ticketTypeName: name, quantity }))}
+                            names={names}
+                            buyerName={user?.fullName ?? ''}
+                            onChange={changeName}
+                        />
+                    </div>
 
                     <div className="max-w-md">
                         <PromoCodeForm reservationId={reservation.id} quote={quote} onChange={setQuote} />

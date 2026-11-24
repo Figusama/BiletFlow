@@ -82,10 +82,16 @@ export const validatePromo = (reservationId: string, code: string) =>
         json: { reservation_id: reservationId, code },
     })
 
-export const createOrder = (reservationId: string, promoCode: string | null) =>
+export interface AttendeeLine {
+    ticket_type_id: string
+    event_seat_id: string | null
+    names: string[]
+}
+
+export const createOrder = (reservationId: string, promoCode: string | null, attendees: AttendeeLine[]) =>
     api<Order>(`/reservations/${reservationId}/order`, {
         method: 'POST',
-        json: { promo_code: promoCode },
+        json: { promo_code: promoCode, attendees },
     })
 
 export const startPayment = (orderId: string) =>

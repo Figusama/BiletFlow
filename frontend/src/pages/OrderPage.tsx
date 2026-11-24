@@ -2,8 +2,12 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Button from '../components/ui/Button'
 import { CheckCircleIcon } from '../components/ui/icons'
+import { useEvent } from '../features/events/api'
+import CalendarMenu from '../features/events/components/CalendarMenu'
 import { startPayment, useOrder, type OrderStatus } from '../features/orders/api'
 import CheckoutSteps from '../features/orders/components/CheckoutSteps'
+import { useMyTickets } from '../features/tickets/api'
+import TicketCard from '../features/tickets/components/TicketCard'
 import { useLanguage } from '../shared/i18n/language'
 import { formatKzt } from '../shared/lib/money'
 
@@ -18,6 +22,10 @@ const OrderPage = () => {
     const { t } = useLanguage()
     const { orderId = '' } = useParams()
     const { data: order, isPending } = useOrder(orderId)
+    const isConfirmed = order?.status === 'CONFIRMED'
+    const { data: event } = useEvent(order?.event_id ?? '')
+    const { data: tickets = [] } = useMyTickets(isConfirmed)
+    const orderTickets = tickets.filter((ticket) => ticket.order_id === orderId)
     const [isPaying, setIsPaying] = useState(false)
     const [payError, setPayError] = useState('')
 
@@ -121,11 +129,30 @@ const OrderPage = () => {
                             {t.order.myTickets}
                         </Link>
                     )}
+                    {isConfirmed && event && <CalendarMenu event={event} />}
                     <Link to={`/events/${order.event_id}`} className="text-sm font-semibold text-accent hover:underline">
                         {t.order.backToEvent}
                     </Link>
                 </div>
             </div>
+
+            {orderTickets.length > 0 && (
+                <section aria-labelledby="order-tickets-title" className="mt-12">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <h2 id="order-tickets-title" className="text-xl font-bold text-foreground">
+                            {t.order.yourTickets}
+                        </h2>
+                        <p className="text-sm text-muted">{t.order.onePerson}</p>
+                    </div>
+                    <ul className="mt-4 grid gap-4 md:grid-cols-2">
+                        {orderTickets.map((ticket) => (
+                            <li key={ticket.id}>
+                                <TicketCard ticket={ticket} />
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+            )}
         </div>
     )
 }

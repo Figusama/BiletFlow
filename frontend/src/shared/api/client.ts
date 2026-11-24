@@ -71,7 +71,7 @@ const send = (path: string, init: ApiInit) => {
     })
 }
 
-export async function api<T>(path: string, init: ApiInit = {}): Promise<T> {
+const request = async (path: string, init: ApiInit): Promise<Response> => {
     let response = await send(path, init)
 
     const canRefresh = accessToken !== null && !AUTH_PATHS_WITHOUT_REFRESH.includes(path)
@@ -91,9 +91,20 @@ export async function api<T>(path: string, init: ApiInit = {}): Promise<T> {
         throw new ApiError(response.status, message, body)
     }
 
+    return response
+}
+
+export async function api<T>(path: string, init: ApiInit = {}): Promise<T> {
+    const response = await request(path, init)
+
     if (response.status === 204) {
-        return undefined  as T
+        return undefined as T
     }
 
     return response.json() as Promise<T>
+}
+
+export async function apiBlob(path: string): Promise<Blob> {
+    const response = await request(path, {})
+    return response.blob()
 }

@@ -4,7 +4,7 @@ import { usePricedEvents } from '../features/events/usePricedEvents'
 import CalendarMenu from '../features/events/components/CalendarMenu'
 import EventFacts from '../features/events/components/EventFacts'
 import EventBuyButton from '../features/events/components/EventBuyButton'
-import EventImage from '../features/events/components/EventImage'
+import EventGallery from '../features/events/components/EventGallery'
 import EventListItem from '../features/events/components/EventListItem'
 import ShareButton from '../features/events/components/ShareButton'
 import { sortEvents } from '../features/events/filters'
@@ -66,7 +66,7 @@ const EventDetailsPage = () => {
 
     return (
         <div className="mx-auto max-w-[1224px] px-4 pt-8 pb-16 sm:px-6">
-            <EventImage src={event.images?.[0]} className="h-[220px] w-full rounded-3xl sm:h-[300px] md:h-[380px]" />
+            <EventGallery images={event.images ?? []} title={event.title} className="h-[220px] sm:h-[300px] md:h-[380px]" />
 
             <div className="mt-6 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">

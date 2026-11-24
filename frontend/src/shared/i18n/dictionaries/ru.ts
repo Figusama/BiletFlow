@@ -187,6 +187,9 @@ export const ru: Dictionary = {
         communities: 'Сообщества',
     },
     eventPage: {
+        previousPhoto: 'Предыдущее фото',
+        nextPhoto: 'Следующее фото',
+        showPhoto: (number: number) => `Показать фото ${number}`,
         addToCalendar: 'Добавить в календарь',
         googleCalendar: 'Google Календарь',
         downloadIcs: 'Скачать файл .ics',
@@ -244,6 +247,9 @@ export const ru: Dictionary = {
         seatingSoon: 'Выбор мест для этого события скоро появится.',
     },
     checkout: {
+        attendees: 'Посетители',
+        attendeesHint: 'Имя на каждом билете. Если оставить пустым, будет ваше имя.',
+        ticketLabel: (type: string, number: number) => `${type}, билет ${number}`,
         title: 'Оформление заказа',
         buyer: 'Покупатель',
         ticketsSentTo: (email: string) => `Билеты придут на ${email} и появятся в разделе «Мои билеты».`,
@@ -267,6 +273,8 @@ export const ru: Dictionary = {
         paymentFailed: 'Не удалось перейти к оплате. Попробуйте ещё раз.',
     },
     order: {
+        yourTickets: 'Ваши билеты',
+        onePerson: 'Каждый QR пропускает одного человека один раз.',
         title: (number: string) => `Заказ ${number}`,
         confirmed: 'Готово! Билеты в разделе «Мои билеты» и у вас на почте.',
         pending: 'Ждём подтверждения оплаты. Если вы закрыли страницу оплаты, можно оплатить снова.',
@@ -276,6 +284,38 @@ export const ru: Dictionary = {
         myTickets: 'Перейти к моим билетам',
         backToEvent: 'Вернуться к событию',
         notFound: 'Заказ не найден.',
+    },
+    ticketsPage: {
+        ticketsCount: (count: number) => {
+            const lastTwo = count % 100
+            const last = count % 10
+            if (lastTwo >= 11 && lastTwo <= 14) return `${count} билетов`
+            if (last === 1) return `${count} билет`
+            if (last >= 2 && last <= 4) return `${count} билета`
+            return `${count} билетов`
+        },
+        showQr: 'Показать QR',
+        emptyPast: 'Прошедших билетов пока нет.',
+        cancelled: 'Отменённые',
+        type: 'Тип',
+        seat: 'Место',
+        upcoming: 'Предстоящие',
+        past: 'Прошедшие',
+        loading: 'Загружаем билеты…',
+        loadError: 'Не удалось загрузить билеты.',
+        empty: 'У вас пока нет билетов.',
+        browse: 'Найти событие',
+        statuses: {
+            VALID: 'Действителен',
+            CHECKED_IN: 'Использован',
+            CANCELLED: 'Отменён',
+            REFUNDED: 'Возвращён',
+        },
+        downloadPdf: 'Скачать PDF',
+        downloading: 'Скачиваем…',
+        downloadFailed: 'Не удалось скачать билет. Попробуйте ещё раз.',
+        qrAlt: 'QR-код билета',
+        qrFailed: 'Не удалось загрузить QR-код.',
     },
     footer: {
         help: 'Помощь',

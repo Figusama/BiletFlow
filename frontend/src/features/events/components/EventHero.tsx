@@ -1,6 +1,7 @@
-import { useRef, useState, type TouchEvent } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '../../../shared/i18n/language'
+import { useSwipe } from '../../../shared/lib/useSwipe'
 import type { EventSummary } from '../api'
 import { formatEventDate, getCategoryLabel, getPriceLabel } from '../labels'
 import { ChevronIcon } from '../../../components/ui/icons'
@@ -10,38 +11,22 @@ interface EventHeroProps {
     events: EventSummary[]
 }
 
-const SWIPE_DISTANCE = 50
-
 const arrowClass =
     'absolute top-1/2 z-10 hidden h-20 w-7 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-night-deep/60 text-white backdrop-blur hover:bg-night-deep/80 focus-visible:outline-2 focus-visible:outline-accent md:grid'
 
 const EventHero = ({ events }: EventHeroProps) => {
     const { t } = useLanguage()
     const [index, setIndex] = useState(0)
-    const touchStartX = useRef<number | null>(null)
+    const goTo = (next: number) => setIndex((next + events.length) % events.length)
+    const swipe = useSwipe(() => goTo(index - 1), () => goTo(index + 1))
 
     if (events.length === 0) return null
 
     const event = events[index % events.length]
-    const goTo = (next: number) => setIndex((next + events.length) % events.length)
-
-    const handleTouchStart = (touch: TouchEvent) => {
-        touchStartX.current = touch.touches[0].clientX
-    }
-
-    const handleTouchEnd = (touch: TouchEvent) => {
-        if (touchStartX.current === null) return
-
-        const distance = touch.changedTouches[0].clientX - touchStartX.current
-        touchStartX.current = null
-
-        if (Math.abs(distance) < SWIPE_DISTANCE) return
-        goTo(distance < 0 ? index + 1 : index - 1)
-    }
 
     return (
         <section aria-roledescription="carousel" aria-label={t.discover.title} className="relative">
-            <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} className="relative touch-pan-y">
+            <div {...swipe} className="relative touch-pan-y">
                 <EventBanner
                     image={event.images?.[0]}
                     overline={[getCategoryLabel(event, t), formatEventDate(event, t)]}

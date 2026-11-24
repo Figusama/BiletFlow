@@ -1,21 +1,19 @@
 import { Link } from 'react-router-dom'
-import { formatTime, getDateParts } from '../../../shared/lib/date'
+import { formatTime } from '../../../shared/lib/date'
 import { useLanguage } from '../../../shared/i18n/language'
 import type { EventSummary } from '../api'
 import { getCategoryLabel, getPriceLabel } from '../labels'
 import { ChevronIcon } from '../../../components/ui/icons'
+import DateStub from './DateStub'
 import EventImage from './EventImage'
 
 interface EventListItemProps {
     event: EventSummary
 }
 
-const notchClass = 'absolute -right-2 h-2 w-4 border-border bg-background'
-
 const EventListItem = ({ event }: EventListItemProps) => {
     const { t } = useLanguage()
     const startsAt = new Date(event.starts_at)
-    const { day, month, weekday } = getDateParts(startsAt, event.timezone)
     const category = getCategoryLabel(event, t)
     const price = getPriceLabel(event, t)
 
@@ -24,20 +22,7 @@ const EventListItem = ({ event }: EventListItemProps) => {
             to={`/events/${event.slug}`}
             className="group flex min-h-[136px] items-stretch rounded-2xl border border-border bg-surface transition-shadow hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
-            <div className="relative flex w-28 shrink-0 flex-col justify-center border-r border-dashed border-perforation pr-2 pl-4 sm:w-[140px] sm:pl-6">
-                <span className="flex flex-wrap items-baseline gap-x-2">
-                    <span className="text-[28px] leading-none font-bold text-accent">{day}</span>
-                    <span className="text-sm font-bold text-foreground uppercase">
-                        {t.dates.weekdaysShort[weekday]}
-                    </span>
-                </span>
-                <span className="mt-2 text-xs font-bold tracking-wide break-words text-muted uppercase">
-                    {t.dates.monthsGenitive[month]}
-                </span>
-
-                <span aria-hidden="true" className={`${notchClass} -top-px rounded-b-full border border-t-0`} />
-                <span aria-hidden="true" className={`${notchClass} -bottom-px rounded-t-full border border-b-0`} />
-            </div>
+            <DateStub date={startsAt} timeZone={event.timezone} />
 
             <EventImage
                 src={event.images?.[0]}

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { api } from '../../shared/api/client'
+import { api, apiBlob } from '../../shared/api/client'
 
 export type SaleState = 'ON_SALE' | 'SOLD_OUT' | 'NOT_STARTED' | 'ENDED' | 'PAUSED' | 'DISABLED' | 'NOT_ON_SALE'
 
@@ -42,3 +42,31 @@ export const createReservation = (eventId: string, items: ReservationLine[]) =>
         method: 'POST',
         json: { items },
     })
+
+export type TicketStatus = 'VALID' | 'CHECKED_IN' | 'CANCELLED' | 'REFUNDED'
+
+export interface Ticket {
+    id: string
+    public_id: string
+    event_id: string
+    event_title: string
+    event_starts_at: string
+    event_timezone: string
+    venue_name: string
+    order_id: string
+    order_number: string
+    ticket_type_name: string
+    attendee_name: string
+    seat_label: string | null
+    status: TicketStatus
+    checked_in_at: string | null
+}
+
+export const useMyTickets = (enabled = true) =>
+    useQuery({
+        queryKey: ['tickets', 'mine'],
+        queryFn: () => api<Ticket[]>('/tickets/mine'),
+        enabled,
+    })
+
+export const fetchTicketFile = (ticketId: string, file: 'qr.png' | 'pdf') => apiBlob(`/tickets/${ticketId}/${file}`)
