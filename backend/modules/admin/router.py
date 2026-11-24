@@ -21,7 +21,7 @@ from backend.modules.orders.models import orders
 from backend.modules.orders.schemas import OrderStatus
 from backend.modules.payments.models import payments
 from backend.modules.payments.schemas import PaymentStatus, UNFINISHED_PAYMENT_STATUSES
-from backend.modules.payments.service import is_simulated
+from backend.modules.payments.service import is_demonstration
 from backend.modules.promotions.models import promo_codes, promo_holds, promotional_campaigns
 from backend.modules.tickets.models import tickets
 from backend.modules.users.user_model import EventRole, event_user_roles, profiles, users, Role
@@ -142,7 +142,7 @@ def search_orders(q: str | None = None, order_status: OrderStatus | None = Query
 def _admin_payment(payment: payments, order_number: str, now) -> AdminPayment:
     overdue = payment.status in UNFINISHED_PAYMENT_STATUSES and payment.next_check_at is not None and payment.next_check_at <= now
     return AdminPayment(id=payment.id, order_id=payment.order_id, order_number=order_number, status=payment.status, pending_operation=payment.pending_operation,
-                        cancellation_reason=payment.cancellation_reason, amount_minor=payment.amount_minor, is_simulated=is_simulated(payment), is_overdue=overdue,
+                        cancellation_reason=payment.cancellation_reason, amount_minor=payment.amount_minor, is_simulated=is_demonstration(payment), is_overdue=overdue,
                         next_check_at=payment.next_check_at, created_at=payment.created_at, finalized_at=payment.finalized_at)
 
 
@@ -235,5 +235,5 @@ def payments_report(date_from: AwareDatetime | None = Query(default=None, alias=
     return _csv("payments.csv",
                 ["order_number", "status", "cancellation_reason", "amount_minor", "processing_fee_minor", "simulated", "created_at", "finalized_at"],
                 [[number, p.status.value, p.cancellation_reason.value if p.cancellation_reason else "", p.amount_minor, p.processing_fee_minor if p.processing_fee_minor is not None else "",
-                  "yes" if is_simulated(p) else "no", p.created_at.isoformat(), p.finalized_at.isoformat() if p.finalized_at else ""]
+                  "yes" if is_demonstration(p) else "no", p.created_at.isoformat(), p.finalized_at.isoformat() if p.finalized_at else ""]
                  for p, number in rows])

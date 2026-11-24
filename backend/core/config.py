@@ -31,7 +31,15 @@ if TICKET_QR_CURRENT_KEY not in TICKET_QR_KEYS:
     raise RuntimeError("TICKET_QR_CURRENT_KEY must be one of TICKET_QR_KEYS")
 
 PAYMENT_WEBHOOK_SECRET = _env("PAYMENT_WEBHOOK_SECRET", SECRET_KEY + ":payment-webhook")
-PAYMENT_SIMULATOR_ENABLED = _env("PAYMENT_SIMULATOR_ENABLED", "true").lower() == "true"
+PAYMENT_PROVIDER = _env("PAYMENT_PROVIDER", "simulator").lower()
+if PAYMENT_PROVIDER not in ("simulator", "halyk"):
+    raise RuntimeError("PAYMENT_PROVIDER must be simulator or halyk")
+PAYMENT_SIMULATOR_ENABLED = PAYMENT_PROVIDER == "simulator" and _env("PAYMENT_SIMULATOR_ENABLED", "true").lower() == "true"
+HALYK_CLIENT_ID = _env("HALYK_CLIENT_ID", "")
+HALYK_CLIENT_SECRET = _env("HALYK_CLIENT_SECRET", "")
+HALYK_TERMINAL_ID = _env("HALYK_TERMINAL_ID", "")
+if PAYMENT_PROVIDER == "halyk" and not (HALYK_CLIENT_ID and HALYK_CLIENT_SECRET and HALYK_TERMINAL_ID):
+    raise RuntimeError("HALYK_CLIENT_ID, HALYK_CLIENT_SECRET and HALYK_TERMINAL_ID are required for PAYMENT_PROVIDER=halyk")
 
 RESERVATION_TTL_MINUTES = int(_env("RESERVATION_TTL_MINUTES", "10"))
 PAYMENT_CHECK_INTERVAL_SECONDS = int(_env("PAYMENT_CHECK_INTERVAL_SECONDS", "60"))
@@ -42,7 +50,14 @@ TICKET_PDF_FONT = os.getenv("TICKET_PDF_FONT") or None
 TICKET_PDF_FONT_BOLD = os.getenv("TICKET_PDF_FONT_BOLD") or TICKET_PDF_FONT
 
 MEDIA_ROOT = _env("MEDIA_ROOT", "media")
-MEDIA_URL = _env("MEDIA_URL", PUBLIC_API_URL + "/media").rstrip("/")
+S3_BUCKET = _env("S3_BUCKET", "")
+S3_ENDPOINT = os.getenv("S3_ENDPOINT") or None
+S3_ACCESS_KEY = _env("S3_ACCESS_KEY", "")
+S3_SECRET_KEY = _env("S3_SECRET_KEY", "")
+S3_REGION = _env("S3_REGION", "us-east-1")
+MEDIA_URL = _env("S3_PUBLIC_URL", "").rstrip("/") if S3_BUCKET else PUBLIC_API_URL + "/media"
+if S3_BUCKET and not (MEDIA_URL and S3_ACCESS_KEY and S3_SECRET_KEY):
+    raise RuntimeError("S3_PUBLIC_URL, S3_ACCESS_KEY and S3_SECRET_KEY are required when S3_BUCKET is set")
 MAX_IMAGE_BYTES = int(_env("MAX_IMAGE_BYTES", str(5 * 1024 * 1024)))
 MAX_APPLICATION_IMAGES = int(_env("MAX_APPLICATION_IMAGES", "10"))
 

@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import logging
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -9,12 +10,14 @@ from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
 from backend.core.clock import as_aware, db_now
-from backend.core.config import PAYMENT_CHECK_INTERVAL_SECONDS, PAYMENT_WEBHOOK_SECRET, PROCESSING_FEE_RATE_BPS, PUBLIC_API_URL
+from backend.core.config import FRONTEND_URL, PAYMENT_CHECK_INTERVAL_SECONDS, PAYMENT_WEBHOOK_SECRET, PROCESSING_FEE_RATE_BPS, PUBLIC_API_URL
 from backend.modules.audit import service as audit
 from backend.modules.events.schemas import EventLifecycleStatus
 from backend.modules.events.access import ensure_on_sale, ensure_purchase_access, get_event_or_404
+from backend.modules.notifications import service as notify
 from backend.modules.orders.models import orders, reservations
 from backend.modules.orders.schemas import OrderStatus, ReservationStatus
+from backend.modules.payments import halyk
 from backend.modules.payments.activation import paid_sales_active
 from backend.modules.payments.models import payments, payment_webhook_events
 from backend.modules.payments.schemas import (
@@ -26,7 +29,11 @@ from backend.modules.tickets.models import tickets
 from backend.modules.users.user_model import users
 
 
+log = logging.getLogger("biletflow.payments")
+
 SIMULATED_INVOICE_PREFIX = "SIM-"
+CAPTURE_LEASE = timedelta(minutes=5)
+RECONCILE_LIMIT = 100
 
 
 def is_simulated(payment: payments) -> bool:
@@ -35,6 +42,10 @@ def is_simulated(payment: payments) -> bool:
 
 def sign(body: bytes) -> str:
     return hmac.new(PAYMENT_WEBHOOK_SECRET.encode(), body, hashlib.sha256).hexdigest()
+
+
+def is_demonstration(payment: payments) -> bool:
+    return is_simulated(payment) or halyk.SANDBOX
 
 
 def estimate_processing_fee(amount_minor: int) -> int:
@@ -51,8 +62,8 @@ def to_public(payment: payments) -> PaymentPublic:
         cancellation_reason=payment.cancellation_reason,
         amount_minor=payment.amount_minor,
         currency=payment.currency,
-        is_simulated=is_simulated(payment),
-        payment_url=f"{PUBLIC_API_URL}/payments/simulator/{payment.id}" if payable else None,
+        is_simulated=is_demonstration(payment),
+        payment_url=f"{PUBLIC_API_URL}/payments/{'simulator' if is_simulated(payment) else 'halyk'}/{payment.id}" if payable else None,
         created_at=payment.created_at,
     )
 
@@ -84,14 +95,17 @@ def request_payment_cancellation(session: Session, order: orders, reason: str, n
     elif payment.status == PaymentStatus.AUTHORIZED and payment.pending_operation is None:
         payment.pending_operation = PendingOperation.CANCEL
         payment.cancellation_reason = CancellationReason(reason)
+        payment.next_check_at = now
         session.add(payment)
         session.flush()
-        _finish(payment, PaymentStatus.CANCELLED, CancellationReason(reason))
-        session.add(payment)
+        if is_simulated(payment):
+            _finish(payment, PaymentStatus.CANCELLED, CancellationReason(reason))
+            session.add(payment)
 
 
 def start_payment(session: Session, order_id: uuid.UUID, user: users, idempotency_key: str | None = None) -> payments:
     from backend.modules.orders.service import expire_if_stale, lock_order_chain
+    from backend.modules.payments.bank import new_invoice
 
     order = session.get(orders, order_id)
     if order is None or order.buyer_user_id != user.id:
@@ -134,7 +148,7 @@ def start_payment(session: Session, order_id: uuid.UUID, user: users, idempotenc
 
     payment = payments(
         order_id=order.id,
-        provider_invoice_id=SIMULATED_INVOICE_PREFIX + secrets.token_hex(8).upper(),
+        provider_invoice_id=new_invoice(session) if halyk.enabled() else SIMULATED_INVOICE_PREFIX + secrets.token_hex(8).upper(),
         idempotency_key=idempotency_key or str(uuid.uuid4()),
         amount_minor=order.total_minor,
         next_check_at=now + timedelta(seconds=PAYMENT_CHECK_INTERVAL_SECONDS),
@@ -176,7 +190,7 @@ def process_webhook(session: Session, journal: payment_webhook_events, capture_o
         return []
     payload = journal.payload
     payment = session.exec(select(payments).where(payments.provider_invoice_id == payload.get("invoice_id"))).first()
-    if payment is None:
+    if payment is None or not is_simulated(payment):
         _mark(session, journal, WebhookProcessingStatus.IGNORED)
         return []
     payment_id = payment.id
@@ -225,7 +239,11 @@ def apply_auth(session: Session, payment_id: uuid.UUID, approved: bool, provider
     if provider_payment_id:
         payment.provider_payment_id = provider_payment_id
     if not approved:
-        _finish(payment, PaymentStatus.FAILED)
+        if payment.cancellation_reason is not None:
+            _finish(payment, PaymentStatus.CANCELLED, payment.cancellation_reason)
+        else:
+            _finish(payment, PaymentStatus.FAILED)
+            notify_payment_failed(session, order, payment, retry=True)
         session.add(payment)
         session.commit()
         return True
@@ -238,7 +256,10 @@ def apply_auth(session: Session, payment_id: uuid.UUID, approved: bool, provider
         payment.cancellation_reason = reason
         session.add(payment)
         session.flush()
-        _finish(payment, PaymentStatus.CANCELLED, reason)
+        if is_simulated(payment):
+            _finish(payment, PaymentStatus.CANCELLED, reason)
+        else:
+            payment.next_check_at = now
         if order.status == OrderStatus.PENDING:
             order.status = OrderStatus.EXPIRED
             order.expired_at = now
@@ -251,7 +272,7 @@ def apply_auth(session: Session, payment_id: uuid.UUID, approved: bool, provider
     reservation.status = ReservationStatus.PROTECTED
     payment.status = PaymentStatus.CAPTURING
     payment.pending_operation = PendingOperation.CAPTURE
-    payment.next_check_at = now + timedelta(seconds=PAYMENT_CHECK_INTERVAL_SECONDS)
+    payment.next_check_at = now + (timedelta(seconds=PAYMENT_CHECK_INTERVAL_SECONDS) if is_simulated(payment) else CAPTURE_LEASE)
     session.add(reservation)
     session.add(payment)
     session.commit()
@@ -295,14 +316,36 @@ def apply_capture(session: Session, payment_id: uuid.UUID, approved: bool) -> li
     session.add(payment)
     session.flush()
     _finish(payment, PaymentStatus.FAILED, CancellationReason.CAPTURE_FAILED)
-    order.status = OrderStatus.CANCELLED
-    order.cancelled_at = now
-    reservation.status = ReservationStatus.RELEASED
-    reservation.released_at = now
-    promo_service.release_hold(session, order.id, now)
-    session.add_all([payment, order, reservation])
+    session.add(payment)
+    close_failed_checkout(session, order, reservation, payment, now)
     session.commit()
     return []
+
+
+def close_failed_checkout(session: Session, order: orders, reservation: reservations, payment: payments, now) -> None:
+    if order.status == OrderStatus.PENDING:
+        order.status = OrderStatus.CANCELLED
+        order.cancelled_at = now
+    if reservation.status == ReservationStatus.PROTECTED:
+        reservation.status = ReservationStatus.RELEASED
+        reservation.released_at = now
+    promo_service.release_hold(session, order.id, now)
+    session.add_all([order, reservation])
+    notify_payment_failed(session, order, payment, retry=False)
+
+
+def notify_payment_declined(session: Session, order: orders, payment: payments, transaction_id: str | None) -> None:
+    notify_payment_failed(session, order, payment, retry=True, attempt=transaction_id)
+
+
+def notify_payment_failed(session: Session, order: orders, payment: payments, retry: bool, attempt: str | None = None) -> None:
+    buyer = session.get(users, order.buyer_user_id)
+    key = f"PAYMENT_FAILED:{payment.id}" + (f":{attempt}" if attempt else "")
+    hint = "You can try again while your reservation is active." if retry else "The order was closed; please start a new checkout."
+    notify.publish(session, notify.Notice(key=key, event_type="PAYMENT_FAILED", aggregate_type="ORDER", aggregate_id=order.id,
+                                          title="Payment failed", body=f"Payment for order {order.order_number} was not completed. {hint}",
+                                          action_url=f"{FRONTEND_URL}/orders/{order.id}", inbox_user_ids=[buyer.id],
+                                          emails=[notify.Email(address=buyer.email, user_id=buyer.id)]))
 
 
 def _refund_without_issuing(session: Session, event, order: orders, reservation, now) -> None:
@@ -338,13 +381,19 @@ def reconcile_due(session: Session) -> tuple[int, list[list[tickets]]]:
     from backend.modules.orders.service import expire_if_stale
 
     now = db_now(session)
-    due = session.exec(select(payments.id).where(payments.status.in_(UNFINISHED_PAYMENT_STATUSES), payments.next_check_at <= now)).all()
+    due = session.exec(select(payments.id).where(payments.status.in_(UNFINISHED_PAYMENT_STATUSES), payments.next_check_at <= now)
+                       .order_by(payments.next_check_at).limit(RECONCILE_LIMIT)).all()
     handled = 0
     issued_batches: list[list[tickets]] = []
     for payment_id in due:
         payment = session.get(payments, payment_id)
         order = session.get(orders, payment.order_id)
-        if payment.status == PaymentStatus.PENDING:
+        if not is_simulated(payment):
+            issued = reconcile_bank(session, payment_id)
+            if issued:
+                issued_batches.append(issued)
+            handled += 1
+        elif payment.status == PaymentStatus.PENDING:
             order, _, payment = _lock_chain(session, payment_id)
             if payment.status == PaymentStatus.PENDING:
                 bank_has_no_authorization = is_simulated(payment) and payment.cancellation_reason is not None
@@ -362,3 +411,19 @@ def reconcile_due(session: Session) -> tuple[int, list[list[tickets]]]:
                 issued_batches.append(issued)
             handled += 1
     return handled, issued_batches
+
+
+def reconcile_bank(session: Session, payment_id: uuid.UUID) -> list[tickets]:
+    from backend.modules.orders.service import expire_if_stale
+    from backend.modules.payments import bank
+
+    try:
+        payment = session.get(payments, payment_id)
+        if payment.status == PaymentStatus.PENDING:
+            expire_if_stale(session, session.get(orders, payment.order_id))
+            session.commit()
+        return bank.sync(session, payment_id)
+    except Exception:
+        session.rollback()
+        log.exception("payment %s reconciliation failed", payment_id)
+        return []
