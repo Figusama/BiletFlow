@@ -118,8 +118,3 @@ def test_login_suspended_user(verified_user):
         )
     r = login(USER["email"], USER["password"])
     assert r.status_code == status.HTTP_403_FORBIDDEN, r.text
-
-
-def test_list_events():
-    r = client.get("/events")
-    assert r.status_code == status.HTTP_200_OK

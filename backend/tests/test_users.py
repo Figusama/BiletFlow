@@ -57,9 +57,6 @@ def get_user_id(email : str):
 
 
 
-
-
-
 def test_read_user(verified_user):
     token = login(USER['email'], USER['password']).json()['access_token']
     user_id = get_user_id(USER['email'])
