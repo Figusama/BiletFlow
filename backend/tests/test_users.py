@@ -29,7 +29,7 @@ def test_delete_me(verified_user):
 
 def test_update_me(verified_user):
     token = login(USER['email'], USER['password']).json()['access_token']
-    r = client.patch(url="/users/me", params=update_json ,headers={"Authorization": f"Bearer {token}"})
+    r = client.patch(url="/users/me", json=update_json ,headers={"Authorization": f"Bearer {token}"})
 
     assert r.status_code == status.HTTP_200_OK
 
@@ -48,7 +48,7 @@ def test_list_users(verified_user):
     token = login(USER['email'], USER['password']).json()["access_token"]
     r = client.get(url="/users/", headers={'Authorization': f"Bearer {token}"})
 
-    assert r.status_code == status.HTTP_200_OK
+    assert r.status_code == status.HTTP_403_FORBIDDEN #because it is a normal user not an admin
 
 def get_user_id(email : str):
     with engine.connect() as conn:
@@ -65,6 +65,6 @@ def test_read_user(verified_user):
     user_id = get_user_id(USER['email'])
     r = client.get(url=f"/users/{user_id}", headers={"Authorization": f"Bearer {token}"})
 
-    assert r.status_code == status.HTTP_200_OK
+    assert r.status_code == status.HTTP_403_FORBIDDEN #because it is a normal user not an admin
 
     
