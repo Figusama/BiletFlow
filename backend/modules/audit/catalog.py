@@ -19,6 +19,8 @@ ACTIONS = {
     "EVENT_DETAILS_UPDATED": ("changes", "Event details updated"),
     "EVENT_SUSPENDED": ("moderation", "Event suspended by platform administration"),
     "EVENT_SUSPENSION_LIFTED": ("moderation", "Event suspension lifted"),
+    "USER_SUSPENDED": ("moderation", "User suspended by platform administration"),
+    "USER_SUSPENSION_LIFTED": ("moderation", "User suspension lifted"),
     "TICKET_PRICE_CHANGED": ("tickets", "Ticket price changed"),
     "TICKET_CAPACITY_CHANGED": ("tickets", "Ticket capacity changed"),
     "TICKET_TYPE_AVAILABILITY_CHANGED": ("tickets", "Ticket type availability changed"),
