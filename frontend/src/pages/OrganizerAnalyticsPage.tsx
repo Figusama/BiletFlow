@@ -1,12 +1,19 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import Select from '../components/ui/Select'
-import { useEventAnalytics, useManagedEvent, useManagedTicketTypes, type EventAnalytics, type ManagedEvent } from '../features/organizer/api'
+import Input from '../components/ui/Input'
+import { useEventAnalytics, useManagedEvent, useManagedTicketTypes, type AnalyticsRange, type EventAnalytics, type ManagedEvent } from '../features/organizer/api'
 import { useLanguage } from '../shared/i18n/language'
+import { fromDateTimeInput } from '../shared/lib/date'
 import { formatKzt } from '../shared/lib/money'
 
-const periods = ['ALL', '7', '30'] as const
+const periods = ['ALL', '7', '30', 'CUSTOM'] as const
 type Period = (typeof periods)[number]
+
+const nextDay = (date: string) => {
+    const [year, month, day] = date.split('-').map(Number)
+    return new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10)
+}
 
 const ALL_TYPES = 'ALL'
 
@@ -47,13 +54,17 @@ const Analytics = ({ event }: { event: ManagedEvent }) => {
     const { t } = useLanguage()
     const texts = t.organizerAnalytics
     const [period, setPeriod] = useState<Period>('ALL')
+    const [fromDate, setFromDate] = useState('')
+    const [toDate, setToDate] = useState('')
     const [ticketTypeId, setTicketTypeId] = useState(ALL_TYPES)
     const { data: ticketTypes = [] } = useManagedTicketTypes(event.id)
-    const { data, isPending, isError } = useEventAnalytics(
-        event.id,
-        period === 'ALL' ? null : Number(period),
-        ticketTypeId === ALL_TYPES ? null : ticketTypeId,
-    )
+
+    const customFrom = fromDate ? fromDateTimeInput(`${fromDate}T00:00`, event.timezone) : null
+    const customTo = toDate ? fromDateTimeInput(`${nextDay(toDate)}T00:00`, event.timezone) : null
+    const isCustom = period === 'CUSTOM'
+    const isCustomValid = customFrom !== null && customTo !== null && new Date(customTo) > new Date(customFrom)
+    const range: AnalyticsRange = isCustom ? { days: null, from: customFrom, to: customTo } : { days: period === 'ALL' ? null : Number(period), from: null, to: null }
+    const { data, isPending, isError } = useEventAnalytics(event.id, range, ticketTypeId === ALL_TYPES ? null : ticketTypeId, !isCustom || isCustomValid)
 
     const periodOptions = periods.map((value) => ({ value, label: texts.periods[value] }))
     const typeOptions = [{ value: ALL_TYPES, label: texts.allTypes }, ...ticketTypes.map((type) => ({ value: type.id, label: type.name }))]
@@ -67,11 +78,31 @@ const Analytics = ({ event }: { event: ManagedEvent }) => {
 
             <div className="flex flex-wrap items-center gap-3">
                 <Select value={period} options={periodOptions} onValueChange={setPeriod} ariaLabel={texts.period} />
+                {isCustom && (
+                    <>
+                        <label className="flex items-center gap-2 text-sm text-muted">
+                            {texts.from}
+                            <Input
+                                type="date"
+                                value={fromDate}
+                                max={toDate || undefined}
+                                className="w-auto py-2"
+                                onChange={(changeEvent) => setFromDate(changeEvent.target.value)}
+                            />
+                        </label>
+                        <label className="flex items-center gap-2 text-sm text-muted">
+                            {texts.to}
+                            <Input type="date" value={toDate} min={fromDate || undefined} className="w-auto py-2" onChange={(changeEvent) => setToDate(changeEvent.target.value)} />
+                        </label>
+                    </>
+                )}
                 <Select value={ticketTypeId} options={typeOptions} onValueChange={setTicketTypeId} ariaLabel={texts.ticketType} />
                 <p className="text-xs text-muted">{texts.basis}</p>
             </div>
 
-            {isPending ? (
+            {isCustom && !isCustomValid ? (
+                <p className="rounded-2xl border border-dashed border-border py-12 text-center text-muted">{fromDate && toDate ? texts.invalidRange : texts.pickDates}</p>
+            ) : isPending ? (
                 <div className="h-64 animate-pulse rounded-2xl bg-surface-sunk" />
             ) : isError ? (
                 <p className="text-muted">{texts.loadFailed}</p>
@@ -91,9 +122,7 @@ const AnalyticsContent = ({ data, filteredByType }: { data: EventAnalytics; filt
 
     return (
         <>
-            {financial.is_demonstration && (
-                <p className="w-fit rounded-lg border border-dashed border-border-strong px-3 py-1 text-xs font-medium text-muted">{texts.demoMoney}</p>
-            )}
+            {financial.is_demonstration && <p className="w-fit rounded-lg border border-dashed border-border-strong px-3 py-1 text-xs font-medium text-muted">{texts.demoMoney}</p>}
 
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 <Metric
@@ -107,11 +136,7 @@ const AnalyticsContent = ({ data, filteredByType }: { data: EventAnalytics; filt
                     value={inventory.remaining_inventory === null ? '—' : numberFormat.format(inventory.remaining_inventory)}
                     note={inventory.capacity === null ? undefined : texts.remainingNote(inventory.capacity)}
                 />
-                <Metric
-                    label={texts.checkedIn}
-                    value={numberFormat.format(attendance.checked_in)}
-                    note={texts.checkedInNote(attendance.eligible)}
-                />
+                <Metric label={texts.checkedIn} value={numberFormat.format(attendance.checked_in)} note={texts.checkedInNote(attendance.eligible)} />
                 <Metric label={texts.gross} value={formatKzt(financial.gross_sales_minor)} note={texts.grossNote} />
                 <Metric label={texts.discounts} value={financial.discounts_minor > 0 ? `−${formatKzt(financial.discounts_minor)}` : formatKzt(0)} note={texts.discountsNote} />
                 <Metric label={texts.collected} value={money(financial.collected_minor)} note={texts.collectedNote} />

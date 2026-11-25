@@ -16,6 +16,7 @@ interface RegisterFormData {
     email: string
     phone: string
     password: string
+    acceptTerms: boolean
 }
 
 const RESEND_DELAY_SECONDS = 60
@@ -261,6 +262,19 @@ const RegisterPage = () => {
 											})}
 										/>
 									</FormField>
+
+									<div>
+										<label className="flex cursor-pointer items-start gap-3">
+											<input
+												type="checkbox"
+												className="mt-0.5 size-5 shrink-0 accent-accent"
+												aria-invalid={Boolean(errors.acceptTerms)}
+												{...register('acceptTerms', { required: t.validation.termsRequired })}
+											/>
+											<span className="text-sm text-foreground">{t.register.terms}</span>
+										</label>
+										{errors.acceptTerms && <p className="mt-2 text-sm text-error">{errors.acceptTerms.message}</p>}
+									</div>
 
 									{submitError && (
 										<p role="alert" className="text-sm font-medium text-error">

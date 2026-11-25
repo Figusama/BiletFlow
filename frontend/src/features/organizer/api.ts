@@ -620,17 +620,25 @@ export interface EventAnalytics {
     attendance: AnalyticsAttendance
 }
 
-export const useEventAnalytics = (eventId: string | undefined, days: number | null, ticketTypeId: string | null) =>
+export interface AnalyticsRange {
+    days: number | null
+    from: string | null
+    to: string | null
+}
+
+export const useEventAnalytics = (eventId: string | undefined, range: AnalyticsRange, ticketTypeId: string | null, enabled = true) =>
     useQuery({
-        queryKey: ['organizer-events', eventId, 'analytics', days, ticketTypeId],
+        queryKey: ['organizer-events', eventId, 'analytics', range, ticketTypeId],
         queryFn: () => {
             const params = new URLSearchParams()
-            if (days) params.set('from', new Date(Date.now() - days * 86_400_000).toISOString())
+            if (range.from) params.set('from', range.from)
+            else if (range.days) params.set('from', new Date(Date.now() - range.days * 86_400_000).toISOString())
+            if (range.to) params.set('to', range.to)
             if (ticketTypeId) params.set('ticket_type_id', ticketTypeId)
             const query = params.toString()
             return api<EventAnalytics>(`/events/${eventId}/analytics${query ? `?${query}` : ''}`)
         },
-        enabled: Boolean(eventId),
+        enabled: Boolean(eventId) && enabled,
     })
 
 export type TicketStatus = 'VALID' | 'CHECKED_IN' | 'CANCELLED' | 'REFUNDED'
