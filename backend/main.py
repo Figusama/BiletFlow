@@ -2,7 +2,9 @@ import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import DataError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -42,6 +44,20 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="BiletFlow API", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=[FRONTEND_URL], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+
+@app.exception_handler(DataError)
+def invalid_value(request: Request, exc: DataError):
+    return JSONResponse({"detail": "Invalid value"}, status_code=422)
+
+
+@app.exception_handler(ValueError)
+def invalid_text(request: Request, exc: ValueError):
+    if "NUL (0x00)" not in str(exc):
+        raise exc
+    return JSONResponse({"detail": "Text cannot contain NUL characters"}, status_code=422)
+
+
 app.include_router(auth)
 app.include_router(users)
 app.include_router(event_duplicates)

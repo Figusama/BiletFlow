@@ -36,6 +36,7 @@ RESULT_REJECTED, RESULT_NOT_FOUND, RESULT_IN_PROGRESS = "101", "102", "107"
 ACCEPTED = "ACCEPTED"
 REFUSED = "REFUSED"
 UNKNOWN = "UNKNOWN"
+NOT_SENT = "NOT_SENT"
 NON_FINAL_CODES = {454, 474, 690}
 FINAL_CODES = (set(range(455, 504)) | {521, 522, 523, 525, 526, 527, 528, 529, 2678, 3141}) - NON_FINAL_CODES
 
@@ -153,7 +154,9 @@ def _operation(transaction_id: str, operation: str, params: dict | None = None) 
         with _client() as client:
             token = _request_token(client, {})
             response = client.post(f"{API_URL}/operation/{transaction_id}/{operation}", params=params, headers={"Authorization": f"Bearer {token['access_token']}"})
-    except (HalykError, httpx.HTTPError):
+    except (HalykError, httpx.ConnectError, httpx.ConnectTimeout):
+        return NOT_SENT
+    except httpx.HTTPError:
         return UNKNOWN
     if response.status_code == 200:
         return ACCEPTED

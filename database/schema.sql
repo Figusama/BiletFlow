@@ -92,7 +92,7 @@ CREATE TABLE event_cancellation_requests (
 );
 
 CREATE TABLE ticket_types (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), event_id uuid NOT NULL REFERENCES events(id), name text NOT NULL, description text, kind text NOT NULL CHECK(kind IN ('FREE','PAID')), price_minor bigint NOT NULL CHECK(price_minor>=0), quantity_total integer CHECK(quantity_total>0), is_active boolean NOT NULL DEFAULT true, sales_start_at timestamptz NOT NULL, sales_end_at timestamptz NOT NULL, sales_status text NOT NULL DEFAULT 'ACTIVE' CHECK(sales_status IN ('ACTIVE','PAUSED')), max_per_order integer NOT NULL CHECK(max_per_order>0), created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(id,event_id), CHECK((kind='FREE' AND price_minor=0) OR (kind='PAID' AND price_minor>0)), CHECK(sales_start_at<sales_end_at)
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), event_id uuid NOT NULL REFERENCES events(id), name text NOT NULL, description text, color varchar(16), kind text NOT NULL CHECK(kind IN ('FREE','PAID')), price_minor bigint NOT NULL CHECK(price_minor>=0), quantity_total integer CHECK(quantity_total>0), is_active boolean NOT NULL DEFAULT true, sales_start_at timestamptz NOT NULL, sales_end_at timestamptz NOT NULL, sales_status text NOT NULL DEFAULT 'ACTIVE' CHECK(sales_status IN ('ACTIVE','PAUSED')), max_per_order integer NOT NULL CHECK(max_per_order>0), created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(id,event_id), CHECK((kind='FREE' AND price_minor=0) OR (kind='PAID' AND price_minor>0)), CHECK(sales_start_at<sales_end_at)
 );
 
 CREATE TABLE event_change_request_items (

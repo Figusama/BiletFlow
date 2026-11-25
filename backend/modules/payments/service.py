@@ -159,6 +159,10 @@ def start_payment(session: Session, order_id: uuid.UUID, user: users, idempotenc
     return payment
 
 
+def plain_text(value) -> bool:
+    return isinstance(value, str) and len(value) <= 200 and value.isprintable()
+
+
 def record_webhook(session: Session, body: bytes, signature: str | None) -> payment_webhook_events:
     try:
         payload = json.loads(body)
@@ -166,12 +170,12 @@ def record_webhook(session: Session, body: bytes, signature: str | None) -> paym
             raise ValueError
     except ValueError:
         payload = {"unparseable": True}
-    safe_payload = {key: payload.get(key) for key in ("invoice_id", "event", "result", "provider_payment_id") if key in payload}
+    safe_payload = {key: payload[key] for key in ("invoice_id", "event", "result", "provider_payment_id") if plain_text(payload.get(key))}
     event = payment_webhook_events(provider_invoice_id=safe_payload.get("invoice_id"), payload=safe_payload or {"unparseable": True})
     session.add(event)
     session.commit()
 
-    if not signature or not hmac.compare_digest(signature, sign(body)):
+    if not signature or not hmac.compare_digest(signature.encode("utf-8", "replace"), sign(body).encode()):
         event.verification_status = WebhookVerificationStatus.INVALID
         event.processing_status = WebhookProcessingStatus.REJECTED
         event.processed_at = db_now(session)
@@ -243,6 +247,7 @@ def apply_auth(session: Session, payment_id: uuid.UUID, approved: bool, provider
             _finish(payment, PaymentStatus.CANCELLED, payment.cancellation_reason)
         else:
             _finish(payment, PaymentStatus.FAILED)
+            audit.record(session, action="PAYMENT_FAILED_FINAL", entity_type="PAYMENT", entity_id=payment.id, event_id=order.event_id)
             notify_payment_failed(session, order, payment, retry=True)
         session.add(payment)
         session.commit()
@@ -331,6 +336,7 @@ def close_failed_checkout(session: Session, order: orders, reservation: reservat
         reservation.released_at = now
     promo_service.release_hold(session, order.id, now)
     session.add_all([order, reservation])
+    audit.record(session, action="PAYMENT_FAILED_FINAL", entity_type="PAYMENT", entity_id=payment.id, event_id=order.event_id)
     notify_payment_failed(session, order, payment, retry=False)
 
 
@@ -426,4 +432,5 @@ def reconcile_bank(session: Session, payment_id: uuid.UUID) -> list[tickets]:
     except Exception:
         session.rollback()
         log.exception("payment %s reconciliation failed", payment_id)
+        bank.postpone(session, payment_id)
         return []

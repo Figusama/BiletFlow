@@ -75,7 +75,7 @@ def _schedule(session: Session, payment: payments, now, delay: timedelta | None 
         session.add(payment)
 
 
-def _lookup_failed(session: Session, payment_id: uuid.UUID) -> None:
+def postpone(session: Session, payment_id: uuid.UUID) -> None:
     payment = session.exec(select(payments).where(payments.id == payment_id).with_for_update().execution_options(populate_existing=True)).one()
     if payment.status in UNFINISHED_PAYMENT_STATUSES:
         payment.check_failure_count += 1
@@ -83,6 +83,10 @@ def _lookup_failed(session: Session, payment_id: uuid.UUID) -> None:
         payment.next_check_at = db_now(session) + delay
         session.add(payment)
     session.commit()
+
+
+def _foreign_transaction(session: Session, payment: payments, transaction_id: str) -> bool:
+    return session.exec(select(payments.id).where(payments.provider_payment_id == transaction_id, payments.id != payment.id).limit(1)).first() is not None
 
 
 def _finish_cancelled(session: Session, order: orders, reservation: reservations, payment: payments, now) -> None:
@@ -112,6 +116,12 @@ def _apply(session: Session, payment_id: uuid.UUID, state: halyk.BankState, last
 
     if state.status in (halyk.AUTH, halyk.CHARGE) and not state.matches(payment.amount_minor, payment.currency):
         _payment_incident(session, order, payment, "BANK_MISMATCH", "the bank reports a different amount, currency or terminal; tickets were not issued.")
+        _schedule(session, payment, now, MAX_BACKOFF)
+        session.commit()
+        return None, []
+
+    if state.status in (halyk.AUTH, halyk.CHARGE) and payment.status in UNFINISHED_PAYMENT_STATUSES and _foreign_transaction(session, payment, state.transaction_id):
+        _payment_incident(session, order, payment, "DUPLICATE_TRANSACTION", "the bank returned a transaction that belongs to another payment; tickets were not issued.")
         _schedule(session, payment, now, MAX_BACKOFF)
         session.commit()
         return None, []
@@ -222,7 +232,7 @@ def sync(session: Session, payment_id: uuid.UUID) -> list[tickets]:
             state = halyk.lookup(invoice)
         except halyk.HalykError as exc:
             log.warning("payment %s status check failed: %s", payment_id, exc)
-            _lookup_failed(session, payment_id)
+            postpone(session, payment_id)
             return []
         action, issued = _apply(session, payment_id, state, last)
         session.commit()

@@ -47,6 +47,8 @@ def provider_refund(attempt: refunds, payment: payments) -> str:
     if is_simulated(payment):
         return SIMULATED_OUTCOME
     answer = halyk.refund(payment.provider_payment_id, attempt.provider_ref)
+    if answer == halyk.NOT_SENT:
+        return "NOT_SENT"
     outcome = provider_refund_status(attempt, payment)
     if outcome != "SUCCEEDED" and answer == halyk.REFUSED and _bank_status(payment) == halyk.CHARGE:
         return "FAILED"
@@ -275,8 +277,8 @@ def _finalize(session: Session, attempt_id: uuid.UUID, outcome: str) -> None:
         session.rollback()
         return
     now = db_now(session)
-    if outcome == "UNKNOWN":
-        attempt.status = "UNKNOWN"
+    if outcome in ("UNKNOWN", "NOT_SENT"):
+        attempt.status = "PENDING" if outcome == "NOT_SENT" else "UNKNOWN"
         age = now - as_aware(attempt.created_at)
         attempt.next_check_at = now + (timedelta(minutes=1) if age < UNKNOWN_SLOW_AFTER else UNKNOWN_SLOW_AFTER)
         session.add(attempt)
@@ -298,6 +300,7 @@ def _finalize(session: Session, attempt_id: uuid.UUID, outcome: str) -> None:
                                    .order_by(tickets.id).with_for_update()).all():
             ticket.status = TicketStatus.REFUNDED
             session.add(ticket)
+            audit.record(session, action="TICKET_INVALIDATED", entity_type="TICKET", entity_id=ticket.id, event_id=order.event_id)
         audit.record(session, action="REFUND_SUCCEEDED", entity_type="REFUND", entity_id=attempt.id, event_id=order.event_id,
                      details={"order_number": order.order_number, "amount_minor": attempt.amount_minor})
         notify_buyer(session, order, f"REFUND_SUCCEEDED:{request.id}", "REFUND_SUCCEEDED", "Refund completed",
@@ -344,6 +347,18 @@ def _execute(attempt_id: uuid.UUID, reconcile: bool = False) -> None:
         _finalize(session, attempt_id, outcome)
 
 
+def resend(attempt_id: uuid.UUID) -> bool:
+    with Session(engine) as session:
+        attempt = session.exec(select(refunds).where(refunds.id == attempt_id).with_for_update().execution_options(populate_existing=True)).one()
+        if attempt.status != "PENDING":
+            return False
+        attempt.status = "PROCESSING"
+        session.add(attempt)
+        session.commit()
+    _execute(attempt_id)
+    return True
+
+
 def run_request(request_id: uuid.UUID, manual_admin: bool = False) -> bool:
     with Session(engine) as session:
         _, order, request = lock_request(session, request_id)
@@ -375,14 +390,20 @@ def process_due(limit: int = 50) -> int:
         request_ids = due_request_ids(session, now, limit)
         to_reconcile = session.exec(select(refunds.id).where(or_(
             and_(refunds.status == "UNKNOWN", refunds.next_check_at <= now),
-            and_(refunds.status.in_(("PENDING", "PROCESSING")), refunds.updated_at <= now - STUCK_AFTER),
+            and_(refunds.status == "PROCESSING", refunds.updated_at <= now - STUCK_AFTER),
         )).limit(limit)).all()
+        unsent = session.exec(select(refunds.id).where(refunds.status == "PENDING", refunds.next_check_at <= now).limit(limit)).all()
     handled = 0
     for request_id in request_ids:
         try:
             handled += run_request(request_id)
         except Exception:
             log.exception("refund request %s failed", request_id)
+    for attempt_id in unsent:
+        try:
+            handled += resend(attempt_id)
+        except Exception:
+            log.exception("refund attempt %s resend failed", attempt_id)
     for attempt_id in to_reconcile:
         try:
             _execute(attempt_id, reconcile=True)
