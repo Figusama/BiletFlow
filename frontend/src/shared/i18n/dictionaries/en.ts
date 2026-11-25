@@ -1095,6 +1095,7 @@ export const en = {
             PAID_SALES_SUSPENDED: 'Paid sales suspended',
             PAID_SALES_RESTORED: 'Paid sales restored',
             USER_SUSPENDED: 'User suspended',
+            USER_SUSPENSION_LIFTED: 'User suspension lifted',
             MODERATION_DECISION_RECORDED: 'Moderation decision recorded',
         } as Record<string, string>,
         detail: {

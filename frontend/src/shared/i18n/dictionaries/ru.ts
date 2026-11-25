@@ -1111,6 +1111,7 @@ export const ru: Dictionary = {
             PAID_SALES_SUSPENDED: 'Платные продажи приостановлены',
             PAID_SALES_RESTORED: 'Платные продажи возобновлены',
             USER_SUSPENDED: 'Пользователь заблокирован',
+            USER_SUSPENSION_LIFTED: 'Блокировка пользователя снята',
             MODERATION_DECISION_RECORDED: 'Решение модерации записано',
         } as Record<string, string>,
         detail: {

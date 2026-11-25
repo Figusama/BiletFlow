@@ -1100,6 +1100,7 @@ export const kk: Dictionary = {
             PAID_SALES_SUSPENDED: 'Ақылы сатылым тоқтатылды',
             PAID_SALES_RESTORED: 'Ақылы сатылым қалпына келтірілді',
             USER_SUSPENDED: 'Пайдаланушы бұғатталды',
+            USER_SUSPENSION_LIFTED: 'Пайдаланушының бұғатталуы алынды',
             MODERATION_DECISION_RECORDED: 'Модерация шешімі жазылды',
         } as Record<string, string>,
         detail: {
