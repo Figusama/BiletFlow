@@ -1,8 +1,11 @@
+import { useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { useSelector } from 'react-redux'
-import { Link, NavLink, Outlet } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import type { RootState } from '../../../app/store'
 import { useLanguage } from '../../../shared/i18n/language'
 import { getInitials } from '../../../shared/lib/initials'
+import { adminCountersKey, useAdminCounters } from '../api'
 
 const groupTitleClass = 'mb-1 px-3 text-xs font-bold tracking-widest text-muted uppercase'
 
@@ -11,9 +14,23 @@ const menuLinkClass = ({ isActive }: { isActive: boolean }) =>
         isActive ? 'bg-accent-soft font-semibold text-accent' : 'text-foreground hover:bg-surface-sunk'
     }`
 
+const MenuLink = ({ to, label, count = 0 }: { to: string; label: string; count?: number }) => (
+    <NavLink to={to} className={menuLinkClass}>
+        <span className="flex-1">{label}</span>
+        {count > 0 && <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-foreground">{count}</span>}
+    </NavLink>
+)
+
 const AdminLayout = () => {
     const { t } = useLanguage()
     const user = useSelector((state: RootState) => state.auth.user)
+    const queryClient = useQueryClient()
+    const { pathname } = useLocation()
+    const { data: counters } = useAdminCounters()
+
+    useEffect(() => {
+        queryClient.invalidateQueries({ queryKey: adminCountersKey })
+    }, [pathname, queryClient])
 
     return (
         <div className="min-h-screen bg-background text-foreground">
@@ -29,33 +46,19 @@ const AdminLayout = () => {
                     <nav aria-label={t.admin.menu} className="mt-5 flex flex-col gap-4 border-t border-border pt-4">
                         <div>
                             <p className={groupTitleClass}>{t.admin.groups.moderation}</p>
-                            <NavLink to="/admin/applications" className={menuLinkClass}>
-                                {t.admin.applications.title}
-                            </NavLink>
-                            <NavLink to="/admin/change-requests" className={menuLinkClass}>
-                                {t.admin.changes.title}
-                            </NavLink>
-                            <NavLink to="/admin/paid-sales" className={menuLinkClass}>
-                                {t.admin.activations.title}
-                            </NavLink>
-                            <NavLink to="/admin/cancellations" className={menuLinkClass}>
-                                {t.admin.cancellations.title}
-                            </NavLink>
+                            <MenuLink to="/admin/applications" label={t.admin.applications.title} count={counters?.event_applications} />
+                            <MenuLink to="/admin/change-requests" label={t.admin.changes.title} count={counters?.change_requests} />
+                            <MenuLink to="/admin/paid-sales" label={t.admin.activations.title} count={counters?.paid_sales_requests} />
+                            <MenuLink to="/admin/cancellations" label={t.admin.cancellations.title} count={counters?.cancellation_requests} />
                         </div>
                         <div>
                             <p className={groupTitleClass}>{t.admin.groups.commerce}</p>
-                            <NavLink to="/admin/payments" className={menuLinkClass}>
-                                {t.admin.payments.title}
-                            </NavLink>
-                            <NavLink to="/admin/refunds" className={menuLinkClass}>
-                                {t.admin.refunds.title}
-                            </NavLink>
+                            <MenuLink to="/admin/payments" label={t.admin.payments.title} count={counters?.payments_overdue} />
+                            <MenuLink to="/admin/refunds" label={t.admin.refunds.title} count={counters?.refund_requests} />
                         </div>
                         <div>
                             <p className={groupTitleClass}>{t.admin.groups.support}</p>
-                            <NavLink to="/admin/support" className={menuLinkClass}>
-                                {t.admin.support.title}
-                            </NavLink>
+                            <MenuLink to="/admin/support" label={t.admin.support.title} count={counters?.support_unassigned} />
                         </div>
                         <div>
                             <p className={groupTitleClass}>{t.admin.groups.directory}</p>
@@ -79,9 +82,7 @@ const AdminLayout = () => {
 
                     {user && (
                         <div className="mt-5 flex items-center gap-3 border-t border-border px-2 pt-4">
-                            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">
-                                {getInitials(user.fullName)}
-                            </span>
+                            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">{getInitials(user.fullName)}</span>
                             <div className="min-w-0">
                                 <p className="truncate text-sm font-semibold text-foreground">{user.fullName}</p>
                                 <p className="font-mono text-xs text-muted">{user.publicId}</p>
