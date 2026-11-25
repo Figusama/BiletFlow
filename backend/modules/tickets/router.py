@@ -133,6 +133,7 @@ class SeatPublic(BaseModel):
     seat_number: str
     is_accessible: bool
     ticket_type_id: uuid.UUID | None
+    is_enabled: bool
     state: str
 
 
@@ -162,7 +163,8 @@ def list_seats(event_id: uuid.UUID, session: Session = Depends(get_session), vie
     result = []
     for seat, section, row, number, accessible in _seat_rows(session, event.id):
         state = "UNAVAILABLE" if not seat.is_enabled or seat.ticket_type_id is None else ("TAKEN" if seat.id in taken else "AVAILABLE")
-        result.append(SeatPublic(id=seat.id, section=section, row=row, seat_number=number, is_accessible=accessible, ticket_type_id=seat.ticket_type_id, state=state))
+        result.append(SeatPublic(id=seat.id, section=section, row=row, seat_number=number, is_accessible=accessible, ticket_type_id=seat.ticket_type_id,
+                                 is_enabled=seat.is_enabled, state=state))
     return result
 
 
@@ -191,7 +193,7 @@ def list_seats_for_organizer(event_id: uuid.UUID, session: Session = Depends(get
     taken = taken_seat_ids(session, event.id, db_now(session))
     return [
         SeatPublic(id=seat.id, section=section, row=row, seat_number=number, is_accessible=accessible, ticket_type_id=seat.ticket_type_id,
-                   state="UNAVAILABLE" if not seat.is_enabled or seat.ticket_type_id is None else ("TAKEN" if seat.id in taken else "AVAILABLE"))
+                   is_enabled=seat.is_enabled, state="UNAVAILABLE" if not seat.is_enabled or seat.ticket_type_id is None else ("TAKEN" if seat.id in taken else "AVAILABLE"))
         for seat, section, row, number, accessible in _seat_rows(session, event.id)
     ]
 
