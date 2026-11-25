@@ -404,6 +404,7 @@ export const en = {
         communities: 'Communities',
     },
     eventPage: {
+        report: 'Report this event',
         previousPhoto: 'Previous photo',
         nextPhoto: 'Next photo',
         showPhoto: (number: number) => `Show photo ${number}`,

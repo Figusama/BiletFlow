@@ -409,6 +409,7 @@ export const kk: Dictionary = {
         communities: 'Қауымдастықтар',
     },
     eventPage: {
+        report: 'Іс-шараға шағымдану',
         previousPhoto: 'Алдыңғы фото',
         nextPhoto: 'Келесі фото',
         showPhoto: (number: number) => `${number}-фотоны көрсету`,

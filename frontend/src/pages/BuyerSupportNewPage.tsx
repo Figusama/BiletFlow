@@ -8,6 +8,7 @@ import Textarea from '../components/ui/Textarea'
 import type { SupportCategory } from '../features/organizer/support'
 import { useSupportCase } from '../features/organizer/support'
 import { createSupportCase, mySupportCasesKey, useOrderBrief, type SupportScope } from '../features/support/api'
+import { useEvent } from '../features/events/api'
 import { useMyTickets } from '../features/tickets/api'
 import { useLanguage } from '../shared/i18n/language'
 
@@ -33,8 +34,9 @@ const BuyerSupportNewPage = () => {
     const ticket = tickets.find((item) => item.id === ticketId)
     const orderId = params.get('orderId') ?? previous?.order_id ?? ticket?.order_id ?? null
     const { data: order } = useOrderBrief(orderId)
-    const eventId = order?.event_id ?? ticket?.event_id ?? previous?.event_id ?? null
-    const eventTitle = order?.event_title ?? ticket?.event_title ?? previous?.event_title ?? null
+    const { data: reportedEvent } = useEvent(params.get('eventId') ?? '')
+    const eventId = order?.event_id ?? ticket?.event_id ?? previous?.event_id ?? reportedEvent?.id ?? null
+    const eventTitle = order?.event_title ?? ticket?.event_title ?? previous?.event_title ?? reportedEvent?.title ?? null
     const orderNumber = order?.order_number ?? ticket?.order_number ?? previous?.order_number ?? null
 
     const [scopeChoice, setScopeChoice] = useState<SupportScope | null>(null)
@@ -49,7 +51,8 @@ const BuyerSupportNewPage = () => {
     const [isSending, setIsSending] = useState(false)
     const [error, setError] = useState('')
 
-    const selectedCategory = category && topics.includes(category) ? category : topics[0]
+    const preferredTopic = topics.find((value) => value === params.get('topic'))
+    const selectedCategory = category && topics.includes(category) ? category : (preferredTopic ?? topics[0])
     const backTo = orderId ? `/orders/${orderId}` : '/support'
 
     const submit = async (submitEvent: FormEvent) => {

@@ -11,7 +11,7 @@ const RequireAuth = () => {
     }
 
     if (status === 'guest') {
-        return <Navigate to="/auth/token" replace state={{ from: location.pathname }} />
+        return <Navigate to="/auth/token" replace state={{ from: `${location.pathname}${location.search}` }} />
     }
 
     return <Outlet />

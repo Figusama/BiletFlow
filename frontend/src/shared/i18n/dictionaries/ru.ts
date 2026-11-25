@@ -409,6 +409,7 @@ export const ru: Dictionary = {
         communities: 'Сообщества',
     },
     eventPage: {
+        report: 'Пожаловаться на событие',
         previousPhoto: 'Предыдущее фото',
         nextPhoto: 'Следующее фото',
         showPhoto: (number: number) => `Показать фото ${number}`,

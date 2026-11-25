@@ -99,6 +99,12 @@ const EventDetailsPage = () => {
                         <CalendarMenu event={event} />
                         <ShareButton title={event.title} path={`/events/${event.slug}`} />
                     </div>
+                    <Link
+                        to={`/support/new?eventId=${event.id}&scope=platform&topic=EVENT_COMPLAINT`}
+                        className="mt-2 inline-block text-sm font-medium text-muted hover:text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+                    >
+                        {t.eventPage.report}
+                    </Link>
                 </section>
 
                 <EventFacts event={event} priceLabel={priceLabel} />
