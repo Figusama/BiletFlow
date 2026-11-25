@@ -93,13 +93,18 @@ async def refresh(response: Response, refresh_token: str | None = Cookie(default
     now = datetime.now(timezone.utc)
     if rs is None or rs.expires_at <= now:
         raise HTTPException(401, "Invalid refresh token")
+    user = session.exec(select(users).where(users.id == rs.user_id).with_for_update().execution_options(populate_existing=True)).one()
+    session.refresh(rs)
+    if user.is_suspended:
+        revoke_all_sessions(session, user.id)
+        session.commit()
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Account is suspended")
     if rs.revoked_at is not None:
         revoke_all_sessions(session, rs.user_id)
         session.commit()
         raise HTTPException(401, "Refresh token reuse detected")
 
     rs.revoked_at = now
-    user = session.get(users, rs.user_id)
     new_raw = create_refresh_session(session, user.id)
     session.commit()
     set_refresh_cookie(response, new_raw)
