@@ -4,7 +4,7 @@ from backend.core.types import text_enum
 from backend.modules.tickets.schemas import TicketKind, SalesStatus, TicketStatus
 from sqlalchemy import Column, ForeignKey, Index, func, text
 from sqlalchemy.dialects import postgresql as pg
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field, String
 
 
 def _now() -> datetime:
@@ -25,9 +25,13 @@ class ticket_types(SQLModel, table=True):
     sales_end_at: datetime = Field(sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False))
     sales_status: SalesStatus = Field(default=SalesStatus.ACTIVE, sa_column=Column(text_enum(SalesStatus), nullable=False, server_default=SalesStatus.ACTIVE.value))
     max_per_order: int = Field(sa_column=Column(pg.INTEGER, nullable=False))
+    color: str | None = Field(
+        default=None,
+        sa_column=Column(String(16), nullable=True),
+    )
     created_at: datetime = Field(default_factory=_now, sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False, server_default=func.now()))
     updated_at: datetime = Field(default_factory=_now, sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=_now))
-
+    
 
 class tickets(SQLModel, table=True):
     __tablename__ = "tickets"
