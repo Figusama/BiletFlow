@@ -14,10 +14,11 @@ from backend.modules.applications.schemas import AgreementPublic, AgreementType,
 from backend.modules.audit import service as audit
 from backend.modules.events.models import (categories, event_application_agreements, event_application_categories, event_application_images,
                                            event_applications, event_categories, event_images, event_seats, events)
-from backend.modules.events.router import generate_application_number
+
 from backend.modules.events.schemas import EventLifecycleStatus, EventStatus, SeatingMode
 from backend.modules.users.user_model import EventRole, Role, event_user_roles, users
 from backend.modules.venues.models import venue_layouts, venue_rows, venue_seats, venue_sections, venues
+from datetime import datetime, timezone
 
 ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
@@ -29,6 +30,9 @@ def current_versions() -> dict[str, str]:
 def generate_number(prefix: str, length: int = 8) -> str:
     return prefix + "".join(secrets.choice(ALPHABET) for _ in range(length))
 
+def generate_application_number(prefix: str = "APP") -> str:
+    year = datetime.now(timezone.utc).year
+    return generate_number(f"{prefix}-{year}-", length=8)
 
 def slugify(title: str) -> str:
     base = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:60].strip("-")
