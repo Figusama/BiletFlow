@@ -3,6 +3,9 @@ import AppLayout from '../components/layout/AppLayout'
 import EventsPage from '../pages/EventsPage'
 import NotFoundPage from '../pages/NotFoundPage'
 import InvitationPage from '../pages/InvitationPage'
+import BuyerSupportPage from '../pages/BuyerSupportPage'
+import BuyerSupportNewPage from '../pages/BuyerSupportNewPage'
+import BuyerSupportCasePage from '../pages/BuyerSupportCasePage'
 import ErrorPage from '../pages/ErrorPage'
 import ComingSoonPage from '../pages/ComingSoonPage'
 import EventDetailsPage from '../pages/EventDetailsPage'
@@ -180,6 +183,18 @@ export const router = createBrowserRouter([
                             {
                                 path: 'orders/:orderId',
                                 element: <OrderPage />,
+                            },
+                            {
+                                path: 'support',
+                                element: <BuyerSupportPage />,
+                            },
+                            {
+                                path: 'support/new',
+                                element: <BuyerSupportNewPage />,
+                            },
+                            {
+                                path: 'support/:caseId',
+                                element: <BuyerSupportCasePage />,
                             },
                             {
                                 path: 'organizer/events',

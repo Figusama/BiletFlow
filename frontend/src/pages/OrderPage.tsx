@@ -133,6 +133,9 @@ const OrderPage = () => {
                     <Link to={`/events/${order.event_id}`} className="text-sm font-semibold text-accent hover:underline">
                         {t.order.backToEvent}
                     </Link>
+                    <Link to={`/support/new?orderId=${order.id}`} className="text-sm font-semibold text-accent hover:underline">
+                        {t.buyerSupport.getHelp}
+                    </Link>
                 </div>
             </div>
 

@@ -64,6 +64,9 @@ const ProfileMenu = ({ fullName, isAdmin = false, onLogout }: ProfileMenuProps) 
                 <Link to="/tickets" onClick={() => setIsOpen(false)} className={`mt-1.5 ${itemClass}`}>
                     {t.nav.myTickets}
                 </Link>
+                <Link to="/support" onClick={() => setIsOpen(false)} className={itemClass}>
+                    {t.buyerSupport.list.title}
+                </Link>
                 {isAdmin && (
                     <Link to="/admin" onClick={() => setIsOpen(false)} className={itemClass}>
                         {t.nav.admin}
