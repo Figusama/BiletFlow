@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import Input from '../components/ui/Input'
-import { changeReviewStatuses, useAdminChangeRequests, useAdminEvents, waitingTime, type ChangeReviewStatus } from '../features/admin/api'
+import { changeFilters, useAdminChangeRequests, useAdminEvents, waitingTime, type ChangeFilter } from '../features/admin/api'
 import { formatDateTime } from '../features/organizer/changes'
 import { useLanguage } from '../shared/i18n/language'
 
@@ -10,17 +10,13 @@ const TIME_ZONE = 'Asia/Almaty'
 const AdminChangeRequestsPage = () => {
     const { t } = useLanguage()
     const texts = t.admin.changes
-    const [status, setStatus] = useState<ChangeReviewStatus>('PENDING')
+    const [status, setStatus] = useState<ChangeFilter>('PENDING')
+    const [searchInput, setSearchInput] = useState('')
     const [search, setSearch] = useState('')
-    const { data, isPending, isError } = useAdminChangeRequests(status)
+    const { data, isPending, isError } = useAdminChangeRequests(status, search)
     const { data: events = [] } = useAdminEvents()
 
-    const query = search.trim().toLowerCase()
-    const requests = (data ?? []).filter((request) => {
-        if (!query) return true
-        const event = events.find((item) => item.id === request.event_id)
-        return [request.request_number, event?.title, event?.organizer_email].some((value) => value?.toLowerCase().includes(query))
-    })
+    const requests = data ?? []
 
     const waiting = (iso: string) => {
         const { value, unit } = waitingTime(iso)
@@ -35,7 +31,7 @@ const AdminChangeRequestsPage = () => {
                     <h1 className="mt-2 text-2xl font-bold tracking-tight text-foreground">{texts.title}</h1>
                 </div>
                 <div role="tablist" aria-label={texts.title} className="flex flex-wrap gap-1 rounded-full border border-border bg-surface p-1">
-                    {changeReviewStatuses.map((value) => (
+                    {changeFilters.map((value) => (
                         <button
                             key={value}
                             type="button"
@@ -46,18 +42,24 @@ const AdminChangeRequestsPage = () => {
                                 status === value ? 'bg-night text-on-night' : 'text-foreground hover:bg-surface-sunk'
                             }`}
                         >
-                            {t.organizerChanges.status[value]}
+                            {value === 'ALL' ? texts.all : t.organizerChanges.status[value]}
                         </button>
                     ))}
                 </div>
             </header>
 
-            <div className="max-w-md">
+            <form
+                className="max-w-md"
+                onSubmit={(submitEvent) => {
+                    submitEvent.preventDefault()
+                    setSearch(searchInput.trim())
+                }}
+            >
                 <label htmlFor="change-search" className="sr-only">
                     {texts.searchPlaceholder}
                 </label>
-                <Input id="change-search" type="search" value={search} placeholder={texts.searchPlaceholder} onChange={(changeEvent) => setSearch(changeEvent.target.value)} />
-            </div>
+                <Input id="change-search" type="search" value={searchInput} placeholder={texts.searchPlaceholder} onChange={(changeEvent) => setSearchInput(changeEvent.target.value)} />
+            </form>
 
             {isPending ? (
                 <div className="h-64 animate-pulse rounded-2xl bg-surface-sunk" />
@@ -93,9 +95,10 @@ const AdminChangeRequestsPage = () => {
                                                 to={`${request.id}?status=${status}`}
                                                 className="font-semibold text-foreground hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
                                             >
-                                                {event?.title ?? '—'}
+                                                {request.event_title}
                                             </Link>
-                                            {event?.organizer_email && <p className="mt-0.5 text-xs text-muted">{event.organizer_email}</p>}
+                                            <p className="mt-0.5 font-mono text-xs text-muted">{request.event_public_id}</p>
+                                            {(request.organizer_name ?? event?.organizer_email) && <p className="text-xs text-muted">{request.organizer_name ?? event?.organizer_email}</p>}
                                         </td>
                                         <td className="px-5 py-3 text-foreground">{fields.join(', ')}</td>
                                         <td className="px-5 py-3 text-right text-foreground">{event?.tickets_issued ?? '—'}</td>

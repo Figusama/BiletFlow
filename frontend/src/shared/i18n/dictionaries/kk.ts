@@ -1163,6 +1163,7 @@ export const kk: Dictionary = {
         },
         changes: {
             title: 'Өзгерту сұраныстары',
+            all: 'Барлығы',
             waiting: (value: string) => `күтуде ${value}`,
             searchPlaceholder: 'Іс-шара, ұйымдастырушы немесе сұраныс нөмірі',
             loadFailed: 'Сұраныстарды жүктеу мүмкін болмады.',

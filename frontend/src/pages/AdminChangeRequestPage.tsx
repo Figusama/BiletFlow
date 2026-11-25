@@ -8,12 +8,13 @@ import Textarea from '../components/ui/Textarea'
 import {
     adminChangesKey,
     approveChangeRequest,
-    changeReviewStatuses,
+    changeFilters,
     rejectChangeRequest,
+    useAdminChangeRequest,
     useAdminChangeRequests,
     useAdminEvents,
     type AdminChangeRequest,
-    type ChangeReviewStatus,
+    type ChangeFilter,
 } from '../features/admin/api'
 import { useVenues } from '../features/applications/api'
 import { applicationBadge } from '../features/applications/status'
@@ -35,24 +36,23 @@ const AdminChangeRequestPage = () => {
     const { requestId } = useParams()
     const [searchParams] = useSearchParams()
     const rawStatus = searchParams.get('status')
-    const status: ChangeReviewStatus = changeReviewStatuses.find((value) => value === rawStatus) ?? 'PENDING'
-    const { data: requests, isPending, isError } = useAdminChangeRequests(status)
+    const filter: ChangeFilter = changeFilters.find((value) => value === rawStatus) ?? 'PENDING'
+    const { data: request, isPending, isError } = useAdminChangeRequest(requestId)
+    const { data: list = [] } = useAdminChangeRequests(filter)
 
     if (isPending) return <div className="h-64 animate-pulse rounded-2xl bg-surface-sunk" />
-    const index = requests?.findIndex((request) => request.id === requestId) ?? -1
-    if (isError || !requests || index < 0) return <p className="text-muted">{t.admin.changes.notFound}</p>
+    if (isError || !request) return <p className="text-muted">{t.admin.changes.notFound}</p>
 
-    return <Review key={requests[index].id} request={requests[index]} index={index} all={requests} status={status} />
+    return <Review key={request.id} request={request} ids={list.map((item) => item.id)} filter={filter} />
 }
 
 interface ReviewProps {
     request: AdminChangeRequest
-    index: number
-    all: AdminChangeRequest[]
-    status: ChangeReviewStatus
+    ids: string[]
+    filter: ChangeFilter
 }
 
-const Review = ({ request, index, all, status }: ReviewProps) => {
+const Review = ({ request, ids, filter }: ReviewProps) => {
     const { t } = useLanguage()
     const texts = t.admin.changes
     const queryClient = useQueryClient()
@@ -64,6 +64,7 @@ const Review = ({ request, index, all, status }: ReviewProps) => {
     const [error, setError] = useState('')
 
     const event = events.find((item) => item.id === request.event_id)
+    const index = ids.indexOf(request.id)
     const isPending = request.status === 'PENDING'
     const badge = applicationBadge[request.status === 'DRAFT' ? 'DRAFT' : request.status]
     const fields = request.items.map((item) => item.field)
@@ -77,8 +78,8 @@ const Review = ({ request, index, all, status }: ReviewProps) => {
     ].filter((text): text is string => Boolean(text))
 
     const neighbour = (offset: number) => {
-        const target = all[index + offset]
-        return target ? `/admin/change-requests/${target.id}?status=${status}` : null
+        const target = ids[index + offset]
+        return index >= 0 && target ? `/admin/change-requests/${target}?status=${filter}` : null
     }
     const previous = neighbour(-1)
     const next = neighbour(1)
@@ -120,8 +121,8 @@ const Review = ({ request, index, all, status }: ReviewProps) => {
                     <Icon name="chevron-left" className="size-4" />
                     {texts.allRequests}
                 </Link>
-                <div className="flex items-center gap-2 text-sm text-muted">
-                    <span>{texts.position(index + 1, all.length)}</span>
+                {index >= 0 && <div className="flex items-center gap-2 text-sm text-muted">
+                    <span>{texts.position(index + 1, ids.length)}</span>
                     {previous ? (
                         <Link to={previous} aria-label={texts.previous} className={pagerButton}>
                             <Icon name="chevron-left" className="size-4" />
@@ -140,7 +141,7 @@ const Review = ({ request, index, all, status }: ReviewProps) => {
                             <Icon name="chevron-left" className="size-4 rotate-180" />
                         </span>
                     )}
-                </div>
+                </div>}
             </div>
 
             <article className="rounded-2xl border border-border bg-surface p-6">
@@ -150,10 +151,12 @@ const Review = ({ request, index, all, status }: ReviewProps) => {
                     </StatusBadge>
                     <span className="font-mono text-xs text-muted">{request.request_number}</span>
                 </div>
-                <h1 className="mt-3 text-2xl font-bold tracking-tight text-foreground">{event?.title ?? '—'}</h1>
+                <h1 className="mt-3 text-2xl font-bold tracking-tight text-foreground">
+                    {request.event_title} <span className="font-mono text-base font-normal text-muted">{request.event_public_id}</span>
+                </h1>
                 <p className="mt-1 text-sm text-muted">
                     {[
-                        event?.organizer_email && texts.requestedBy(event.organizer_email),
+                        (request.organizer_name ?? event?.organizer_email) && texts.requestedBy(request.organizer_name ?? event?.organizer_email ?? ''),
                         request.submitted_at && formatDateTime(request.submitted_at, TIME_ZONE, t),
                         event && t.organizerEvent.status[event.status],
                         event && texts.ticketsIssued(event.tickets_issued),

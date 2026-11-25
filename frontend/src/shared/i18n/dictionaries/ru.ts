@@ -1174,6 +1174,7 @@ export const ru: Dictionary = {
         },
         changes: {
             title: 'Запросы на изменения',
+            all: 'Все',
             waiting: (value: string) => `ждёт ${value}`,
             searchPlaceholder: 'Событие, организатор или номер запроса',
             loadFailed: 'Не удалось загрузить запросы.',

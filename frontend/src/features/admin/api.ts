@@ -74,18 +74,30 @@ export const useAdminEvents = () =>
 
 export type ChangeReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN'
 
-export const changeReviewStatuses: ChangeReviewStatus[] = ['PENDING', 'APPROVED', 'REJECTED', 'WITHDRAWN']
+export type ChangeFilter = ChangeReviewStatus | 'ALL'
+
+export const changeFilters: ChangeFilter[] = ['PENDING', 'APPROVED', 'REJECTED', 'WITHDRAWN', 'ALL']
 
 export interface AdminChangeRequest extends ChangeRequest {
     event_id: string
+    event_title: string
+    event_public_id: string
+    organizer_name: string | null
 }
 
 export const adminChangesKey = ['admin', 'change-requests']
 
-export const useAdminChangeRequests = (status: ChangeReviewStatus) =>
+export const useAdminChangeRequests = (status: ChangeFilter, search = '') =>
     useQuery({
-        queryKey: [...adminChangesKey, status],
-        queryFn: () => api<AdminChangeRequest[]>(`/admin/change-requests?status=${status}`),
+        queryKey: [...adminChangesKey, 'list', status, search],
+        queryFn: () => api<AdminChangeRequest[]>(`/admin/change-requests?status=${status}${search ? `&q=${encodeURIComponent(search)}` : ''}`),
+    })
+
+export const useAdminChangeRequest = (requestId: string | undefined) =>
+    useQuery({
+        queryKey: [...adminChangesKey, 'detail', requestId],
+        queryFn: () => api<AdminChangeRequest>(`/admin/change-requests/${requestId}`),
+        enabled: Boolean(requestId),
     })
 
 export const approveChangeRequest = (requestId: string, reviewComment: string | null) =>

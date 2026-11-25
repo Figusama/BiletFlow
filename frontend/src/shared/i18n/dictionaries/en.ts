@@ -1158,6 +1158,7 @@ export const en = {
         },
         changes: {
             title: 'Change requests',
+            all: 'All',
             waiting: (value: string) => `waiting ${value}`,
             searchPlaceholder: 'Event, organizer or request number',
             loadFailed: 'Could not load change requests.',
