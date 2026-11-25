@@ -776,6 +776,8 @@ export interface HistoryEntry {
     actor: { kind: string; user_id: string | null; display_name: string }
     entity_type: string
     entity_label: string | null
+    event_id: string | null
+    event_title: string | null
     details: Record<string, unknown>
 }
 

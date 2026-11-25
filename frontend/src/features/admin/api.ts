@@ -704,6 +704,8 @@ export interface AuditFilters {
     category: string
     result: '' | 'SUCCESS' | 'DENIED'
     eventId: string
+    actor: string
+    search: string
     limit: number
     offset: number
 }
@@ -711,6 +713,8 @@ export interface AuditFilters {
 export const useAdminAudit = (filters: AuditFilters) => {
     const params = new URLSearchParams({ limit: String(filters.limit), offset: String(filters.offset) })
     if (filters.from) params.set('from', filters.from)
+    if (filters.actor) params.set('actor', filters.actor)
+    if (filters.search) params.set('q', filters.search)
     if (filters.category) params.append('category', filters.category)
     if (filters.result) params.set('result', filters.result)
     if (filters.eventId) params.set('event_id', filters.eventId)

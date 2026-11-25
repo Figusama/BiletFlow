@@ -3,10 +3,10 @@ import { useParams } from 'react-router-dom'
 import Icon from '../components/ui/Icon'
 import Select from '../components/ui/Select'
 import StatusBadge from '../components/ui/StatusBadge'
-import { useEventHistory, useHistoryCategories, useManagedEvent, type HistoryEntry, type ManagedEvent } from '../features/organizer/api'
+import { useEventHistory, useHistoryCategories, useManagedEvent, type ManagedEvent } from '../features/organizer/api'
+import { historyDetailText } from '../features/organizer/historyDetail'
 import { useLanguage } from '../shared/i18n/language'
 import { formatTime, getDateParts } from '../shared/lib/date'
-import { formatKzt } from '../shared/lib/money'
 
 const PAGE_SIZE = 20
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -52,52 +52,8 @@ const History = ({ event }: { event: ManagedEvent }) => {
         return `${day} ${t.dates.monthsShort[month]}, ${formatTime(date, event.timezone)}`
     }
 
-    const detailText = (entry: HistoryEntry): string | null => {
-        const detail = texts.detail
-        const values = entry.details
-        const label = entry.entity_label
-        const ticketTypeName = entry.entity_type === 'TICKET_TYPE' ? label : null
-        const prefix = ticketTypeName ? `${ticketTypeName}: ` : ''
-        const limit = (value: unknown) => (typeof value === 'number' ? String(value) : detail.unlimited)
-        const role = (value: unknown) => t.organizerTeam.roles[value as keyof typeof t.organizerTeam.roles] ?? String(value ?? '')
-        const supportStatus = (value: unknown) => t.organizerSupport.status[value as keyof typeof t.organizerSupport.status] ?? String(value ?? '')
-        switch (entry.action_type) {
-            case 'TICKET_PRICE_CHANGED':
-                return `${prefix}${formatKzt(Number(values.old_price_minor))} → ${formatKzt(Number(values.new_price_minor))}`
-            case 'TICKET_CAPACITY_CHANGED':
-                return `${prefix}${limit(values.old_capacity)} → ${limit(values.new_capacity)}`
-            case 'TICKET_TYPE_AVAILABILITY_CHANGED':
-                return 'new_sales_status' in values
-                    ? `${prefix}${detail.salesStatus[values.old_sales_status as 'ACTIVE' | 'PAUSED'] ?? ''} → ${detail.salesStatus[values.new_sales_status as 'ACTIVE' | 'PAUSED'] ?? ''}`
-                    : `${prefix}${values.old_is_active ? detail.active : detail.inactive} → ${values.new_is_active ? detail.active : detail.inactive}`
-            case 'REFUND_REQUESTED':
-            case 'REFUND_APPROVED':
-            case 'REFUND_REJECTED':
-            case 'REFUND_FAILED_FINAL':
-            case 'REFUND_ESCALATED':
-            case 'REFUND_EXCEPTION_DECIDED':
-                return detail.order(String(values.order_number ?? label ?? ''))
-            case 'REFUND_SUCCEEDED':
-                return `${detail.order(String(values.order_number ?? label ?? ''))}, ${formatKzt(Number(values.amount_minor))}`
-            case 'SUPPORT_CASE_STATUS_CHANGED':
-                return `${label ?? ''}, ${supportStatus(values.old_status)} → ${supportStatus(values.new_status)}`
-            case 'EVENT_STAFF_INVITED':
-            case 'EVENT_STAFF_INVITATION_REVOKED':
-            case 'EVENT_STAFF_INVITATION_DECLINED':
-            case 'EVENT_ROLE_ASSIGNED':
-            case 'EVENT_ROLE_REVOKED':
-                return [label, role(values.role)].filter(Boolean).join(', ')
-            case 'EVENT_CHANGE_SUBMITTED':
-            case 'EVENT_CHANGE_APPROVED':
-                return values.request_number ? detail.request(String(values.request_number)) : null
-            case 'PRIVATE_INVITATIONS_SENT':
-                return detail.invitations(Number(values.count))
-            default:
-                return entry.entity_type === 'EVENT' || entry.entity_type === 'EVENT_USER_ROLE' ? null : label
-        }
-    }
-
-    const pagerButton = 'flex size-8 items-center justify-center rounded-full text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-40'
+    const pagerButton =
+        'flex size-8 items-center justify-center rounded-full text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-40'
 
     return (
         <div className="flex flex-col gap-6">
@@ -152,15 +108,11 @@ const History = ({ event }: { event: ManagedEvent }) => {
                                 <tr key={entry.id}>
                                     <td className="px-5 py-3 whitespace-nowrap text-foreground">{formatDateTime(entry.created_at)}</td>
                                     <td className="px-5 py-3 text-foreground">
-                                        {entry.actor.kind === 'system' ? (
-                                            <StatusBadge tone="neutral">{texts.system}</StatusBadge>
-                                        ) : (
-                                            entry.actor.display_name
-                                        )}
+                                        {entry.actor.kind === 'system' ? <StatusBadge tone="neutral">{texts.system}</StatusBadge> : entry.actor.display_name}
                                     </td>
                                     <td className="px-5 py-3">
                                         <p className="font-semibold text-foreground">{texts.actions[entry.action_type] ?? entry.description}</p>
-                                        {detailText(entry) && <p className="mt-0.5 text-foreground">{detailText(entry)}</p>}
+                                        {historyDetailText(entry, t) && <p className="mt-0.5 text-foreground">{historyDetailText(entry, t)}</p>}
                                         <p className="font-mono text-[11px] text-muted">{entry.action_type}</p>
                                     </td>
                                 </tr>

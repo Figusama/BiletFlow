@@ -3,8 +3,10 @@ import { useSearchParams } from 'react-router-dom'
 import Icon from '../components/ui/Icon'
 import Select from '../components/ui/Select'
 import StatusBadge from '../components/ui/StatusBadge'
-import { useAdminAudit, useAdminEvents } from '../features/admin/api'
+import Input from '../components/ui/Input'
+import { useAdminAudit } from '../features/admin/api'
 import { useHistoryCategories } from '../features/organizer/api'
+import { historyDetailText } from '../features/organizer/historyDetail'
 import { useLanguage } from '../shared/i18n/language'
 import { formatTime, getDateParts } from '../shared/lib/date'
 
@@ -31,8 +33,11 @@ const AdminAuditPage = () => {
     const [category, setCategory] = useState('')
     const [result, setResult] = useState<(typeof results)[number]>('')
     const [page, setPage] = useState(0)
+    const [searchInput, setSearchInput] = useState('')
+    const [search, setSearch] = useState('')
+    const [actorInput, setActorInput] = useState('')
+    const [actor, setActor] = useState('')
     const { data: categories = [] } = useHistoryCategories()
-    const { data: events = [] } = useAdminEvents()
 
     const from = useMemo(() => {
         if (period === 'all') return null
@@ -42,11 +47,11 @@ const AdminAuditPage = () => {
         return new Date(day.getTime() - days * DAY_MS).toISOString()
     }, [period])
 
-    const { data, isPending, isError } = useAdminAudit({ from, category, result, eventId, limit: PAGE_SIZE, offset: page * PAGE_SIZE })
+    const { data, isPending, isError } = useAdminAudit({ from, category, result, eventId, actor, search, limit: PAGE_SIZE, offset: page * PAGE_SIZE })
 
     const total = data?.total ?? 0
     const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
-    const eventTitle = events.find((event) => event.id === eventId)?.title
+    const eventTitle = data?.items.find((entry) => entry.event_id === eventId)?.event_title
 
     const formatDateTime = (iso: string) => {
         const date = new Date(iso)
@@ -67,7 +72,39 @@ const AdminAuditPage = () => {
                 <p className="mt-1 max-w-2xl text-sm text-muted">{texts.intro}</p>
             </header>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <form
+                className="flex flex-wrap items-center gap-3"
+                onSubmit={(submitEvent) => {
+                    submitEvent.preventDefault()
+                    setSearch(searchInput.trim())
+                    setActor(actorInput.trim())
+                    setPage(0)
+                }}
+            >
+                <div className="w-full max-w-xs">
+                    <label htmlFor="audit-search" className="sr-only">
+                        {texts.searchPlaceholder}
+                    </label>
+                    <Input
+                        id="audit-search"
+                        type="search"
+                        value={searchInput}
+                        placeholder={texts.searchPlaceholder}
+                        onChange={(changeEvent) => setSearchInput(changeEvent.target.value)}
+                    />
+                </div>
+                <div className="w-full max-w-xs">
+                    <label htmlFor="audit-actor" className="sr-only">
+                        {texts.actorPlaceholder}
+                    </label>
+                    <Input
+                        id="audit-actor"
+                        type="search"
+                        value={actorInput}
+                        placeholder={texts.actorPlaceholder}
+                        onChange={(changeEvent) => setActorInput(changeEvent.target.value)}
+                    />
+                </div>
                 <Select
                     value={period}
                     ariaLabel={texts.period}
@@ -108,7 +145,7 @@ const AdminAuditPage = () => {
                         <Icon name="close" className="size-3.5" />
                     </button>
                 )}
-            </div>
+            </form>
 
             {isPending ? (
                 <div className="h-64 animate-pulse rounded-2xl bg-surface-sunk" />
@@ -124,6 +161,7 @@ const AdminAuditPage = () => {
                                 <th className="px-5 py-3 font-semibold">{texts.columns.time}</th>
                                 <th className="px-5 py-3 font-semibold">{texts.columns.actor}</th>
                                 <th className="px-5 py-3 font-semibold">{texts.columns.action}</th>
+                                <th className="px-5 py-3 font-semibold">{texts.columns.event}</th>
                                 <th className="px-5 py-3 font-semibold">{texts.columns.entity}</th>
                                 <th className="px-5 py-3 font-semibold">{texts.columns.result}</th>
                             </tr>
@@ -137,7 +175,24 @@ const AdminAuditPage = () => {
                                     </td>
                                     <td className="px-5 py-3">
                                         <p className="font-semibold text-foreground">{history.actions[entry.action_type] ?? entry.description}</p>
+                                        {historyDetailText(entry, t) && <p className="mt-0.5 text-foreground">{historyDetailText(entry, t)}</p>}
                                         <p className="font-mono text-[11px] text-muted">{entry.action_type}</p>
+                                    </td>
+                                    <td className="px-5 py-3 text-foreground">
+                                        {entry.event_id ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setSearchParams({ event: entry.event_id as string })
+                                                    setPage(0)
+                                                }}
+                                                className="text-left hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
+                                            >
+                                                {entry.event_title ?? entry.event_id}
+                                            </button>
+                                        ) : (
+                                            '—'
+                                        )}
                                     </td>
                                     <td className="px-5 py-3 text-foreground">
                                         <p className="font-mono text-xs text-muted">{entry.entity_type}</p>
