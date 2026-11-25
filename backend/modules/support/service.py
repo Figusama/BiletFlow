@@ -8,9 +8,10 @@ from sqlmodel import Session, select
 from backend.core.clock import as_aware, db_now
 from backend.core.config import FRONTEND_URL
 from backend.modules.notifications import service as notify
+from backend.modules.orders.models import orders
 from backend.modules.support.models import support_case_history, support_cases, support_messages
 from backend.modules.support.schemas import CaseDetail, CasePublic, HistoryPublic, MessagePublic
-from backend.modules.users.user_model import EventRole, Role, event_user_roles, users
+from backend.modules.users.user_model import EventRole, Role, event_user_roles, profiles, users
 
 REOPEN_WINDOW = timedelta(days=30)
 EVENT_HANDLER_ROLES = (EventRole.ORGANIZER, EventRole.EVENT_SUPPORT)
@@ -142,19 +143,34 @@ def can_reopen(case: support_cases, now) -> bool:
     return case.status == "RESOLVED" and case.resolved_at is not None and now - as_aware(case.resolved_at) <= REOPEN_WINDOW
 
 
+def full_names(session: Session, user_ids) -> dict[uuid.UUID, str]:
+    return dict(session.exec(select(profiles.user_id, profiles.full_name).where(profiles.user_id.in_({i for i in user_ids if i is not None}))).all())
+
+
+def to_public_list(session: Session, cases: list[support_cases], viewer: users) -> list[CasePublic]:
+    names = full_names(session, [i for c in cases for i in (c.requester_user_id, c.assigned_to_user_id)])
+    numbers = dict(session.exec(select(orders.id, orders.order_number).where(orders.id.in_({c.order_id for c in cases if c.order_id is not None}))).all())
+    return [CasePublic(**case.model_dump(include=set(CasePublic.model_fields) - {"unread", "requester_name", "assignee_name", "order_number"}),
+                       unread=unread_count(session, case, viewer), requester_name=names.get(case.requester_user_id), assignee_name=names.get(case.assigned_to_user_id),
+                       order_number=numbers.get(case.order_id)) for case in cases]
+
+
 def to_public(session: Session, case: support_cases, viewer: users) -> CasePublic:
-    return CasePublic(**case.model_dump(include=set(CasePublic.model_fields) - {"unread"}), unread=unread_count(session, case, viewer))
+    return to_public_list(session, [case], viewer)[0]
 
 
 def to_detail(session: Session, case: support_cases, viewer: users) -> CaseDetail:
     messages = session.exec(select(support_messages).where(support_messages.support_case_id == case.id).order_by(support_messages.message_seq)).all()
     entries = session.exec(select(support_case_history).where(support_case_history.support_case_id == case.id).order_by(support_case_history.created_at)).all()
+    names = full_names(session, [m.sender_user_id for m in messages] + [i for h in entries for i in (h.actor_user_id, h.old_assignee_user_id, h.new_assignee_user_id)])
     base = to_public(session, case, viewer)
     return CaseDetail(**base.model_dump(),
-                      messages=[MessagePublic(id=m.id, seq=m.message_seq, sender_user_id=m.sender_user_id, from_requester=m.sender_user_id == case.requester_user_id,
-                                              body=m.body, created_at=m.created_at) for m in messages],
-                      history=[HistoryPublic(action=h.action, actor_user_id=h.actor_user_id, old_status=h.old_status, new_status=h.new_status,
-                                             old_assignee_user_id=h.old_assignee_user_id, new_assignee_user_id=h.new_assignee_user_id, created_at=h.created_at) for h in entries])
+                      messages=[MessagePublic(id=m.id, seq=m.message_seq, sender_user_id=m.sender_user_id, sender_name=names.get(m.sender_user_id),
+                                              from_requester=m.sender_user_id == case.requester_user_id, body=m.body, created_at=m.created_at) for m in messages],
+                      history=[HistoryPublic(action=h.action, actor_user_id=h.actor_user_id, actor_name=names.get(h.actor_user_id), old_status=h.old_status, new_status=h.new_status,
+                                             old_assignee_user_id=h.old_assignee_user_id, old_assignee_name=names.get(h.old_assignee_user_id),
+                                             new_assignee_user_id=h.new_assignee_user_id, new_assignee_name=names.get(h.new_assignee_user_id),
+                                             created_at=h.created_at) for h in entries])
 
 
 def now_of(session: Session):

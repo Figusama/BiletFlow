@@ -64,6 +64,7 @@ class MessagePublic(BaseModel):
     id: uuid.UUID
     seq: int
     sender_user_id: uuid.UUID
+    sender_name: str | None
     from_requester: bool
     body: str
     created_at: datetime
@@ -72,25 +73,32 @@ class MessagePublic(BaseModel):
 class HistoryPublic(BaseModel):
     action: str
     actor_user_id: uuid.UUID | None
+    actor_name: str | None
     old_status: str | None
     new_status: str | None
     old_assignee_user_id: uuid.UUID | None
+    old_assignee_name: str | None
     new_assignee_user_id: uuid.UUID | None
+    new_assignee_name: str | None
     created_at: datetime
 
 
 class CasePublic(BaseModel):
     id: uuid.UUID
+    case_number: int
     requester_user_id: uuid.UUID
+    requester_name: str | None
     case_scope: CaseScope
     event_id: uuid.UUID | None
     order_id: uuid.UUID | None
+    order_number: str | None
     ticket_id: uuid.UUID | None
     previous_case_id: uuid.UUID | None
     category: str
     custom_subject: str | None
     status: CaseStatus
     assigned_to_user_id: uuid.UUID | None
+    assignee_name: str | None
     escalated_to_platform: bool
     resolved_at: datetime | None
     last_message_seq: int

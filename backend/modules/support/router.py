@@ -61,14 +61,14 @@ def open_case(data: CaseCreate, session: Session = Depends(get_session), current
 @router.get("/support/cases/mine", response_model=list[CasePublic])
 def my_cases(session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
     rows = session.exec(select(support_cases).where(support_cases.requester_user_id == current_user.id).order_by(support_cases.updated_at.desc())).all()
-    return [service.to_public(session, c, current_user) for c in rows]
+    return service.to_public_list(session, rows, current_user)
 
 
 @router.get("/support/cases/assigned", response_model=list[CasePublic])
 def assigned_cases(session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
     rows = session.exec(select(support_cases).where(support_cases.assigned_to_user_id == current_user.id, support_cases.status != "RESOLVED")
                         .order_by(support_cases.updated_at.desc())).all()
-    return [service.to_public(session, c, current_user) for c in rows]
+    return service.to_public_list(session, rows, current_user)
 
 
 @router.get("/events/{event_id}/support/cases", response_model=list[CasePublic])
@@ -78,7 +78,7 @@ def event_queue(event_id: uuid.UUID, case_status: CaseStatus | None = Query(defa
     query = select(support_cases).where(support_cases.event_id == event_id, support_cases.case_scope == "EVENT_SUPPORT")
     if case_status:
         query = query.where(support_cases.status == case_status.value)
-    return [service.to_public(session, c, current_user) for c in session.exec(query.order_by(support_cases.updated_at.desc())).all()]
+    return service.to_public_list(session, session.exec(query.order_by(support_cases.updated_at.desc())).all(), current_user)
 
 
 @router.get("/admin/support/cases", response_model=list[CasePublic])
@@ -91,7 +91,7 @@ def platform_queue(case_status: CaseStatus | None = Query(default=None, alias="s
         query = query.where(support_cases.event_id == event_id)
     if case_status:
         query = query.where(support_cases.status == case_status.value)
-    return [service.to_public(session, c, admin) for c in session.exec(query.order_by(support_cases.updated_at.desc())).all()]
+    return service.to_public_list(session, session.exec(query.order_by(support_cases.updated_at.desc())).all(), admin)
 
 
 @router.get("/support/cases/{case_id}", response_model=CaseDetail)
