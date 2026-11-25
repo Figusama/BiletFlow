@@ -25,8 +25,7 @@ import {
     supportCasesKey,
     useCaseHandlers,
     useEventSupportCases,
-    useRequesterName,
-    useStaffNames,
+    useCaseOrder,
     useSupportCase,
     type SupportCaseDetail,
     type SupportCaseStatus,
@@ -75,9 +74,8 @@ const SupportCaseView = ({ event, supportCase }: { event: ManagedEvent; supportC
     const myUserId = useSelector((state: RootState) => state.auth.user?.id)
     const { data: cases = [] } = useEventSupportCases(event.id)
     const { data: refundRequests = [] } = useEventRefundRequests(event.id)
-    const staffNames = useStaffNames(event.id)
     const handlers = useCaseHandlers(event.id)
-    const { name: requesterName, order } = useRequesterName(event.id, supportCase)
+    const order = useCaseOrder(event.id, supportCase)
     const [reply, setReply] = useState('')
     const [clientMessageId, setClientMessageId] = useState(() => crypto.randomUUID())
     const [isBusy, setIsBusy] = useState(false)
@@ -97,11 +95,11 @@ const SupportCaseView = ({ event, supportCase }: { event: ManagedEvent; supportC
             .catch(() => undefined)
     }, [caseId, unread, lastSeq, supportCase.escalated_to_platform, event.id, queryClient])
 
-    const nameOf = (userId: string | null) => {
+    const nameOf = (userId: string | null, name: string | null) => {
         if (!userId) return texts.system
-        if (userId === supportCase.requester_user_id) return requesterName ?? texts.buyer
-        if (userId === myUserId) return staffNames.get(userId) ?? texts.you
-        return staffNames.get(userId) ?? texts.platformAgent
+        if (userId === supportCase.requester_user_id) return name ?? texts.buyer
+        if (userId === myUserId) return name ?? texts.you
+        return name ?? texts.platformAgent
     }
 
     const run = async (action: () => Promise<SupportCaseDetail>) => {
@@ -132,6 +130,7 @@ const SupportCaseView = ({ event, supportCase }: { event: ManagedEvent; supportC
     }
 
     const openCases = cases.filter((item) => matchesSupportTab(item, 'ALL_OPEN', myUserId))
+    const previousCase = cases.find((item) => item.id === supportCase.previous_case_id)
     const position = openCases.findIndex((item) => item.id === supportCase.id)
 
     const topic = supportCase.custom_subject ?? texts.categories[supportCase.category]
@@ -146,15 +145,15 @@ const SupportCaseView = ({ event, supportCase }: { event: ManagedEvent; supportC
     ].sort((first, second) => new Date(first.at).getTime() - new Date(second.at).getTime())
 
     const historyText = (entry: SupportHistoryEntry) => {
-        const actor = nameOf(entry.actor_user_id)
+        const actor = nameOf(entry.actor_user_id, entry.actor_name)
         switch (entry.action) {
             case 'CLAIMED':
                 return texts.history.claimed(actor)
             case 'ASSIGNED':
-                return texts.history.assigned(actor, nameOf(entry.new_assignee_user_id))
+                return texts.history.assigned(actor, nameOf(entry.new_assignee_user_id, entry.new_assignee_name))
             case 'RELEASED':
             case 'UNASSIGNED':
-                return texts.history.released(nameOf(entry.old_assignee_user_id))
+                return texts.history.released(nameOf(entry.old_assignee_user_id, entry.old_assignee_name))
             case 'ESCALATED':
                 return texts.history.escalated(actor)
             case 'RETURNED_TO_EVENT':
@@ -178,7 +177,7 @@ const SupportCaseView = ({ event, supportCase }: { event: ManagedEvent; supportC
         : supportCase.assigned_to_user_id
           ? supportCase.assigned_to_user_id === myUserId
               ? texts.you
-              : nameOf(supportCase.assigned_to_user_id)
+              : nameOf(supportCase.assigned_to_user_id, supportCase.assignee_name)
           : isResolved
             ? undefined
             : texts.unassigned
@@ -229,8 +228,8 @@ const SupportCaseView = ({ event, supportCase }: { event: ManagedEvent; supportC
                     </h1>
                     <p className="mt-1 text-sm text-muted">
                         {[
-                            requesterName ?? texts.buyer,
-                            order && texts.orderLabel(order.order_number),
+                            supportCase.requester_name ?? texts.buyer,
+                            supportCase.order_number && texts.orderLabel(supportCase.order_number),
                             texts.openedAt(formatDateTime(supportCase.created_at, event.timezone, t)),
                         ]
                             .filter(Boolean)
@@ -250,7 +249,7 @@ const SupportCaseView = ({ event, supportCase }: { event: ManagedEvent; supportC
                                     className={`max-w-[85%] rounded-2xl px-4 py-3 ${item.message.from_requester ? 'self-start bg-surface-sunk' : 'self-end bg-accent-soft'}`}
                                 >
                                     <p className="text-xs font-semibold text-muted">
-                                        {nameOf(item.message.sender_user_id)}, {formatRelativeTime(item.message.created_at, language)}
+                                        {nameOf(item.message.sender_user_id, item.message.sender_name)}, {formatRelativeTime(item.message.created_at, language)}
                                     </p>
                                     <p className="mt-1 text-sm whitespace-pre-line text-foreground">{item.message.body}</p>
                                 </li>
@@ -332,7 +331,7 @@ const SupportCaseView = ({ event, supportCase }: { event: ManagedEvent; supportC
                                         options={
                                             assigneeOptions.some((option) => option.value === supportCase.assigned_to_user_id)
                                                 ? assigneeOptions
-                                                : [...assigneeOptions, { value: supportCase.assigned_to_user_id, label: nameOf(supportCase.assigned_to_user_id) }]
+                                                : [...assigneeOptions, { value: supportCase.assigned_to_user_id, label: nameOf(supportCase.assigned_to_user_id, supportCase.assignee_name) }]
                                         }
                                         onValueChange={(userId) => run(() => assignCase(supportCase.id, userId))}
                                     />
@@ -401,7 +400,7 @@ const SupportCaseView = ({ event, supportCase }: { event: ManagedEvent; supportC
                                             relative="path"
                                             className="text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent"
                                         >
-                                            {texts.previousCase(caseNumber({ id: supportCase.previous_case_id }))}
+                                            {texts.previousCase(previousCase ? caseNumber(previousCase) : '')}
                                         </Link>
                                     </li>
                                 )}

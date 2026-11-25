@@ -9,8 +9,6 @@ import {
     matchesSupportTab,
     supportTabs,
     useEventSupportCases,
-    useRequesterName,
-    useStaffNames,
     type SupportCase,
     type SupportTab,
 } from '../features/organizer/support'
@@ -28,26 +26,19 @@ const OrganizerSupportPage = () => {
     return <SupportCases key={event.id} event={event} />
 }
 
-const RequesterCell = ({ eventId, supportCase }: { eventId: string; supportCase: SupportCase }) => {
-    const { t } = useLanguage()
-    const { name } = useRequesterName(eventId, supportCase)
-    return <>{name ?? t.organizerSupport.buyer}</>
-}
-
 const SupportCases = ({ event }: { event: ManagedEvent }) => {
     const { t, language } = useLanguage()
     const texts = t.organizerSupport
     const myUserId = useSelector((state: RootState) => state.auth.user?.id)
     const [tab, setTab] = useState<SupportTab>('UNASSIGNED')
     const { data: cases = [], isPending, isError } = useEventSupportCases(event.id)
-    const staffNames = useStaffNames(event.id)
 
     const inTab = cases.filter((supportCase) => matchesSupportTab(supportCase, tab, myUserId))
 
     const assigneeName = (supportCase: SupportCase) => {
         if (!supportCase.assigned_to_user_id) return '—'
         if (supportCase.assigned_to_user_id === myUserId) return texts.you
-        return staffNames.get(supportCase.assigned_to_user_id) ?? '—'
+        return supportCase.assignee_name ?? '—'
     }
 
     return (
@@ -113,7 +104,7 @@ const SupportCases = ({ event }: { event: ManagedEvent }) => {
                                         </Link>
                                     </td>
                                     <td className="px-5 py-3 text-foreground">
-                                        <RequesterCell eventId={event.id} supportCase={supportCase} />
+                                        {supportCase.requester_name ?? texts.buyer}
                                     </td>
                                     <td className="px-5 py-3 text-foreground">{supportCase.custom_subject ?? texts.categories[supportCase.category]}</td>
                                     <td className="px-5 py-3">
