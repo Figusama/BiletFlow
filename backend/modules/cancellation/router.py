@@ -1,14 +1,16 @@
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
 from sqlmodel import Session, select
 
 from backend.core.clock import db_now
+from backend.core.paging import like_pattern, page
+from backend.modules.admin.refs import event_like, event_refs
 from backend.modules.admin.router import require_admin
 from backend.modules.audit import service as audit
 from backend.modules.auth.dependencies import get_current_user
 from backend.modules.cancellation import service
-from backend.modules.cancellation.schemas import CancellationApproval, CancellationCreate, CancellationPublic, CancellationRejection
+from backend.modules.cancellation.schemas import CancellationApproval, CancellationCreate, CancellationDetail, CancellationPublic, CancellationRejection
 from backend.modules.events.access import get_event_or_404, require_organizer
 from backend.modules.events.models import event_cancellation_requests, events
 from backend.modules.events.schemas import EventLifecycleStatus
@@ -27,11 +29,15 @@ def run_background(background: BackgroundTasks) -> None:
     background.add_task(notify.deliver_due)
 
 
+def to_public_list(session: Session, rows: list[event_cancellation_requests]) -> list[CancellationPublic]:
+    refs = event_refs(session, [r.event_id for r in rows])
+    return [CancellationPublic(id=r.id, event_id=r.event_id, event_title=refs[r.event_id].title, event_public_id=refs[r.event_id].public_id,
+                               organizer_name=refs[r.event_id].organizer_name, status=r.status, reason=r.reason, refund_handling_mode=r.refund_handling_mode,
+                               review_comment=r.review_comment, reviewed_at=r.reviewed_at, created_at=r.created_at) for r in rows]
+
+
 def to_public(session: Session, request: event_cancellation_requests) -> CancellationPublic:
-    event = session.get(events, request.event_id)
-    return CancellationPublic(id=request.id, event_id=event.id, event_title=event.title, status=request.status, reason=request.reason,
-                              refund_handling_mode=request.refund_handling_mode, review_comment=request.review_comment, reviewed_at=request.reviewed_at,
-                              created_at=request.created_at)
+    return to_public_list(session, [request])[0]
 
 
 def ever_issued(session: Session, event_id: uuid.UUID) -> bool:
@@ -90,7 +96,7 @@ def request_cancellation(event_id: uuid.UUID, data: CancellationCreate, backgrou
 def list_event_cancellations(event_id: uuid.UUID, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
     require_organizer(session, event_id, current_user)
     rows = session.exec(select(event_cancellation_requests).where(event_cancellation_requests.event_id == event_id).order_by(event_cancellation_requests.created_at.desc())).all()
-    return [to_public(session, r) for r in rows]
+    return to_public_list(session, rows)
 
 
 @router.post("/events/{event_id}/cancellation-requests/{request_id}/withdraw", response_model=CancellationPublic)
@@ -107,9 +113,23 @@ def withdraw_cancellation(event_id: uuid.UUID, request_id: uuid.UUID, session: S
 
 
 @router.get("/admin/cancellation-requests", response_model=list[CancellationPublic])
-def admin_cancellations(request_status: str = Query(default="PENDING", alias="status"), session: Session = Depends(get_session), admin: users = Depends(require_admin)):
-    rows = session.exec(select(event_cancellation_requests).where(event_cancellation_requests.status == request_status).order_by(event_cancellation_requests.created_at)).all()
-    return [to_public(session, r) for r in rows]
+def admin_cancellations(response: Response, request_status: str = Query(default="PENDING", alias="status"), q: str | None = None,
+                        limit: int = Query(default=200, ge=1, le=200), offset: int = Query(default=0, ge=0), session: Session = Depends(get_session),
+                        admin: users = Depends(require_admin)):
+    query = select(event_cancellation_requests)
+    if request_status != "ALL":
+        query = query.where(event_cancellation_requests.status == request_status)
+    if q and q.strip():
+        query = query.where(event_like(event_cancellation_requests.event_id, like_pattern(q)))
+    return to_public_list(session, page(session, response, query.order_by(event_cancellation_requests.created_at, event_cancellation_requests.id), limit, offset))
+
+
+@router.get("/admin/cancellation-requests/{request_id}", response_model=CancellationDetail)
+def admin_cancellation(request_id: uuid.UUID, session: Session = Depends(get_session), admin: users = Depends(require_admin)):
+    request = session.get(event_cancellation_requests, request_id)
+    if request is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Cancellation request not found")
+    return CancellationDetail(**to_public(session, request).model_dump(), impact=service.impact(session, session.get(events, request.event_id), db_now(session)))
 
 
 @router.post("/admin/cancellation-requests/{request_id}/approve", response_model=CancellationPublic)

@@ -1,9 +1,12 @@
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
+from sqlalchemy import Text, cast, or_
 from sqlmodel import Session, select
 
 from backend.core.clock import db_now
+from backend.core.paging import like_pattern, page
+from backend.modules.admin.refs import event_like, person_like
 from backend.modules.admin.router import require_admin
 from backend.modules.auth.dependencies import get_current_user
 from backend.modules.events.access import can_view_event, get_event_or_404, require_event_role
@@ -11,7 +14,7 @@ from backend.modules.notifications import service as notify
 from backend.modules.orders.models import orders
 from backend.modules.support import service
 from backend.modules.support.models import support_cases
-from backend.modules.support.schemas import Assignment, CaseAssignee, CaseCategory, CaseCreate, CaseDetail, CasePublic, CaseScope, CaseStatus, MessageCreate, ReadMark, StatusChange
+from backend.modules.support.schemas import Assignment, CaseAssignee, CaseCategory, CaseCreate, CaseDetail, CasePublic, CaseScope, CaseStatus, MessageCreate, PlatformAssignee, ReadMark, StatusChange
 from backend.modules.tickets.models import tickets
 from backend.modules.users.user_model import EventRole, users
 from database.database import get_session
@@ -81,7 +84,9 @@ def event_queue(event_id: uuid.UUID, case_status: CaseStatus | None = Query(defa
 
 
 @router.get("/admin/support/cases", response_model=list[CasePublic])
-def platform_queue(case_status: CaseStatus | None = Query(default=None, alias="status"), category: CaseCategory | None = None, event_id: uuid.UUID | None = None,
+def platform_queue(response: Response, case_status: CaseStatus | None = Query(default=None, alias="status"), category: CaseCategory | None = None,
+                   event_id: uuid.UUID | None = None, assigned_to: uuid.UUID | None = None, unassigned: bool = False, escalated: bool | None = None, q: str | None = None,
+                   limit: int = Query(default=200, ge=1, le=200), offset: int = Query(default=0, ge=0),
                    session: Session = Depends(get_session), admin: users = Depends(require_admin)):
     query = select(support_cases).where((support_cases.case_scope == "PLATFORM_SUPPORT") | support_cases.escalated_to_platform.is_(True))
     if category:
@@ -90,7 +95,24 @@ def platform_queue(case_status: CaseStatus | None = Query(default=None, alias="s
         query = query.where(support_cases.event_id == event_id)
     if case_status:
         query = query.where(support_cases.status == case_status.value)
-    return service.to_public_list(session, session.exec(query.order_by(support_cases.updated_at.desc())).all(), admin)
+    if assigned_to:
+        query = query.where(support_cases.assigned_to_user_id == assigned_to)
+    if unassigned:
+        query = query.where(support_cases.assigned_to_user_id.is_(None))
+    if escalated is not None:
+        query = query.where(support_cases.escalated_to_platform.is_(escalated))
+    if q and q.strip():
+        pattern = like_pattern(q)
+        query = query.where(or_(cast(support_cases.case_number, Text).ilike(like_pattern(q.strip().lstrip("#"))), support_cases.custom_subject.ilike(pattern),
+                                person_like(support_cases.requester_user_id, pattern), event_like(support_cases.event_id, pattern)))
+    return service.to_public_list(session, page(session, response, query.order_by(support_cases.updated_at.desc(), support_cases.id), limit, offset), admin)
+
+
+@router.get("/admin/support/assignees", response_model=list[PlatformAssignee])
+def platform_assignees(session: Session = Depends(get_session), admin: users = Depends(require_admin)):
+    staff = service.platform_staff(session)
+    names = service.full_names(session, [u.id for u in staff])
+    return sorted((PlatformAssignee(user_id=u.id, full_name=names.get(u.id), email=u.email) for u in staff), key=lambda p: (p.full_name or "", p.email))
 
 
 @router.get("/support/cases/{case_id}", response_model=CaseDetail)

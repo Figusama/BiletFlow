@@ -21,6 +21,7 @@ from backend.modules.checkin.router import router as checkin
 from backend.modules.analytics.router import router as analytics
 from backend.modules.audit.router import router as history
 from backend.modules.admin.router import router as admin
+from backend.modules.admin.console import router as admin_console
 from backend.modules.catalog.router import router as catalog
 from backend.modules.invitations.router import router as invitations
 from backend.modules.activation.router import router as paid_sales
@@ -70,6 +71,7 @@ app.include_router(checkin)
 app.include_router(analytics)
 app.include_router(history)
 app.include_router(admin)
+app.include_router(admin_console)
 app.include_router(catalog)
 app.include_router(applications)
 app.include_router(admin_applications)

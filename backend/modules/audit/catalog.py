@@ -12,9 +12,9 @@ ACTIONS = {
     "EVENT_CANCELLATION_APPROVED": ("lifecycle", "Event cancellation approved"),
     "EVENT_CANCELLATION_REJECTED": ("lifecycle", "Event cancellation rejected"),
     "EVENT_COMPLETED": ("lifecycle", "Event completed"),
-    "EVENT_CHANGE_SUBMITTED": ("changes", "Event change request submitted"),
-    "EVENT_CHANGE_APPROVED": ("changes", "Event changes approved"),
-    "EVENT_CHANGE_REJECTED": ("changes", "Event changes rejected"),
+    "EVENT_CHANGE_REQUEST_SUBMITTED": ("changes", "Event change request submitted"),
+    "EVENT_CHANGE_REQUEST_APPROVED": ("changes", "Event changes approved"),
+    "EVENT_CHANGE_REQUEST_REJECTED": ("changes", "Event changes rejected"),
     "EVENT_MATERIAL_DETAILS_CHANGED": ("changes", "Important event details changed"),
     "EVENT_DETAILS_UPDATED": ("changes", "Event details updated"),
     "EVENT_SUSPENDED": ("moderation", "Event suspended by platform administration"),
@@ -56,16 +56,35 @@ ACTIONS = {
     "SUPPORT_CASE_ESCALATED": ("support", "Support case escalated to BiletFlow"),
     "SUPPORT_CASE_RETURNED_TO_EVENT": ("support", "Support case returned to the event"),
     "SUPPORT_CASE_STATUS_CHANGED": ("support", "Support case status changed"),
-    "PAID_SALES_REQUESTED": ("paid_sales", "Paid sales verification requested"),
-    "PAID_SALES_VERIFICATION_APPROVED": ("paid_sales", "Paid sales verification approved"),
-    "PAID_SALES_VERIFICATION_REJECTED": ("paid_sales", "Paid sales verification rejected"),
+    "PAID_SALES_APPLICATION_SUBMITTED": ("paid_sales", "Paid sales verification requested"),
+    "PAID_SALES_APPLICATION_APPROVED": ("paid_sales", "Paid sales verification approved"),
+    "PAID_SALES_APPLICATION_REJECTED": ("paid_sales", "Paid sales verification rejected"),
     "PAID_SALES_ACTIVATED": ("paid_sales", "Paid sales activated"),
     "PAID_SALES_SUSPENDED": ("paid_sales", "Paid sales suspended"),
     "PAID_SALES_RESTORED": ("paid_sales", "Paid sales restored"),
 }
 
+RENAMED = {
+    "EVENT_CHANGE_SUBMITTED": "EVENT_CHANGE_REQUEST_SUBMITTED",
+    "EVENT_CHANGE_APPROVED": "EVENT_CHANGE_REQUEST_APPROVED",
+    "EVENT_CHANGE_REJECTED": "EVENT_CHANGE_REQUEST_REJECTED",
+    "PAID_SALES_REQUESTED": "PAID_SALES_APPLICATION_SUBMITTED",
+    "PAID_SALES_VERIFICATION_APPROVED": "PAID_SALES_APPLICATION_APPROVED",
+    "PAID_SALES_VERIFICATION_REJECTED": "PAID_SALES_APPLICATION_REJECTED",
+}
+
 CATEGORIES = sorted({category for category, _ in ACTIONS.values()})
 
 
+def canonical(action_type: str) -> str:
+    return RENAMED.get(action_type, action_type)
+
+
+def stored_names(action_types) -> set[str]:
+    wanted = {canonical(action) for action in action_types}
+    return wanted | {old for old, new in RENAMED.items() if new in wanted}
+
+
 def describe(action_type: str) -> tuple[str, str]:
+    action_type = canonical(action_type)
     return ACTIONS.get(action_type, ("other", action_type.replace("_", " ").capitalize()))

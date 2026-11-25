@@ -46,6 +46,18 @@ class VenueCreate(BaseModel):
     max_capacity: int = Field(gt=0)
 
 
+class AdminVenue(VenuePublic):
+    events_count: int
+    active_events_count: int
+
+
+class VenueUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    address: str | None = Field(default=None, min_length=1, max_length=500)
+    city: str | None = Field(default=None, min_length=1, max_length=100)
+    max_capacity: int | None = Field(default=None, gt=0)
+
+
 class RowSpec(BaseModel):
     label: str = Field(min_length=1, max_length=20)
     seats: int = Field(gt=0, le=500)

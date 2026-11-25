@@ -1,10 +1,14 @@
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
+from pydantic import AwareDatetime
+from sqlalchemy import Text, cast, or_
 from sqlmodel import Session, select
 
 from backend.core.clock import as_aware, db_now
-from backend.modules.admin.router import require_admin
+from backend.core.paging import like_pattern, page
+from backend.modules.admin.refs import event_like, person_like
+from backend.modules.admin.router import created_between, require_admin
 from backend.modules.audit import service as audit
 from backend.modules.auth.dependencies import get_current_user
 from backend.modules.events.access import event_roles, require_event_role, require_organizer
@@ -15,7 +19,9 @@ from backend.modules.refunds import service
 from backend.modules.refunds.models import refund_requests
 from backend.modules.tickets.models import tickets
 from backend.modules.tickets.schemas import TicketStatus
-from backend.modules.refunds.schemas import CustomerRefundCreate, RefundDecision, RefundEligibility, RefundRejection, RefundRequestPublic, RefundSource, StaffRefundCreate
+from backend.modules.refunds.schemas import (
+    AdminRefundRequest, CustomerRefundCreate, RefundDecision, RefundEligibility, RefundRejection, RefundRequestPublic, RefundSource, StaffRefundCreate,
+)
 from backend.modules.users.user_model import EventRole, Role, users
 from database.database import get_session
 
@@ -192,13 +198,45 @@ def organizer_refund(order_id: uuid.UUID, data: StaffRefundCreate, background: B
     return service.to_public(session, request)
 
 
-@router.get("/admin/refund-requests", response_model=list[RefundRequestPublic])
-def admin_refunds(request_status: str = Query(default="PENDING_ADMIN", alias="status"), execution_status: str | None = None, limit: int = Query(default=50, ge=1, le=200),
+@router.get("/admin/refund-requests", response_model=list[AdminRefundRequest])
+def admin_refunds(response: Response, request_status: str = Query(default="PENDING_ADMIN", alias="status"), execution_status: str | None = None,
+                  source: RefundSource | None = None, event_id: uuid.UUID | None = None, q: str | None = None,
+                  date_from: AwareDatetime | None = Query(default=None, alias="from"), date_to: AwareDatetime | None = Query(default=None, alias="to"),
+                  limit: int = Query(default=50, ge=1, le=200), offset: int = Query(default=0, ge=0),
                   session: Session = Depends(get_session), admin: users = Depends(require_admin)):
-    query = select(refund_requests).where(refund_requests.status == request_status)
+    query = select(refund_requests).join(orders, orders.id == refund_requests.order_id).where(*created_between(refund_requests.created_at, date_from, date_to))
+    if request_status != "ALL":
+        query = query.where(refund_requests.status == request_status)
     if execution_status:
         query = query.where(refund_requests.execution_status == execution_status)
-    return [service.to_public(session, r) for r in session.exec(query.order_by(refund_requests.created_at).limit(limit)).all()]
+    if source is not None:
+        query = query.where(refund_requests.source == source.value)
+    if event_id is not None:
+        query = query.where(orders.event_id == event_id)
+    if q and q.strip():
+        pattern = like_pattern(q)
+        number = like_pattern(q.strip().upper().removeprefix("BF-RR-"))[1:]
+        query = query.where(or_(cast(refund_requests.id, Text).ilike(number), orders.order_number.ilike(pattern), person_like(orders.buyer_user_id, pattern),
+                                event_like(orders.event_id, pattern)))
+    return service.to_admin(session, page(session, response, query.order_by(refund_requests.created_at, refund_requests.id), limit, offset))
+
+
+@router.get("/admin/refund-requests/{request_id}", response_model=AdminRefundRequest)
+def admin_refund_request(request_id: uuid.UUID, session: Session = Depends(get_session), admin: users = Depends(require_admin)):
+    request = session.get(refund_requests, request_id)
+    if request is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Refund request not found")
+    return service.to_admin(session, [request])[0]
+
+
+@router.post("/admin/refund-requests/{request_id}/check-status", response_model=AdminRefundRequest)
+def check_refund(request_id: uuid.UUID, background: BackgroundTasks, session: Session = Depends(get_session), admin: users = Depends(require_admin)):
+    if session.get(refund_requests, request_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Refund request not found")
+    service.check_attempt(session, request_id)
+    background.add_task(notify.deliver_due)
+    session.expire_all()
+    return service.to_admin(session, [session.get(refund_requests, request_id)])[0]
 
 
 @router.post("/admin/orders/{order_id}/refund", response_model=RefundRequestPublic, status_code=status.HTTP_201_CREATED)

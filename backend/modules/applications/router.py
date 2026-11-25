@@ -1,13 +1,17 @@
 import uuid
+from typing import Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
-from sqlalchemy import delete
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Response, UploadFile, status
+from pydantic import AwareDatetime
+from sqlalchemy import delete, or_
 from sqlmodel import Session, select
 
 from backend.core.clock import db_now
 from backend.core.config import MAX_APPLICATION_IMAGES
 from backend.core.media import save_image
-from backend.modules.admin.router import require_admin
+from backend.core.paging import like_pattern, page
+from backend.modules.admin.refs import person_like
+from backend.modules.admin.router import created_between, require_admin
 from backend.modules.applications import service
 from backend.modules.applications.schemas import (AgreementAcceptance, ApplicationInput, ApplicationPublic, ApprovalRequest, CurrentAgreement,
                                                   RejectionRequest)
@@ -208,12 +212,16 @@ def duplicate_event(event_id: uuid.UUID, session: Session = Depends(get_session)
 
 
 @admin_router.get("", response_model=list[ApplicationPublic])
-def admin_list(application_status: EventStatus | None = Query(default=EventStatus.PENDING, alias="status"), limit: int = Query(default=50, ge=1, le=200),
+def admin_list(response: Response, application_status: EventStatus | Literal["ALL"] = Query(default=EventStatus.PENDING, alias="status"), q: str | None = None,
+               date_from: AwareDatetime | None = Query(default=None, alias="from"), date_to: AwareDatetime | None = Query(default=None, alias="to"), limit: int = Query(default=50, ge=1, le=200),
                offset: int = Query(default=0, ge=0), session: Session = Depends(get_session), admin: users = Depends(require_admin)):
-    query = select(event_applications)
-    if application_status is not None:
-        query = query.where(event_applications.status == application_status)
-    rows = session.exec(query.order_by(event_applications.submitted_at.asc().nulls_last(), event_applications.created_at).limit(limit).offset(offset)).all()
+    query = select(event_applications).where(*created_between(event_applications.submitted_at, date_from, date_to))
+    query = query.where(event_applications.status != EventStatus.DRAFT if application_status == "ALL" else event_applications.status == application_status)
+    if q and q.strip():
+        pattern = like_pattern(q)
+        query = query.where(or_(event_applications.application_number.ilike(pattern), event_applications.title.ilike(pattern), event_applications.responsible_name.ilike(pattern),
+                                event_applications.responsible_email.ilike(pattern), person_like(event_applications.applicant_user_id, pattern)))
+    rows = page(session, response, query.order_by(event_applications.submitted_at.asc().nulls_last(), event_applications.created_at, event_applications.id), limit, offset)
     return [service.to_public(session, a) for a in rows]
 
 

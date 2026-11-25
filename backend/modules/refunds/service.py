@@ -9,7 +9,9 @@ from sqlmodel import Session, select
 
 from backend.core.clock import as_aware, db_now
 from backend.core.config import FRONTEND_URL
+from backend.modules.admin.refs import event_refs, people
 from backend.modules.audit import service as audit
+from backend.modules.audit.models import audit_logs
 from backend.modules.events.models import events
 from backend.modules.events.schemas import EventLifecycleStatus
 from backend.modules.notifications import service as notify
@@ -20,7 +22,7 @@ from backend.modules.payments.models import payments
 from backend.modules.payments.schemas import PaymentStatus
 from backend.modules.payments.service import is_simulated
 from backend.modules.refunds.models import refund_requests, refunds
-from backend.modules.refunds.schemas import MANDATORY_SOURCES, RefundAttemptPublic, RefundEligibility, RefundRequestPublic, RefundSource
+from backend.modules.refunds.schemas import MANDATORY_SOURCES, AdminRefundAttempt, AdminRefundRequest, RefundAttemptPublic, RefundEligibility, RefundRequestPublic, RefundSource
 from backend.modules.tickets.models import tickets
 from backend.modules.tickets.schemas import TicketStatus
 from backend.modules.users.user_model import EventRole, Role, event_user_roles, users
@@ -38,6 +40,7 @@ UNKNOWN_SLOW_AFTER = timedelta(minutes=30)
 UNKNOWN_ESCALATE_AFTER = timedelta(hours=24)
 OPEN_EXECUTION = ("NOT_STARTED", "IN_PROGRESS")
 UNFINISHED_ATTEMPT = ("PENDING", "PROCESSING", "UNKNOWN")
+FAILURE_REASONS = {"FAILED": "BANK_REFUSED", "UNKNOWN": "BANK_NOT_CONFIRMED", "PENDING": "NOT_SENT"}
 
 SIMULATED_OUTCOME = "SUCCEEDED"
 SIMULATED_RECONCILE_OUTCOME = "SUCCEEDED"
@@ -225,15 +228,64 @@ def escalates_at(request: refund_requests) -> datetime | None:
     return as_aware(request.created_at) + ESCALATE_AFTER if request.status == "PENDING" else None
 
 
+def request_number(request_id: uuid.UUID) -> str:
+    return f"BF-RR-{request_id.hex[:8].upper()}"
+
+
 def to_public(session: Session, request: refund_requests) -> RefundRequestPublic:
     order = session.get(orders, request.order_id)
     attempts = session.exec(select(refunds).where(refunds.refund_request_id == request.id).order_by(refunds.created_at)).all()
-    return RefundRequestPublic(id=request.id, order_id=order.id, order_number=order.order_number, event_id=order.event_id, source=request.source, status=request.status,
+    return RefundRequestPublic(id=request.id, request_number=request_number(request.id), order_id=order.id, order_number=order.order_number, event_id=order.event_id, source=request.source, status=request.status,
                                execution_status=request.execution_status, reason_code=request.reason_code, comment=request.comment, amount_minor=order.total_minor,
                                created_at=request.created_at, reviewed_at=request.reviewed_at, execution_finalized_at=request.execution_finalized_at,
                                escalates_at=escalates_at(request),
                                attempts=[RefundAttemptPublic(id=a.id, amount_minor=a.amount_minor, status=a.status, attempt_actor=a.attempt_actor, created_at=a.created_at,
                                                              finalized_at=a.finalized_at) for a in attempts])
+
+
+def to_admin(session: Session, rows: list[refund_requests]) -> list[AdminRefundRequest]:
+    ids, order_ids = [r.id for r in rows], {r.order_id for r in rows}
+    found = {order.id: (order, event) for order, event in session.exec(select(orders, events).join(events, events.id == orders.event_id).where(orders.id.in_(order_ids))).all()}
+    refs = event_refs(session, [event.id for _, event in found.values()])
+    buyers = people(session, [order.buyer_user_id for order, _ in found.values()])
+    attempts: dict[uuid.UUID, list[AdminRefundAttempt]] = {}
+    for a in session.exec(select(refunds).where(refunds.refund_request_id.in_(ids)).order_by(refunds.created_at, refunds.id)).all():
+        attempts.setdefault(a.refund_request_id, []).append(AdminRefundAttempt(
+            id=a.id, amount_minor=a.amount_minor, status=a.status, attempt_actor=a.attempt_actor, created_at=a.created_at, finalized_at=a.finalized_at,
+            provider_ref=a.provider_ref, failure_reason=FAILURE_REASONS.get(a.status), next_check_at=a.next_check_at, next_retry_at=a.next_retry_at))
+    counts: dict[uuid.UUID, dict[TicketStatus, int]] = {}
+    for order_id, ticket_status, number in session.exec(select(tickets.order_id, tickets.status, func.count()).where(tickets.order_id.in_(order_ids))
+                                                        .group_by(tickets.order_id, tickets.status)).all():
+        counts.setdefault(order_id, {})[ticket_status] = number
+    escalated = dict(session.exec(select(audit_logs.entity_id, audit_logs.created_at).where(audit_logs.entity_id.in_(ids), audit_logs.action_type == "REFUND_ESCALATED")).all())
+    result = []
+    for r in rows:
+        order, event = found[r.order_id]
+        ref, (name, email) = refs[event.id], buyers[order.buyer_user_id]
+        created, voluntary = as_aware(r.created_at), r.source == RefundSource.CUSTOMER.value
+        own = counts.get(order.id, {})
+        result.append(AdminRefundRequest(
+            id=r.id, request_number=request_number(r.id), order_id=order.id, order_number=order.order_number, event_id=event.id, source=r.source, status=r.status,
+            execution_status=r.execution_status, reason_code=r.reason_code, comment=r.comment, amount_minor=order.total_minor, created_at=r.created_at,
+            reviewed_at=r.reviewed_at, execution_finalized_at=r.execution_finalized_at, escalates_at=escalates_at(r), event_title=ref.title, event_public_id=ref.public_id,
+            organizer_name=ref.organizer_name, buyer_name=name, buyer_email=email, refund_policy=order.refund_policy_snapshot or {},
+            refund_deadline=policy_deadline(event, order), tickets_total=sum(own.values()), tickets_checked_in=own.get(TicketStatus.CHECKED_IN, 0),
+            reminder_at=created + REMIND_AFTER if voluntary else None, escalation_at=created + ESCALATE_AFTER if voluntary else None,
+            escalated_at=escalated.get(r.id), attempts=attempts.get(r.id, [])))
+    return result
+
+
+def check_attempt(session: Session, request_id: uuid.UUID) -> None:
+    attempt = session.exec(select(refunds).where(refunds.refund_request_id == request_id).order_by(refunds.created_at.desc(), refunds.id).limit(1)).first()
+    if attempt is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "The refund was not sent to the bank yet")
+    attempt_id, stuck = attempt.id, as_aware(attempt.updated_at) <= db_now(session) - STUCK_AFTER
+    if attempt.status == "PROCESSING" and not stuck:
+        raise HTTPException(status.HTTP_409_CONFLICT, "The bank is still processing this refund, please try again in a few minutes")
+    unresolved = attempt.status in ("UNKNOWN", "PROCESSING")
+    session.rollback()
+    if unresolved:
+        _execute(attempt_id, reconcile=True)
 
 
 def _attempt_actor(request: refund_requests, manual_admin: bool) -> str:

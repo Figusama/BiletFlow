@@ -60,6 +60,7 @@ class RefundAttemptPublic(BaseModel):
 
 class RefundRequestPublic(BaseModel):
     id: uuid.UUID
+    request_number: str
     order_id: uuid.UUID
     order_number: str
     event_id: uuid.UUID
@@ -74,6 +75,29 @@ class RefundRequestPublic(BaseModel):
     execution_finalized_at: datetime | None
     escalates_at: datetime | None
     attempts: list[RefundAttemptPublic]
+
+
+class AdminRefundAttempt(RefundAttemptPublic):
+    provider_ref: str | None
+    failure_reason: str | None
+    next_check_at: datetime | None
+    next_retry_at: datetime | None
+
+
+class AdminRefundRequest(RefundRequestPublic):
+    event_title: str
+    event_public_id: str
+    organizer_name: str | None
+    buyer_name: str | None
+    buyer_email: str
+    refund_policy: dict
+    refund_deadline: datetime | None
+    tickets_total: int
+    tickets_checked_in: int
+    reminder_at: datetime | None
+    escalation_at: datetime | None
+    escalated_at: datetime | None
+    attempts: list[AdminRefundAttempt]
 
 
 class RefundEligibility(BaseModel):

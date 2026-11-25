@@ -27,9 +27,30 @@ class CancellationPublic(BaseModel):
     id: uuid.UUID
     event_id: uuid.UUID
     event_title: str
+    event_public_id: str
+    organizer_name: str | None
     status: str
     reason: str
     refund_handling_mode: str | None
     review_comment: str | None
     reviewed_at: datetime | None
     created_at: datetime
+
+
+class CancellationImpact(BaseModel):
+    tickets_issued: int
+    tickets_valid: int
+    tickets_checked_in: int
+    free_tickets: int
+    paid_orders: int
+    paid_amount_minor: int
+    free_orders: int
+    refunded_orders: int
+    payments_in_progress: int
+    pending_change_request_id: uuid.UUID | None
+    pending_change_request_number: str | None
+    default_refund_handling_mode: RefundHandlingMode
+
+
+class CancellationDetail(CancellationPublic):
+    impact: CancellationImpact

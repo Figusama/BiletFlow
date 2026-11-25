@@ -2,19 +2,23 @@ import logging
 import uuid
 from datetime import datetime, timedelta
 
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, exists, func, or_
 from sqlmodel import Session, select
 
 from backend.core.clock import as_aware, db_now
 from backend.core.config import FRONTEND_URL
 from backend.modules.audit import service as audit
+from backend.modules.cancellation.schemas import CancellationImpact
 from backend.modules.events.models import event_change_requests, events
 from backend.modules.events.schemas import EventLifecycleStatus, EventStatus
 from backend.modules.notifications import service as notify
 from backend.modules.notifications.models import outbox_events
 from backend.modules.orders.models import orders, reservations
 from backend.modules.orders.schemas import OrderStatus, ReservationStatus
+from backend.modules.payments.models import payments
+from backend.modules.payments.schemas import UNFINISHED_PAYMENT_STATUSES
 from backend.modules.refunds import service as refund_service
+from backend.modules.refunds.models import refunds
 from backend.modules.refunds.schemas import RefundSource
 from backend.modules.tickets.models import tickets
 from backend.modules.tickets.schemas import TicketStatus
@@ -29,6 +33,29 @@ LEASE = timedelta(minutes=10)
 
 def default_mode(event: events, now: datetime) -> str:
     return "AUTOMATIC_FULL" if now < as_aware(event.starts_at) else "ADMIN_REVIEW"
+
+
+def impact(session: Session, event: events, now: datetime) -> CancellationImpact:
+    by_status = dict(session.exec(select(tickets.status, func.count()).where(tickets.event_id == event.id).group_by(tickets.status)).all())
+    active = (TicketStatus.VALID, TicketStatus.CHECKED_IN)
+    confirmed = [orders.event_id == event.id, orders.status == OrderStatus.CONFIRMED]
+    refunded = exists().where(refunds.order_id == orders.id, refunds.status == "SUCCEEDED")
+    active_ticket = exists().where(tickets.order_id == orders.id, tickets.status.in_(active))
+    paid_orders, paid_amount = session.exec(select(func.count(), func.coalesce(func.sum(orders.total_minor), 0)).select_from(orders)
+                                            .where(*confirmed, orders.total_minor > 0, ~refunded)).one()
+    free_orders = session.exec(select(func.count()).select_from(orders).where(*confirmed, orders.total_minor == 0, active_ticket)).one()
+    free_tickets = session.exec(select(func.count()).select_from(tickets).join(orders, orders.id == tickets.order_id)
+                                .where(*confirmed, orders.total_minor == 0, tickets.status.in_(active))).one()
+    change = session.exec(select(event_change_requests).where(event_change_requests.event_id == event.id, event_change_requests.status == EventStatus.PENDING)).first()
+    return CancellationImpact(
+        tickets_issued=sum(by_status.values()), tickets_valid=by_status.get(TicketStatus.VALID, 0), tickets_checked_in=by_status.get(TicketStatus.CHECKED_IN, 0),
+        free_tickets=free_tickets, paid_orders=paid_orders, paid_amount_minor=int(paid_amount), free_orders=free_orders,
+        refunded_orders=session.exec(select(func.count()).select_from(orders).where(*confirmed, refunded)).one(),
+        payments_in_progress=session.exec(select(func.count()).select_from(payments).join(orders, orders.id == payments.order_id)
+                                          .where(orders.event_id == event.id, payments.status.in_(UNFINISHED_PAYMENT_STATUSES))).one(),
+        pending_change_request_id=change.id if change else None, pending_change_request_number=change.request_number if change else None,
+        default_refund_handling_mode=default_mode(event, now),
+    )
 
 
 def cancel_event(session: Session, event: events, actor_user_id: uuid.UUID | None, mode: str, reason: str, now: datetime) -> None:
