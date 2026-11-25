@@ -10,7 +10,11 @@ interface SeatMapProps {
     colorOf: (ticketTypeId: string | null) => string
     selectedIds: string[]
     onToggle: (seat: Seat) => void
+    isSelectable?: (seat: Seat) => boolean
+    selectedLabel?: string
 }
+
+const isAvailable = (seat: Seat) => seat.state === 'AVAILABLE'
 
 const seatClass = 'size-5 shrink-0 rounded transition-transform md:size-6 md:rounded-md'
 const selectedClass = 'bg-night ring-2 ring-accent ring-offset-1 ring-offset-surface'
@@ -24,7 +28,7 @@ const LegendItem = ({ swatch, label }: { swatch: string; label: string }) => (
     </li>
 )
 
-const SeatMap = ({ sections, ticketTypes, colorOf, selectedIds, onToggle }: SeatMapProps) => {
+const SeatMap = ({ sections, ticketTypes, colorOf, selectedIds, onToggle, isSelectable = isAvailable, selectedLabel }: SeatMapProps) => {
     const { t } = useLanguage()
     const typeById = new Map(ticketTypes.map((type) => [type.id, type]))
     const scrollRef = useRef<HTMLDivElement>(null)
@@ -70,7 +74,7 @@ const SeatMap = ({ sections, ticketTypes, colorOf, selectedIds, onToggle }: Seat
                                                         title={details}
                                                         aria-label={details}
                                                         aria-pressed={isSelected}
-                                                        disabled={seat.state !== 'AVAILABLE' && !isSelected}
+                                                        disabled={!isSelectable(seat) && !isSelected}
                                                         onClick={() => onToggle(seat)}
                                                         className={`${seatClass} ${getSeatClass(seat, isSelected)} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed`}
                                                     />
@@ -89,7 +93,7 @@ const SeatMap = ({ sections, ticketTypes, colorOf, selectedIds, onToggle }: Seat
                 {ticketTypes.map((type) => (
                     <LegendItem key={type.id} swatch={colorOf(type.id)} label={`${type.name} ${formatKzt(type.price_minor)}`} />
                 ))}
-                <LegendItem swatch={selectedClass} label={t.seats.yourSeats} />
+                <LegendItem swatch={selectedClass} label={selectedLabel ?? t.seats.yourSeats} />
                 <LegendItem swatch={takenClass} label={t.seats.taken} />
                 <LegendItem swatch={unavailableClass} label={t.seats.unavailable} />
             </ul>

@@ -30,7 +30,7 @@ const ApplicationRow = ({ application }: { application: Application }) => {
 
     return (
         <Link
-            to={`/organizer/applications/${application.id}`}
+            to={application.event_id ? `/organizer/events/${application.event_id}` : `/organizer/applications/${application.id}`}
             className="flex items-center gap-4 rounded-2xl border border-border bg-surface px-5 py-4 transition-shadow hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
             <div className="min-w-0 flex-1">

@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { createBrowserRouter, redirect } from 'react-router-dom'
 import AppLayout from '../components/layout/AppLayout'
 import EventsPage from '../pages/EventsPage'
 import NotFoundPage from '../pages/NotFoundPage'
@@ -16,6 +16,13 @@ import CheckoutPage from '../pages/CheckoutPage'
 import OrderPage from '../pages/OrderPage'
 import ApplicationPage from '../pages/ApplicationPage'
 import MyApplicationsPage from '../pages/MyApplicationsPage'
+import OrganizerEventPage from '../pages/OrganizerEventPage'
+import OrganizerTicketTypesPage from '../pages/OrganizerTicketTypesPage'
+import OrganizerSeatingPage from '../pages/OrganizerSeatingPage'
+import OrganizerPaidSalesPage from '../pages/OrganizerPaidSalesPage'
+import FeeSimulatorPage from '../pages/FeeSimulatorPage'
+import OrganizerChangeRequestsPage from '../pages/OrganizerChangeRequestsPage'
+import OrganizerEventLayout from '../features/organizer/components/OrganizerEventLayout'
 import RequireAuth from '../features/auth/requireAuth'
 import { verifyEmail } from '../features/auth/auth'
 import { ApiError } from '../shared/api/client'
@@ -36,6 +43,10 @@ export const router = createBrowserRouter([
                     {
                         path: 'events/:eventId',
                         element: <EventDetailsPage />,
+                    },
+                    {
+                        path: 'events/:eventId/paid-sales',
+                        loader: ({ params }) => redirect(`/organizer/events/${params.eventId}/paid-sales`),
                     },
                     {
                         path: 'events/:eventId/tickets',
@@ -97,12 +108,42 @@ export const router = createBrowserRouter([
                                 element: <MyApplicationsPage />,
                             },
                             {
+                                path: 'paid-sales/fee-payments/:paymentId/simulator',
+                                element: <FeeSimulatorPage />,
+                            },
+                            {
                                 path: 'organizer/events/new',
                                 element: <ApplicationPage />,
                             },
                             {
                                 path: 'organizer/applications/:applicationId',
                                 element: <ApplicationPage />,
+                            },
+                            {
+                                path: 'organizer/events/:eventId',
+                                element: <OrganizerEventLayout />,
+                                children: [
+                                    {
+                                        index: true,
+                                        element: <OrganizerEventPage />,
+                                    },
+                                    {
+                                        path: 'ticket-types',
+                                        element: <OrganizerTicketTypesPage />,
+                                    },
+                                    {
+                                        path: 'seating',
+                                        element: <OrganizerSeatingPage />,
+                                    },
+                                    {
+                                        path: 'paid-sales',
+                                        element: <OrganizerPaidSalesPage />,
+                                    },
+                                    {
+                                        path: 'change-requests',
+                                        element: <OrganizerChangeRequestsPage />,
+                                    },
+                                ],
                             },
                         ],
                     },
