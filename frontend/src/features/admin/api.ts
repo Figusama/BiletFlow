@@ -169,3 +169,60 @@ export const approveActivation = (requestId: string) => api<unknown>(`/admin/pai
 
 export const rejectActivation = (requestId: string, reason: string) =>
     api<unknown>(`/admin/paid-sales/requests/${requestId}/reject`, { method: 'POST', json: { reason } })
+
+export interface AdminUser {
+    id: string
+    public_id: string
+    email: string
+    full_name: string | null
+    personal_role: 'USER' | 'PLATFORM_ADMIN'
+    is_suspended: boolean
+    created_at: string
+}
+
+export type UserStatusFilter = 'ALL' | 'ACTIVE' | 'SUSPENDED'
+
+export const userStatusFilters: UserStatusFilter[] = ['ALL', 'ACTIVE', 'SUSPENDED']
+
+export const adminUsersKey = ['admin', 'users']
+
+export const useAdminUsers = (status: UserStatusFilter, search: string, page: number, pageSize: number) =>
+    useQuery({
+        queryKey: [...adminUsersKey, 'list', status, search, page],
+        queryFn: () => {
+            const params = new URLSearchParams({ limit: String(pageSize + 1), offset: String(page * pageSize) })
+            if (status !== 'ALL') params.set('suspended', String(status === 'SUSPENDED'))
+            if (search) params.set('q', search)
+            return api<AdminUser[]>(`/admin/users?${params}`)
+        },
+        placeholderData: keepPreviousData,
+    })
+
+export const useAdminUser = (publicId: string | undefined) =>
+    useQuery({
+        queryKey: [...adminUsersKey, 'detail', publicId],
+        queryFn: async () => {
+            const rows = await api<AdminUser[]>(`/admin/users?q=${encodeURIComponent(publicId ?? '')}&limit=5`)
+            return rows.find((user) => user.public_id === publicId) ?? null
+        },
+        enabled: Boolean(publicId),
+    })
+
+export interface AdminOrder {
+    id: string
+    order_number: string
+    event_title: string
+    status: 'CONFIRMED' | 'PENDING' | 'CANCELLED' | 'EXPIRED'
+    total_minor: number
+    created_at: string
+}
+
+export const useAdminUserOrders = (email: string | undefined) =>
+    useQuery({
+        queryKey: ['admin', 'orders', 'by-buyer', email],
+        queryFn: () => api<AdminOrder[]>(`/admin/orders?q=${encodeURIComponent(email ?? '')}&limit=5`),
+        enabled: Boolean(email),
+    })
+
+export const setUserSuspended = (userId: string, suspended: boolean) =>
+    api<void>(`/users/${userId}/${suspended ? 'suspend' : 'unsuspend'}`, { method: 'POST' })
