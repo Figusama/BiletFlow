@@ -26,7 +26,7 @@ export const formatEventDate = (event: EventSummary, t: Dictionary, withWeekday 
     return withWeekday ? `${t.dates.weekdays[weekday]} ${date}` : date
 }
 
-export const formatEventTimeRange = (event: EventSummary, t: Dictionary) => {
+export const formatEventTimeRange = (event: Pick<EventSummary, 'starts_at' | 'ends_at' | 'timezone'>, t: Dictionary) => {
     const startsAt = new Date(event.starts_at)
     const endsAt = new Date(event.ends_at)
     const start = getDateParts(startsAt, event.timezone)

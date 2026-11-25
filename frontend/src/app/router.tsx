@@ -15,6 +15,7 @@ import MyTicketsPage from '../pages/MyTicketsPage'
 import CheckoutPage from '../pages/CheckoutPage'
 import OrderPage from '../pages/OrderPage'
 import ApplicationPage from '../pages/ApplicationPage'
+import MyApplicationsPage from '../pages/MyApplicationsPage'
 import RequireAuth from '../features/auth/requireAuth'
 import { verifyEmail } from '../features/auth/auth'
 import { ApiError } from '../shared/api/client'
@@ -92,6 +93,10 @@ export const router = createBrowserRouter([
                                 element: <OrderPage />,
                             },
                             {
+                                path: 'organizer/events',
+                                element: <MyApplicationsPage />,
+                            },
+                            {
                                 path: 'organizer/events/new',
                                 element: <ApplicationPage />,
                             },
@@ -102,16 +107,8 @@ export const router = createBrowserRouter([
                         ],
                     },
                     {
-                        path: 'organizer/events',
-                        element: <ComingSoonPage titleKey="myEvents" />,
-                    },
-                    {
                         path: 'organizer/help',
                         element: <ComingSoonPage titleKey="organizerHelp" />,
-                    },
-                    {
-                        path: 'notifications',
-                        element: <ComingSoonPage titleKey="notifications" />,
                     },
                     {
                         path: 'help',

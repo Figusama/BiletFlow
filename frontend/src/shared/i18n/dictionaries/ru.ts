@@ -427,6 +427,20 @@ export const ru: Dictionary = {
         withdrawnText: 'Вы отозвали эту заявку.',
         notFound: 'Заявка не найдена',
     },
+    notifications: {
+        title: 'Уведомления',
+        button: (unread: number) => (unread > 0 ? `Уведомления, непрочитанных: ${unread}` : 'Уведомления'),
+        markAllRead: 'Прочитать все',
+        empty: 'Уведомлений пока нет.',
+        failed: 'Не удалось загрузить уведомления.',
+    },
+    myApplications: {
+        title: 'Мои события',
+        newApplication: 'Новая заявка',
+        untitled: 'Без названия',
+        empty: 'У вас пока нет заявок.',
+        failed: 'Не удалось загрузить заявки.',
+    },
     footer: {
         help: 'Помощь',
         location: 'Астана, Казахстан',
@@ -434,10 +448,8 @@ export const ru: Dictionary = {
     },
     pageTitles: {
         createEvent: 'Создать событие',
-        myEvents: 'Мои события',
         organizerHelp: 'Помощь организаторам',
         help: 'Помощь',
-        notifications: 'Уведомления',
     },
     comingSoon: {
         eyebrow: 'Скоро',

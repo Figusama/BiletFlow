@@ -18,6 +18,7 @@ import OrganizerPanel from './OrganizerPanel'
 import ProfileMenu from './ProfileMenu'
 import { mainLinks, navLinkClass } from './navigation'
 import Icon from '../ui/Icon'
+import NotificationsMenu from '../../features/notifications/components/NotificationsMenu'
 
 type OpenMenu = 'organizers' | 'mobile' | null
 
@@ -117,14 +118,7 @@ const Header = () => {
                                 </span>
                             ) : user ? (
                                 <>
-                                    <Link
-                                        to="/notifications"
-                                        onClick={closeMenu}
-                                        aria-label={t.nav.notifications}
-                                        className="grid size-10 shrink-0 place-items-center rounded-full text-foreground hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-accent"
-                                    >
-                                        <Icon name="bell" className="size-5" />
-                                    </Link>
+                                    <NotificationsMenu />
                                     <ProfileMenu fullName={user.fullName} onLogout={handleLogout} />
                                 </>
                             ) : (

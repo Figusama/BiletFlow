@@ -33,6 +33,7 @@ export interface Application {
     categories: (EventCategory & { id: string })[]
     images: ApplicationImage[]
     agreements: { document_type: AgreementType; document_version: string; is_current: boolean }[]
+    venue_name_snapshot: string | null
     review_comment: string | null
     event_id: string | null
     missing_for_submit: string[]
@@ -90,6 +91,9 @@ export const useApplication = (id: string | undefined) =>
         enabled: Boolean(id),
     })
 
+export const useMyApplications = () =>
+    useQuery({ queryKey: ['applications', 'mine'], queryFn: () => api<Application[]>('/event-applications/mine') })
+
 export const useCategories = () =>
     useQuery({ queryKey: ['categories'], queryFn: () => api<Category[]>('/categories'), staleTime: Infinity })
 
@@ -102,8 +106,8 @@ export const useCurrentAgreements = () =>
         staleTime: Infinity,
     })
 
-export const createApplication = () =>
-    api<{ id: string }>('/events/applications/create', { method: 'POST', json: { intends_paid_sales: false } })
+export const createApplication = (input: ApplicationInput) =>
+    api<Application>('/event-applications', { method: 'POST', json: input })
 
 export const updateApplication = (id: string, input: ApplicationInput) =>
     api<Application>(`/event-applications/${id}`, { method: 'PATCH', json: input })

@@ -66,3 +66,12 @@ export const fromDateTimeInput = (value: string, timeZone: string) => {
     const offset = new Date(`${shown}:00Z`).getTime() - asUtc.getTime()
     return new Date(asUtc.getTime() - offset).toISOString()
 }
+
+export const isValidTimeZone = (timeZone: string) => {
+    try {
+        new Intl.DateTimeFormat('en-US', { timeZone })
+        return true
+    } catch {
+        return false
+    }
+}

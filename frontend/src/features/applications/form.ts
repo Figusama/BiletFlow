@@ -1,4 +1,4 @@
-import { APP_TIME_ZONE, fromDateTimeInput, toDateTimeInput } from '../../shared/lib/date'
+import { APP_TIME_ZONE, fromDateTimeInput, isValidTimeZone, toDateTimeInput } from '../../shared/lib/date'
 import type { AuthUser } from '../auth/authSlice'
 import type { AgreementType, Application, ApplicationInput, SeatingMode, Venue, Visibility } from './api'
 
@@ -40,7 +40,7 @@ export const emptyForm = (user: AuthUser | null): ApplicationForm => ({
 
 export const formFromApplication = (application: Application, user: AuthUser | null): ApplicationForm => {
     const empty = emptyForm(user)
-    const timezone = application.timezone ?? empty.timezone
+    const timezone = application.timezone && isValidTimeZone(application.timezone) ? application.timezone : empty.timezone
 
     return {
         title: application.title ?? '',

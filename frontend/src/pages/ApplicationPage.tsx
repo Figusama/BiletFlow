@@ -133,9 +133,11 @@ const ApplicationEditor = ({ application }: { application?: Application }) => {
         }
 
         try {
-            createdId.current ??= application?.id ?? (await createApplication()).id
-            const id = createdId.current
-            let saved = await updateApplication(id, formToInput(form))
+            const input = formToInput(form)
+            const existingId = application?.id ?? createdId.current
+            let saved = existingId ? await updateApplication(existingId, input) : await createApplication(input)
+            createdId.current = saved.id
+            const id = saved.id
             const toAccept = checkedAgreements.filter((documentType) => !acceptedAgreements.includes(documentType))
             if (toAccept.length > 0) saved = await acceptAgreements(id, toAccept)
             store(saved)
@@ -219,7 +221,9 @@ const ApplicationEditor = ({ application }: { application?: Application }) => {
     return (
         <div className={pageClass}>
             <p className="flex gap-2 text-xs font-bold tracking-widest text-muted uppercase">
-                <span>{t.application.breadcrumb}</span>
+                <Link to="/organizer/events" className="hover:text-accent">
+                    {t.application.breadcrumb}
+                </Link>
                 {application && <span>{application.application_number}</span>}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-3">

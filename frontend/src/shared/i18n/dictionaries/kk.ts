@@ -420,6 +420,20 @@ export const kk: Dictionary = {
         withdrawnText: 'Сіз бұл өтінімді кері қайтардыңыз.',
         notFound: 'Өтінім табылмады',
     },
+    notifications: {
+        title: 'Хабарламалар',
+        button: (unread: number) => (unread > 0 ? `Хабарламалар, оқылмаған: ${unread}` : 'Хабарламалар'),
+        markAllRead: 'Бәрін оқылды деп белгілеу',
+        empty: 'Әзірге хабарлама жоқ.',
+        failed: 'Хабарламаларды жүктеу мүмкін болмады.',
+    },
+    myApplications: {
+        title: 'Менің іс-шараларым',
+        newApplication: 'Жаңа өтінім',
+        untitled: 'Атауы жоқ',
+        empty: 'Сізде әзірге өтінім жоқ.',
+        failed: 'Өтінімдерді жүктеу мүмкін болмады.',
+    },
     footer: {
         help: 'Көмек',
         location: 'Астана, Қазақстан',
@@ -427,10 +441,8 @@ export const kk: Dictionary = {
     },
     pageTitles: {
         createEvent: 'Іс-шара құру',
-        myEvents: 'Менің іс-шараларым',
         organizerHelp: 'Ұйымдастырушыларға көмек',
         help: 'Көмек',
-        notifications: 'Хабарламалар',
     },
     comingSoon: {
         eyebrow: 'Жақында',

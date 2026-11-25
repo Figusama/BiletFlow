@@ -415,6 +415,20 @@ export const en = {
         withdrawnText: 'You withdrew this application.',
         notFound: 'Application not found',
     },
+    notifications: {
+        title: 'Notifications',
+        button: (unread: number) => (unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'),
+        markAllRead: 'Mark all as read',
+        empty: 'No notifications yet.',
+        failed: 'Could not load notifications.',
+    },
+    myApplications: {
+        title: 'My events',
+        newApplication: 'New application',
+        untitled: 'Untitled event',
+        empty: 'You have no applications yet.',
+        failed: 'Could not load your applications.',
+    },
     footer: {
         help: 'Help',
         location: 'Astana, Kazakhstan',
@@ -422,10 +436,8 @@ export const en = {
     },
     pageTitles: {
         createEvent: 'Create an event',
-        myEvents: 'My events',
         organizerHelp: 'Organizer help',
         help: 'Help',
-        notifications: 'Notifications',
     },
     comingSoon: {
         eyebrow: 'Coming soon',
