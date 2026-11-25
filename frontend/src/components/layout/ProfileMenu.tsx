@@ -10,10 +10,11 @@ const itemClass =
 
 interface ProfileMenuProps {
     fullName: string
+    isAdmin?: boolean
     onLogout: () => void
 }
 
-const ProfileMenu = ({ fullName, onLogout }: ProfileMenuProps) => {
+const ProfileMenu = ({ fullName, isAdmin = false, onLogout }: ProfileMenuProps) => {
     const { t } = useLanguage()
     const [isOpen, setIsOpen] = useState(false)
     const containerRef = useRef<HTMLDivElement>(null)
@@ -63,6 +64,11 @@ const ProfileMenu = ({ fullName, onLogout }: ProfileMenuProps) => {
                 <Link to="/tickets" onClick={() => setIsOpen(false)} className={`mt-1.5 ${itemClass}`}>
                     {t.nav.myTickets}
                 </Link>
+                {isAdmin && (
+                    <Link to="/admin" onClick={() => setIsOpen(false)} className={itemClass}>
+                        {t.nav.admin}
+                    </Link>
+                )}
                 <button type="button" onClick={onLogout} className={`${itemClass} w-full text-left`}>
                     {t.nav.logOut}
                 </button>

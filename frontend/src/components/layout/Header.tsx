@@ -119,7 +119,7 @@ const Header = () => {
                             ) : user ? (
                                 <>
                                     <NotificationsMenu />
-                                    <ProfileMenu fullName={user.fullName} onLogout={handleLogout} />
+                                    <ProfileMenu fullName={user.fullName} isAdmin={user.role === 'PLATFORM_ADMIN'} onLogout={handleLogout} />
                                 </>
                             ) : (
                                 <Link

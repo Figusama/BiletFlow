@@ -44,10 +44,12 @@ export const signIn = async (input: SignInInput): Promise<SignInResult> => {
 }
 
 const loadCurrentUser = async (): Promise<AuthUser> => {
-    const profile = await api<{ id: string; full_name: string; email: string }>('/auth/users/me/')
+    const profile = await api<{ id: string; public_id: string; personal_role: AuthUser['role']; full_name: string; email: string }>('/auth/users/me/')
 
     return {
         id: profile.id,
+        publicId: profile.public_id,
+        role: profile.personal_role,
         fullName: profile.full_name,
         email: profile.email,
     }

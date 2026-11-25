@@ -35,10 +35,34 @@ import OrganizerRefundDetailPage from '../pages/OrganizerRefundDetailPage'
 import OrganizerRefundsPage from '../pages/OrganizerRefundsPage'
 import OrganizerEventLayout from '../features/organizer/components/OrganizerEventLayout'
 import RequireAuth from '../features/auth/requireAuth'
+import RequireAdmin from '../features/auth/requireAdmin'
+import AdminLayout from '../features/admin/components/AdminLayout'
+import AdminApplicationsPage from '../pages/AdminApplicationsPage'
+import AdminApplicationPage from '../pages/AdminApplicationPage'
 import { verifyEmail } from '../features/auth/auth'
 import { ApiError } from '../shared/api/client'
 
 export const router = createBrowserRouter([
+    {
+        path: '/admin',
+        element: <RequireAuth />,
+        errorElement: <ErrorPage />,
+        children: [
+            {
+                element: <RequireAdmin />,
+                children: [
+                    {
+                        element: <AdminLayout />,
+                        children: [
+                            { index: true, loader: () => redirect('/admin/applications') },
+                            { path: 'applications', element: <AdminApplicationsPage /> },
+                            { path: 'applications/:applicationId', element: <AdminApplicationPage /> },
+                        ],
+                    },
+                ],
+            },
+        ],
+    },
     {
         path: '/',
         element: <AppLayout />,
