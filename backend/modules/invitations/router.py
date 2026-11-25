@@ -66,7 +66,7 @@ def invite_staff(event_id: uuid.UUID, data: StaffInvitationCreate, background: B
     if invitee is None or invitee.is_suspended:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
     if invitee.id == current_user.id or invitee.id == organizer_id(session, event.id):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "The organizer cannot be invited as staff")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "The organizer cannot be invited as staff")
     if has_role(session, event.id, invitee.id, data.role.value):
         raise HTTPException(status.HTTP_409_CONFLICT, "User already holds this role")
     now = db_now(session)

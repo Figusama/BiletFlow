@@ -21,7 +21,7 @@ EMAIL = TypeAdapter(EmailStr)
 
 
 def bad(message: str) -> HTTPException:
-    return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, message)
+    return HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, message)
 
 
 def iso(value: datetime | None) -> str | None:

@@ -30,15 +30,15 @@ def type_to_public(event: events, ticket_type: ticket_types, now, available: int
 
 def _validate_type(event: events, kind: TicketKind, price_minor: int, sales_start_at, sales_end_at, quantity_total: int | None) -> None:
     if kind == TicketKind.FREE and price_minor != 0:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Free tickets must have price 0")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Free tickets must have price 0")
     if kind == TicketKind.PAID and price_minor <= 0:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Paid tickets must have a positive price")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Paid tickets must have a positive price")
     if as_aware(sales_end_at) <= as_aware(sales_start_at):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Sales must end after they start")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Sales must end after they start")
     if as_aware(sales_end_at) > as_aware(event.ends_at):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Sales must end no later than the event")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Sales must end no later than the event")
     if event.seating_mode == SeatingMode.ASSIGNED_SEATING and quantity_total is not None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Quantity is derived from assigned seats")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Quantity is derived from assigned seats")
 
 
 def _require_draft(event: events) -> None:

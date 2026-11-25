@@ -91,7 +91,7 @@ def create_venue(data: VenueCreate, session: Session = Depends(get_session), adm
     try:
         ZoneInfo(data.timezone)
     except (ZoneInfoNotFoundError, ValueError):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown timezone")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown timezone")
     venue = venues(name=data.name.strip(), address=data.address.strip(), city=data.city.strip(), timezone=data.timezone, max_capacity=data.max_capacity)
     session.add(venue)
     session.commit()
@@ -106,10 +106,10 @@ def create_layout(venue_id: uuid.UUID, data: LayoutCreate, session: Session = De
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Venue not found")
     total = sum(row.seats for section in data.sections for row in section.rows)
     if total > venue.max_capacity:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Layout has {total} seats, venue capacity is {venue.max_capacity}")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Layout has {total} seats, venue capacity is {venue.max_capacity}")
     section_names = [s.name for s in data.sections]
     if len(set(section_names)) != len(section_names):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Section names must be unique")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Section names must be unique")
     version = (session.exec(select(func.max(venue_layouts.version)).where(venue_layouts.venue_id == venue.id, venue_layouts.name == data.name)).one() or 0) + 1
     layout = venue_layouts(venue_id=venue.id, name=data.name.strip(), version=version)
     session.add(layout)
@@ -118,7 +118,7 @@ def create_layout(venue_id: uuid.UUID, data: LayoutCreate, session: Session = De
         labels = [r.label for r in section_spec.rows]
         if len(set(labels)) != len(labels):
             session.rollback()
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Row labels must be unique in section {section_spec.name}")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Row labels must be unique in section {section_spec.name}")
         section = venue_sections(layout_id=layout.id, name=section_spec.name)
         session.add(section)
         session.flush()

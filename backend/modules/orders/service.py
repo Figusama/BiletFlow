@@ -107,7 +107,7 @@ def availability(session: Session, event: events, now: datetime) -> dict[uuid.UU
 
 def _check_type_on_sale(event: events, ticket_type: ticket_types, now: datetime, session: Session) -> None:
     if ticket_type.event_id != event.id:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Ticket type does not belong to this event")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Ticket type does not belong to this event")
     state = sale_state(event, ticket_type, now, None)
     if state != "ON_SALE":
         raise HTTPException(status.HTTP_409_CONFLICT, f"Ticket type '{ticket_type.name}' is not on sale ({state})")
@@ -123,7 +123,7 @@ def create_reservation(session: Session, event_id: uuid.UUID, user: users, data:
 
     if event.seating_mode == SeatingMode.GENERAL_ADMISSION:
         if not data.items:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "General admission requires ticket type quantities")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "General admission requires ticket type quantities")
         requested = {line.ticket_type_id: line.quantity for line in data.items}
         locked = session.exec(
             select(ticket_types).where(ticket_types.id.in_(sorted(requested))).order_by(ticket_types.id).with_for_update().execution_options(populate_existing=True)
@@ -133,7 +133,7 @@ def create_reservation(session: Session, event_id: uuid.UUID, user: users, data:
         for ticket_type in locked:
             _check_type_on_sale(event, ticket_type, now, session)
             if requested[ticket_type.id] > ticket_type.max_per_order:
-                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"At most {ticket_type.max_per_order} tickets of '{ticket_type.name}' per order")
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"At most {ticket_type.max_per_order} tickets of '{ticket_type.name}' per order")
         occupied = ga_occupancy(session, event.id, now)
         if sum(occupied.values()) + sum(requested.values()) > (event.ga_capacity or 0):
             raise HTTPException(status.HTTP_409_CONFLICT, "Not enough tickets left")
@@ -147,7 +147,7 @@ def create_reservation(session: Session, event_id: uuid.UUID, user: users, data:
             session.add(reservation_items(reservation_id=reservation.id, event_id=event.id, ticket_type_id=ticket_type.id, quantity=requested[ticket_type.id]))
     else:
         if not data.event_seat_ids:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Assigned seating requires seat selection")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Assigned seating requires seat selection")
         seats = session.exec(
             select(event_seats).where(event_seats.id.in_(sorted(data.event_seat_ids))).order_by(event_seats.id).with_for_update().execution_options(populate_existing=True)
         ).all()
@@ -164,7 +164,7 @@ def create_reservation(session: Session, event_id: uuid.UUID, user: users, data:
             ticket_type = types[type_id]
             _check_type_on_sale(event, ticket_type, now, session)
             if count > ticket_type.max_per_order:
-                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"At most {ticket_type.max_per_order} tickets of '{ticket_type.name}' per order")
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"At most {ticket_type.max_per_order} tickets of '{ticket_type.name}' per order")
         taken = taken_seat_ids(session, event.id, now)
         if any(seat.id in taken for seat in seats):
             raise HTTPException(status.HTTP_409_CONFLICT, "One or more selected seats are no longer available")
@@ -206,7 +206,7 @@ def generate_order_number() -> str:
 
 
 def _promo_error(rejection: PromoRejection) -> HTTPException:
-    return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, {"code": rejection.value, "message": PROMO_MESSAGES[rejection]})
+    return HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, {"code": rejection.value, "message": PROMO_MESSAGES[rejection]})
 
 
 def create_order(session: Session, reservation_id: uuid.UUID, user: users, promo_code: str | None) -> tuple[orders, list[tickets]]:

@@ -126,7 +126,7 @@ def append_message(session: Session, case: support_cases, sender: users, body: s
 
 def mark_read(session: Session, case: support_cases, user: users, up_to_seq: int) -> None:
     if up_to_seq > case.last_message_seq:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown message sequence")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown message sequence")
     if case.requester_user_id == user.id:
         case.requester_last_read_seq = max(case.requester_last_read_seq, up_to_seq)
         if not incoming_unread(session, case, True, case.requester_last_read_seq):

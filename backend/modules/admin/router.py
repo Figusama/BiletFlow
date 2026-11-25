@@ -84,7 +84,7 @@ def suspend_event(event_id: uuid.UUID, data: SuspensionRequest, session: Session
         raise HTTPException(status.HTTP_409_CONFLICT, f"Event is {event.status.value}")
     reason = data.reason.strip()
     if not reason:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Reason is required")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Reason is required")
     if not event.is_suspended:
         now = db_now(session)
         event.is_suspended = True

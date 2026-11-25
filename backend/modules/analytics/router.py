@@ -27,7 +27,7 @@ def read_event_analytics(
 ):
     event = require_organizer(session, event_id, current_user)
     if date_from is not None and date_to is not None and date_to <= date_from:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "'to' must be after 'from'")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "'to' must be after 'from'")
     ticket_type = None
     if ticket_type_id is not None:
         ticket_type = session.get(ticket_types, ticket_type_id)

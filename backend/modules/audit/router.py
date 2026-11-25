@@ -67,7 +67,7 @@ def history_filters(date_from, date_to, categories: list[str] | None, action_typ
     if categories:
         unknown = set(categories) - set(CATEGORIES)
         if unknown:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Unknown categories: {', '.join(sorted(unknown))}")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Unknown categories: {', '.join(sorted(unknown))}")
         wanted |= {action for action, (category, _) in ACTIONS.items() if category in categories}
     if categories or action_types:
         conditions.append(audit_logs.action_type.in_(sorted(wanted)))

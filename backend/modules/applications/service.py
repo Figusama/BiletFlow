@@ -151,7 +151,7 @@ def apply_venue(session: Session, application: event_applications, venue_id: uui
         return
     venue = session.get(venues, venue_id)
     if venue is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Venue not found")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Venue not found")
     if application.venue_id != venue.id:
         application.venue_layout_id = None
     application.venue_id = venue.id
@@ -168,9 +168,9 @@ def apply_layout(session: Session, application: event_applications, layout_id: u
         return
     layout = session.get(venue_layouts, layout_id)
     if layout is None or layout.venue_id != application.venue_id:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Layout does not belong to the selected venue")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Layout does not belong to the selected venue")
     if not layout.is_active:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Layout is not active")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Layout is not active")
     application.venue_layout_id = layout.id
 
 
@@ -179,7 +179,7 @@ def replace_categories(session: Session, application_id: uuid.UUID, category_ids
     if unique_ids:
         found = session.exec(select(categories.id).where(categories.id.in_(unique_ids), categories.is_active.is_(True))).all()
         if len(found) != len(unique_ids):
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown or inactive category")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown or inactive category")
     session.exec(delete(event_application_categories).where(event_application_categories.application_id == application_id))
     for category_id in unique_ids:
         session.add(event_application_categories(application_id=application_id, category_id=category_id))
@@ -192,7 +192,7 @@ def apply_changes(session: Session, application: event_applications, changes: di
     if "venue_layout_id" in changes:
         apply_layout(session, application, changes.pop("venue_layout_id"))
     if "timezone" in changes and changes["timezone"] is not None and not valid_timezone(changes["timezone"]):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown timezone")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown timezone")
     if changes.get("seating_mode") == SeatingMode.GENERAL_ADMISSION:
         application.venue_layout_id = None
     for key, value in changes.items():
@@ -201,7 +201,7 @@ def apply_changes(session: Session, application: event_applications, changes: di
         setattr(application, key, value.strip() if isinstance(value, str) else value)
     starts_at, ends_at = application.starts_at, application.ends_at
     if starts_at and ends_at and as_aware(ends_at) <= as_aware(starts_at):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Event end must be after start")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Event end must be after start")
     if category_ids is not None:
         replace_categories(session, application.id, category_ids)
 
@@ -257,7 +257,7 @@ def approve(session: Session, application: event_applications, admin: users, rev
     now = db_now(session)
     problems = [p for p in missing_for_submit(session, application, now) if not p.startswith("agreement:")]
     if problems:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, {"code": "incomplete_application", "problems": problems})
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, {"code": "incomplete_application", "problems": problems})
     venue = session.get(venues, application.venue_id)
     if application.seating_mode == SeatingMode.ASSIGNED_SEATING:
         layout = session.get(venue_layouts, application.venue_layout_id)

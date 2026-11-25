@@ -26,24 +26,24 @@ def open_case(data: CaseCreate, session: Session = Depends(get_session), current
     if data.order_id:
         order = session.get(orders, data.order_id)
         if order is None or order.buyer_user_id != current_user.id or (event_id and order.event_id != event_id):
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Order does not belong to you or to this event")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Order does not belong to you or to this event")
         event_id = order.event_id
     if data.ticket_id:
         ticket = session.get(tickets, data.ticket_id)
         ticket_order = session.get(orders, ticket.order_id) if ticket else None
         if ticket is None or ticket_order.buyer_user_id != current_user.id or (event_id and ticket.event_id != event_id) or (data.order_id and ticket.order_id != data.order_id):
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Ticket does not belong to you or to this event")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Ticket does not belong to you or to this event")
         event_id = ticket.event_id
     if event_id:
         event = get_event_or_404(session, event_id)
         if not (data.order_id or data.ticket_id) and not can_view_event(session, event, current_user):
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
     if data.case_scope == CaseScope.EVENT_SUPPORT and event_id is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Event support cases need an event")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Event support cases need an event")
     if data.previous_case_id:
         previous = session.get(support_cases, data.previous_case_id)
         if previous is None or previous.requester_user_id != current_user.id:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Previous case not found")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Previous case not found")
     subject = (data.custom_subject or "").strip() or None
     case = support_cases(requester_user_id=current_user.id, case_scope=data.case_scope.value, event_id=event_id, order_id=data.order_id, ticket_id=data.ticket_id,
                          previous_case_id=data.previous_case_id, category=data.category.value, custom_subject=subject, status="OPEN")
@@ -97,7 +97,7 @@ def send_message(case_id: uuid.UUID, data: MessageCreate, background: Background
     case = service.get_case(session, case_id, current_user, lock=True)
     body = data.body.strip()
     if not body:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Message is empty")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Message is empty")
     if case.requester_user_id == current_user.id:
         if case.status == "RESOLVED":
             raise HTTPException(status.HTTP_409_CONFLICT, "Case is resolved; reopen it first")
@@ -178,7 +178,7 @@ def assign(case_id: uuid.UUID, data: Assignment, background: BackgroundTasks, se
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the organizer or platform admin can reassign")
     assignee = session.get(users, data.user_id)
     if assignee is None or assignee.is_suspended or not service.can_handle(session, case, assignee):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Assignee is not allowed to handle this case")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Assignee is not allowed to handle this case")
     if case.status == "RESOLVED":
         raise HTTPException(status.HTTP_409_CONFLICT, "Case is resolved")
     old = case.assigned_to_user_id

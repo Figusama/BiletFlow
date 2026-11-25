@@ -151,21 +151,21 @@ def update_event(event_id: uuid.UUID, data: EventUpdate, session: Session = Depe
         if event.status != EventLifecycleStatus.DRAFT:
             raise HTTPException(status.HTTP_409_CONFLICT, "Capacity of a published event changes only through an Event Change Request")
         if event.seating_mode != SeatingMode.GENERAL_ADMISSION:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Capacity is derived from seats for assigned seating")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Capacity is derived from seats for assigned seating")
         venue = session.get(venues, event.venue_id)
         if changes["ga_capacity"] is None or changes["ga_capacity"] <= 0 or changes["ga_capacity"] > venue.max_capacity:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Capacity must be between 1 and {venue.max_capacity}")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Capacity must be between 1 and {venue.max_capacity}")
     if "description" in changes and changes["description"] is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Description cannot be empty")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Description cannot be empty")
     if "visibility" in changes and changes["visibility"] is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                             detail="Visibility cannot be empty"
                             )
     if "refund_policy" in changes:
         policy = changes["refund_policy"] or {}
         hours = policy.get("self_service_refund_until_hours_before_start")
         if hours is not None and (not isinstance(hours, int) or isinstance(hours, bool) or hours < 0):
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid refund policy")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Invalid refund policy")
         if session.exec(select(orders.id).where(orders.event_id == event.id, orders.status == OrderStatus.CONFIRMED).limit(1)).first():
             raise HTTPException(status.HTTP_409_CONFLICT, "Refund policy changes after the first sale need an Event Change Request")
         changes["refund_policy"] = policy
@@ -186,9 +186,9 @@ def set_categories(event_id: uuid.UUID, category_ids: list[uuid.UUID], session: 
     event = get_event_or_404(session, event_id, for_update=True)
     unique_ids = list(dict.fromkeys(category_ids))
     if not unique_ids:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "At least one category is required")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "At least one category is required")
     if len(session.exec(select(categories.id).where(categories.id.in_(unique_ids), categories.is_active.is_(True))).all()) != len(unique_ids):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown or inactive category")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown or inactive category")
     session.exec(sa_delete(event_categories).where(event_categories.event_id == event.id))
     for category_id in unique_ids:
         session.add(event_categories(event_id=event.id, category_id=category_id))
@@ -259,7 +259,7 @@ def publish_event(event_id: uuid.UUID, session: Session = Depends(get_session), 
     if any(t.kind == TicketKind.PAID for t in types) and not paid_sales_active(session, event.id):
         problems.append("Paid Sales Activation must be ACTIVE before publishing paid tickets")
     if problems:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, {"code": "not_ready", "problems": problems})
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, {"code": "not_ready", "problems": problems})
     event.status = EventLifecycleStatus.PUBLISHED
     event.published_at = now
     session.add(event)

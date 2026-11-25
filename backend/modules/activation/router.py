@@ -96,7 +96,7 @@ def submit_request(event_id: uuid.UUID, data: ActivationRequestCreate, backgroun
                    current_user: users = Depends(get_current_user)):
     require_event_role(session, event_id, current_user, (EventRole.ORGANIZER,), allow_platform_admin=False)
     if not data.accept_paid_terms:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Paid sales terms must be accepted")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Paid sales terms must be accepted")
     event = get_event_or_404(session, event_id, for_update=True)
     ensure_event_open(event)
     activation = get_activation(session, event.id, lock=True)

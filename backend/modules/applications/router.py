@@ -94,7 +94,7 @@ def reorder_images(application_id: uuid.UUID, image_ids: list[uuid.UUID], sessio
     service.ensure_draft(application)
     images = {i.id: i for i in service.application_images(session, application.id)}
     if set(image_ids) != set(images) or len(image_ids) != len(images):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Order must list every image exactly once")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Order must list every image exactly once")
     offset = len(images) + 1000
     for index, image_id in enumerate(image_ids):
         images[image_id].position = offset + index
@@ -136,7 +136,7 @@ def submit_application(application_id: uuid.UUID, session: Session = Depends(get
         service.apply_venue(session, application, application.venue_id)
     problems = service.missing_for_submit(session, application, now)
     if problems:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, {"code": "incomplete_application", "problems": problems})
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, {"code": "incomplete_application", "problems": problems})
     application.status = EventStatus.PENDING
     application.submitted_at = now
     session.add(application)
@@ -209,7 +209,7 @@ def admin_list(application_status: EventStatus | None = Query(default=EventStatu
 @admin_router.post("/{application_id}/approve", response_model=ApplicationPublic)
 def admin_approve(application_id: uuid.UUID, data: ApprovalRequest, session: Session = Depends(get_session), admin: users = Depends(require_admin)):
     if not data.confirm_responsible_organizer:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Confirm that the responsible organizer was verified")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Confirm that the responsible organizer was verified")
     application = service.get_application(session, application_id, for_update=True)
     if application.status != EventStatus.PENDING:
         raise HTTPException(status.HTTP_409_CONFLICT, "Only applications under review can be approved")

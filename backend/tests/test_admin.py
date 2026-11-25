@@ -12,7 +12,7 @@ from database.database import engine
 from test_auth import USER, client, verified_user, clean_user
 from test_events import ADMIN, OTHER, admin_user, bearer, clean_all, make_event, other_user, published_event
 from test_orders import buy_free_tickets, free_event, mail, reserve
-from test_payments import payment, payment_mail, pending_order, simulate, simulator_on
+from test_payments import payment, payment_mail, simulate, simulator_on, pending_order, paid_event
 
 MISSING_ID = str(uuid.uuid4())
 LIST_ENDPOINTS = [
@@ -105,7 +105,7 @@ def test_list_endpoints_work_for_admin(admin_user, path):
 @pytest.mark.parametrize("path", LIST_ENDPOINTS)
 @pytest.mark.parametrize("params", [{"limit": 0}, {"limit": 201}, {"offset": -1}])
 def test_list_endpoints_reject_bad_pagination(admin_user, path, params):
-    assert admin_get(path, **params).status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert admin_get(path, **params).status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_organizer_cannot_use_admin_actions(published_event):
@@ -200,7 +200,7 @@ def test_search_events_status_filter(admin_user, published_event):
 
 
 def test_search_events_rejects_unknown_status(admin_user):
-    assert admin_get("/admin/events", status="NOPE").status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert admin_get("/admin/events", status="NOPE").status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_search_events_suspended_filter(admin_user, published_event):
@@ -238,13 +238,13 @@ def test_suspend_strips_reason(admin_user, published_event):
 @pytest.mark.parametrize("reason", ["", "   "])
 def test_suspend_requires_a_reason(admin_user, published_event, reason):
     r = suspend(published_event["id"], reason)
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
     assert find_event(published_event["title"])["is_suspended"] is False
 
 
 def test_suspend_requires_request_body(admin_user, published_event):
     r = client.post(f"/admin/events/{published_event['id']}/suspend", json={}, headers=bearer(ADMIN))
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
 
 
 def test_suspend_unknown_event(admin_user):
@@ -253,7 +253,7 @@ def test_suspend_unknown_event(admin_user):
 
 def test_suspend_invalid_event_id(admin_user):
     r = client.post("/admin/events/not-a-uuid/suspend", json={"reason": "x"}, headers=bearer(ADMIN))
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
 
 
 @pytest.mark.parametrize("final_status", ["CANCELLED", "COMPLETED"])
@@ -351,7 +351,7 @@ def test_search_orders_event_filter(admin_user, free_event):
 
 @pytest.mark.parametrize("params", [{"status": "NOPE"}, {"event_id": "not-a-uuid"}])
 def test_search_orders_rejects_bad_filters(admin_user, params):
-    assert admin_get("/admin/orders", **params).status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert admin_get("/admin/orders", **params).status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_search_orders_newest_first(admin_user, free_event):
@@ -396,7 +396,7 @@ def test_search_payments_status_filter(admin_user, payment, pending_order):
 
 
 def test_search_payments_rejects_unknown_status(admin_user):
-    assert admin_get("/admin/payments", status="NOPE").status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert admin_get("/admin/payments", status="NOPE").status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_problems_only_hides_healthy_payment(admin_user, payment, pending_order):
@@ -425,7 +425,7 @@ def test_promo_activity_for_event_without_codes(admin_user, published_event):
 
 
 def test_promo_activity_rejects_invalid_event_id(admin_user):
-    assert admin_get("/admin/promo-codes", event_id="not-a-uuid").status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert admin_get("/admin/promo-codes", event_id="not-a-uuid").status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_audit_log_shape(admin_user):
@@ -471,17 +471,17 @@ def test_audit_log_result_filter(admin_user, result):
 
 
 def test_audit_log_rejects_unknown_result(admin_user):
-    assert admin_get("/admin/audit", result="MAYBE").status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert admin_get("/admin/audit", result="MAYBE").status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_audit_log_rejects_naive_date(admin_user):
     r = admin_get("/admin/audit", **{"from": "2026-01-01T00:00:00"})
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
 
 
 def test_audit_log_rejects_invalid_ids(admin_user):
-    assert admin_get("/admin/audit", event_id="nope").status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-    assert admin_get("/admin/audit", entity_id="nope").status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert admin_get("/admin/audit", event_id="nope").status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert admin_get("/admin/audit", entity_id="nope").status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 ORDERS_HEADER = ["order_number", "event", "buyer_email", "status", "subtotal_minor", "discount_minor", "total_minor", "created_at", "confirmed_at"]
@@ -525,9 +525,9 @@ def test_orders_report_date_filters(admin_user, free_event):
 
 
 def test_orders_report_rejects_bad_params(admin_user):
-    assert admin_get("/admin/reports/orders.csv", event_id="nope").status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert admin_get("/admin/reports/orders.csv", event_id="nope").status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     r = admin_get("/admin/reports/orders.csv", **{"from": "2026-01-01T00:00:00"})
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
 
 
 def test_orders_report_neutralizes_spreadsheet_formulas(admin_user, free_event):

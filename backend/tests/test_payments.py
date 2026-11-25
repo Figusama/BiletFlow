@@ -94,7 +94,7 @@ def test_start_payment_unknown_order(verified_user):
 
 def test_start_payment_invalid_order_id(verified_user):
     r = client.post("/orders/not-a-uuid/payments", headers=bearer(USER))
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
 
 
 def test_start_payment_for_another_users_order(pending_order, other_user):
@@ -106,7 +106,7 @@ def test_start_payment_for_another_users_order(pending_order, other_user):
 def test_start_payment_for_free_order(free_event):
     order = buy_free_tickets(free_event)
     r = start_payment(order["id"])
-    assert r.status_code in (status.HTTP_400_BAD_REQUEST, status.HTTP_409_CONFLICT, status.HTTP_422_UNPROCESSABLE_ENTITY), r.text
+    assert r.status_code in (status.HTTP_400_BAD_REQUEST, status.HTTP_409_CONFLICT, status.HTTP_422_UNPROCESSABLE_CONTENT), r.text
     assert list_payments(order["id"]).json() == []
 
 
@@ -114,7 +114,7 @@ def test_start_payment_for_cancelled_order(pending_order):
     cancelled = client.post(f"/orders/{pending_order['id']}/cancel", headers=bearer(USER))
     assert cancelled.status_code == status.HTTP_200_OK, cancelled.text
     r = start_payment(pending_order["id"])
-    assert r.status_code in (status.HTTP_409_CONFLICT, status.HTTP_422_UNPROCESSABLE_ENTITY), r.text
+    assert r.status_code in (status.HTTP_409_CONFLICT, status.HTTP_422_UNPROCESSABLE_CONTENT), r.text
 
 
 def test_start_payment_is_idempotent(pending_order):
@@ -239,12 +239,12 @@ def test_simulator_capture_failure_does_not_confirm_order(payment, pending_order
 
 def test_simulator_rejects_unknown_outcome(payment):
     r = simulate(payment["id"], "teleport")
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
 
 
 def test_simulator_requires_outcome(payment):
     r = client.post(f"/payments/simulator/{payment['id']}", follow_redirects=False)
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
 
 
 def test_simulator_unknown_payment(verified_user):
@@ -303,12 +303,12 @@ def test_decision_decline(payment, pending_order):
 
 
 def test_decision_rejects_unknown_outcome(payment):
-    assert decide(payment["id"], "teleport").status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert decide(payment["id"], "teleport").status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_decision_requires_body(payment):
     r = client.post(f"/payments/simulator/{payment['id']}/decision", json={})
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
 
 
 def test_decision_unknown_payment(verified_user):

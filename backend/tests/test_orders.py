@@ -127,18 +127,18 @@ def test_create_reservation_for_draft_event(verified_user, other_user):
 
 def test_create_reservation_unknown_ticket_type(free_event):
     r = reserve(free_event, type_id=str(uuid.uuid4()))
-    assert r.status_code in (status.HTTP_404_NOT_FOUND, status.HTTP_422_UNPROCESSABLE_ENTITY), r.text
+    assert r.status_code in (status.HTTP_404_NOT_FOUND, status.HTTP_422_UNPROCESSABLE_CONTENT), r.text
 
 
 @pytest.mark.parametrize("quantity", [0, -1])
 def test_create_reservation_invalid_quantity(free_event, quantity):
     r = reserve(free_event, quantity=quantity)
-    assert r.status_code in (status.HTTP_400_BAD_REQUEST, status.HTTP_422_UNPROCESSABLE_ENTITY), r.text
+    assert r.status_code in (status.HTTP_400_BAD_REQUEST, status.HTTP_422_UNPROCESSABLE_CONTENT), r.text
 
 
 def test_create_reservation_empty_items(free_event):
     r = client.post(f"/events/{free_event['id']}/reservations", json={"items": []}, headers=bearer(USER))
-    assert r.status_code in (status.HTTP_400_BAD_REQUEST, status.HTTP_422_UNPROCESSABLE_ENTITY), r.text
+    assert r.status_code in (status.HTTP_400_BAD_REQUEST, status.HTTP_422_UNPROCESSABLE_CONTENT), r.text
 
 
 def test_create_reservation_over_capacity(free_event):
@@ -234,7 +234,7 @@ def test_order_from_expired_reservation(free_event):
 def test_order_with_unknown_promo_code(free_event):
     reservation_id = reserve(free_event).json()["id"]
     r = order_from(reservation_id, promo_code="DOES-NOT-EXIST")
-    assert r.status_code in (status.HTTP_404_NOT_FOUND, status.HTTP_422_UNPROCESSABLE_ENTITY), r.text
+    assert r.status_code in (status.HTTP_404_NOT_FOUND, status.HTTP_422_UNPROCESSABLE_CONTENT), r.text
 
 
 def test_paid_order_waits_for_payment(paid_event, mail):
@@ -288,7 +288,7 @@ def test_read_unknown_order(verified_user):
 
 def test_read_order_invalid_id(verified_user):
     r = client.get("/orders/not-a-uuid", headers=bearer(USER))
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
 
 
 def test_my_orders_empty_for_new_user(verified_user):

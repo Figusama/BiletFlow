@@ -172,7 +172,7 @@ def test_create_forbidden_for_stranger(draft_event, other_user):
 
 def test_create_missing_fields(draft_event):
     r = client.post(f"/events/{draft_event['id']}/ticket-types", json={}, headers=bearer(USER))
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
 
 
 @pytest.mark.parametrize("override", [
@@ -181,18 +181,18 @@ def test_create_missing_fields(draft_event):
     {"kind": "PAID", "price_minor": -1},
 ], ids=["free_with_price", "paid_without_price", "paid_negative_price"])
 def test_create_rejects_invalid_price(draft_event, override):
-    assert create_type(draft_event, **override).status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert create_type(draft_event, **override).status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_create_rejects_sales_end_before_start(draft_event):
     start = datetime.now(timezone.utc)
     r = create_type(draft_event, sales_start_at=start.isoformat(), sales_end_at=(start - timedelta(hours=1)).isoformat())
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
 
 
 def test_create_rejects_sales_end_after_event_end(draft_event):
     r = create_type(draft_event, sales_end_at=(draft_event["ends_at"] + timedelta(days=1)).isoformat())
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
 
 
 def test_create_on_published_event_is_conflict(published_event):
@@ -200,7 +200,7 @@ def test_create_on_published_event_is_conflict(published_event):
 
 
 def test_create_assigned_seating_rejects_quantity(assigned_event):
-    assert create_type(assigned_event, quantity_total=10).status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert create_type(assigned_event, quantity_total=10).status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert create_type(assigned_event, quantity_total=None).status_code == status.HTTP_201_CREATED
 
 
@@ -236,13 +236,13 @@ def test_update_ticket_type_of_another_event_is_404(draft_event):
 @pytest.mark.parametrize("body", [{"price_minor": 500}, {"kind": "PAID"}], ids=["free_gets_price", "paid_without_price"])
 def test_update_revalidates_the_whole_ticket_type(draft_event, body):
     type_id = create_type(draft_event).json()["id"]
-    assert patch_type(draft_event, type_id, body).status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert patch_type(draft_event, type_id, body).status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_update_sales_end_after_event_end(draft_event):
     type_id = create_type(draft_event).json()["id"]
     body = {"sales_end_at": (draft_event["ends_at"] + timedelta(days=1)).isoformat()}
-    assert patch_type(draft_event, type_id, body).status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert patch_type(draft_event, type_id, body).status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_update_published_event_needs_change_request(verified_user):

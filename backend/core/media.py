@@ -23,9 +23,9 @@ def save_image(upload: UploadFile, folder: str) -> str:
             image_format = image.format
             image.verify()
     except (UnidentifiedImageError, Image.DecompressionBombError, OSError, SyntaxError, ValueError):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "File is not a valid image")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "File is not a valid image")
     if image_format not in ALLOWED_FORMATS:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Only JPEG, PNG and WEBP images are allowed")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Only JPEG, PNG and WEBP images are allowed")
     storage_key = f"{folder}/{uuid.uuid4().hex}.{ALLOWED_FORMATS[image_format]}"
     path = Path(MEDIA_ROOT) / storage_key
     path.parent.mkdir(parents=True, exist_ok=True)

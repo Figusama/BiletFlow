@@ -73,11 +73,11 @@ def create_promo_code(event_id: uuid.UUID, data: PromoCodeCreate, session: Sessi
     if data.campaign_id is not None:
         campaign = session.get(promotional_campaigns, data.campaign_id)
         if campaign is None or campaign.event_id != event_id:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Campaign does not belong to this event")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Campaign does not belong to this event")
     if data.ticket_type_ids:
         found = session.exec(select(ticket_types.id).where(ticket_types.id.in_(data.ticket_type_ids), ticket_types.event_id == event_id)).all()
         if len(found) != len(data.ticket_type_ids):
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Ticket type does not belong to this event")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Ticket type does not belong to this event")
     code = (data.code or service.generate_code()).upper()
     if service.find_promo(session, code):
         raise HTTPException(status.HTTP_409_CONFLICT, "Promo code already exists")
@@ -156,7 +156,7 @@ def create_campaign(event_id: uuid.UUID, data: CampaignCreate, session: Session 
     require_organizer(session, event_id, current_user)
     name = data.name.strip()
     if not name:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Campaign name is required")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Campaign name is required")
     campaign = promotional_campaigns(event_id=event_id, name=name, created_by_user_id=current_user.id)
     session.add(campaign)
     session.flush()

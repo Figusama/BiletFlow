@@ -210,7 +210,7 @@ def test_list_events_hides_non_public_visibility(verified_user):
 @pytest.mark.parametrize("params", [{"limit": 0}, {"limit": 201}, {"offset": -1}, {"q": "x" * 201}])
 def test_list_events_rejects_bad_params(params):
     r = client.get("/events/", params=params)
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
 
 
 
@@ -274,7 +274,7 @@ def test_manage_requires_auth(draft_event):
 
 def test_manage_invalid_uuid(verified_user):
     r = client.get("/events/not-a-uuid/manage", headers=bearer(USER))
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
 
 
 def test_manage_organizer_sees_responsible_and_tickets_flag(draft_event):
@@ -333,7 +333,7 @@ def test_update_public_contact(draft_event):
     {"visibility": None},
 ])
 def test_update_rejects_invalid_values(draft_event, body):
-    assert patch_event(draft_event, body).status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert patch_event(draft_event, body).status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_update_visibility(draft_event):
@@ -351,7 +351,7 @@ def test_update_ga_capacity_in_draft(draft_event):
 @pytest.mark.parametrize("delta", ["zero", "negative", "over_max"])
 def test_update_ga_capacity_out_of_range(draft_event, delta):
     value = {"zero": 0, "negative": -5, "over_max": draft_event["max_capacity"] + 1}[delta]
-    assert patch_event(draft_event, {"ga_capacity": value}).status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert patch_event(draft_event, {"ga_capacity": value}).status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_update_ga_capacity_on_published_event_is_conflict(published_event):
@@ -360,7 +360,7 @@ def test_update_ga_capacity_on_published_event_is_conflict(published_event):
 
 def test_update_ga_capacity_for_assigned_seating(verified_user):
     event = make_event(seating=SeatingMode.ASSIGNED_SEATING)
-    assert patch_event(event, {"ga_capacity": 1}).status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert patch_event(event, {"ga_capacity": 1}).status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_update_refund_policy(draft_event):
@@ -373,7 +373,7 @@ def test_update_refund_policy(draft_event):
 @pytest.mark.parametrize("hours", [-1, "24", True, 1.5])
 def test_update_refund_policy_invalid_hours(draft_event, hours):
     body = {"refund_policy": {"self_service_refund_until_hours_before_start": hours}}
-    assert patch_event(draft_event, body).status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert patch_event(draft_event, body).status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 
@@ -383,17 +383,17 @@ def put_categories(event, ids, user=USER):
 
 def test_set_categories(draft_event):
     category_id = first_category_id()
-    r = put_categories(draft_event, [category_id, category_id])  # duplicates are ignored
+    r = put_categories(draft_event, [category_id, category_id])
     assert r.status_code == status.HTTP_200_OK, r.text
     assert [c["id"] for c in r.json()["categories"]] == [category_id]
 
 
 def test_set_categories_requires_at_least_one(draft_event):
-    assert put_categories(draft_event, []).status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert put_categories(draft_event, []).status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_set_categories_unknown_category(draft_event):
-    assert put_categories(draft_event, [str(uuid.uuid4())]).status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert put_categories(draft_event, [str(uuid.uuid4())]).status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_set_categories_forbidden_for_stranger(draft_event, other_user):
@@ -460,7 +460,7 @@ def test_publish_forbidden_for_stranger(draft_event, other_user):
 
 def test_publish_not_ready_lists_all_problems(draft_event):
     r = publish(draft_event)
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
     detail = r.json()["detail"]
     assert detail["code"] == "not_ready"
     for message in (
@@ -476,7 +476,7 @@ def test_publish_not_ready_lists_all_problems(draft_event):
 def test_publish_assigned_seating_not_ready(verified_user):
     event = make_event(seating=SeatingMode.ASSIGNED_SEATING)
     r = publish(event)
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
     assert "Assigned seating publish readiness validator is not yet integrated" in r.json()["detail"]["problems"]
 
 
