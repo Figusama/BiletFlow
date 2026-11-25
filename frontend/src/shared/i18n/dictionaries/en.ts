@@ -135,6 +135,18 @@ export const en = {
         unavailableText: 'We could not check your link. Try opening it again.',
         backToRegistration: 'Back to registration',
     },
+    staffInvitations: {
+        title: 'Event staff invitations',
+        intro: 'Organizers invite you to help with their events. Accept to get the role for that event; declining changes nothing.',
+        empty: 'No invitations yet.',
+        loadFailed: 'Could not load your invitations.',
+        status: { PENDING: 'Waiting for you', ACCEPTED: 'Accepted', DECLINED: 'Declined', REVOKED: 'Withdrawn', EXPIRED: 'Expired' },
+        expiresAt: (date: string) => `Answer by ${date}`,
+        accept: 'Accept',
+        decline: 'Decline',
+        conflict: 'This invitation is no longer valid. The list is refreshed.',
+        failed: 'Could not send your answer. Try again.',
+    },
     buyerSupport: {
         getHelp: 'Get help',
         status: { OPEN: 'Open', IN_PROGRESS: 'In progress', WAITING_FOR_CUSTOMER: 'Waiting for you', RESOLVED: 'Resolved' },

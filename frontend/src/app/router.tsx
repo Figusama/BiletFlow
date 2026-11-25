@@ -3,6 +3,7 @@ import AppLayout from '../components/layout/AppLayout'
 import EventsPage from '../pages/EventsPage'
 import NotFoundPage from '../pages/NotFoundPage'
 import InvitationPage from '../pages/InvitationPage'
+import StaffInvitationsPage from '../pages/StaffInvitationsPage'
 import BuyerSupportPage from '../pages/BuyerSupportPage'
 import BuyerSupportNewPage from '../pages/BuyerSupportNewPage'
 import BuyerSupportCasePage from '../pages/BuyerSupportCasePage'
@@ -130,6 +131,18 @@ export const router = createBrowserRouter([
                         loader: ({ params }) => redirect(`/organizer/events/${params.eventId}/paid-sales`),
                     },
                     {
+                        path: 'events/:eventId/refunds',
+                        loader: ({ params }) => redirect(`/organizer/events/${params.eventId}/refunds`),
+                    },
+                    {
+                        path: 'applications/:applicationId',
+                        loader: ({ params }) => redirect(`/organizer/applications/${params.applicationId}`),
+                    },
+                    {
+                        path: 'orders',
+                        loader: () => redirect('/tickets'),
+                    },
+                    {
                         path: 'events/:eventId/tickets',
                         element: <TicketSelectionPage />,
                     },
@@ -183,6 +196,10 @@ export const router = createBrowserRouter([
                             {
                                 path: 'orders/:orderId',
                                 element: <OrderPage />,
+                            },
+                            {
+                                path: 'staff-invitations',
+                                element: <StaffInvitationsPage />,
                             },
                             {
                                 path: 'support',
