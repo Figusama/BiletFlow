@@ -104,6 +104,13 @@ export async function api<T>(path: string, init: ApiInit = {}): Promise<T> {
     return response.json() as Promise<T>
 }
 
+export async function apiPage<T>(path: string, init: ApiInit = {}): Promise<{ items: T[]; total: number }> {
+    const response = await request(path, init)
+    const items = (await response.json()) as T[]
+    const header = Number(response.headers.get('X-Total-Count'))
+    return { items, total: Number.isFinite(header) && header > 0 ? header : items.length }
+}
+
 export async function apiBlob(path: string): Promise<Blob> {
     const response = await request(path, {})
     return response.blob()

@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { api } from '../../shared/api/client'
+import { api, apiPage } from '../../shared/api/client'
 import type { Application, ApplicationStatus, Venue } from '../applications/api'
 import type { ChangeRequest, EventRefundRequest, HistoryEntry, HistoryPage } from '../organizer/api'
 import type { SupportCase, SupportCaseDetail } from '../organizer/support'
@@ -104,6 +104,12 @@ export interface AdminPayment {
     id: string
     order_id: string
     order_number: string
+    event_id: string
+    event_title: string
+    event_public_id: string
+    organizer_name: string | null
+    buyer_name: string | null
+    buyer_email: string
     status: PaymentStatus
     pending_operation: 'CAPTURE' | 'CANCEL' | null
     cancellation_reason: 'USER_REQUESTED' | 'RESERVATION_EXPIRED' | 'CAPTURE_FAILED' | null
@@ -115,19 +121,91 @@ export interface AdminPayment {
     finalized_at: string | null
 }
 
+export interface PaymentTimelineEntry {
+    at: string
+    type: string
+    title: string
+    details: Record<string, unknown>
+}
+
+export interface PaymentWebhook {
+    id: string
+    received_at: string
+    processed_at: string | null
+    verification_status: 'PENDING' | 'VALID' | 'INVALID'
+    processing_status: 'PENDING' | 'PROCESSED' | 'IGNORED' | 'REJECTED'
+}
+
+export interface PaymentRefundAttempt {
+    id: string
+    refund_request_id: string
+    status: RefundAttemptStatus
+    amount_minor: number
+    created_at: string
+    finalized_at: string | null
+}
+
+export interface AdminPaymentDetail extends AdminPayment {
+    order_status: string
+    currency: string
+    provider_invoice_id: string | null
+    provider_payment_id: string | null
+    processing_fee_minor: number | null
+    check_failure_count: number
+    updated_at: string
+    refunds: PaymentRefundAttempt[]
+    timeline: PaymentTimelineEntry[]
+    webhooks: PaymentWebhook[]
+}
+
+export interface PaymentCheck {
+    bank_status: string | null
+    changed: boolean
+    payment: AdminPaymentDetail
+}
+
 export const adminPaymentsKey = ['admin', 'payments']
 
 export const useAdminPayments = (filter: PaymentFilter, search: string, page: number, pageSize: number) =>
     useQuery({
-        queryKey: [...adminPaymentsKey, filter, search, page],
+        queryKey: [...adminPaymentsKey, 'list', filter, search, page],
         queryFn: () => {
-            const params = new URLSearchParams({ limit: String(pageSize + 1), offset: String(page * pageSize) })
+            const params = new URLSearchParams({ limit: String(pageSize), offset: String(page * pageSize) })
             if (filter === 'PROBLEMS') params.set('problems_only', 'true')
             else if (filter !== 'ALL') params.set('status', filter)
             if (search) params.set('q', search)
-            return api<AdminPayment[]>(`/admin/payments?${params}`)
+            return apiPage<AdminPayment>(`/admin/payments?${params}`)
         },
         placeholderData: keepPreviousData,
+    })
+
+export const useAdminPayment = (paymentId: string | undefined) =>
+    useQuery({
+        queryKey: [...adminPaymentsKey, 'detail', paymentId],
+        queryFn: () => api<AdminPaymentDetail>(`/admin/payments/${paymentId}`),
+        enabled: Boolean(paymentId),
+    })
+
+export const checkPaymentStatus = (paymentId: string) => api<PaymentCheck>(`/admin/payments/${paymentId}/check-status`, { method: 'POST' })
+
+export interface AdminCounters {
+    event_applications: number
+    change_requests: number
+    paid_sales_requests: number
+    refund_requests: number
+    cancellation_requests: number
+    support_cases: number
+    support_unassigned: number
+    payments_overdue: number
+}
+
+export const adminCountersKey = ['admin', 'counters']
+
+export const useAdminCounters = () =>
+    useQuery({
+        queryKey: adminCountersKey,
+        queryFn: () => api<AdminCounters>('/admin/counters'),
+        refetchInterval: 60_000,
     })
 
 export const reconcilePayments = () => api<{ handled: number }>('/admin/payments/reconcile', { method: 'POST' })

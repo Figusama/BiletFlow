@@ -42,6 +42,7 @@ import AdminApplicationPage from '../pages/AdminApplicationPage'
 import AdminChangeRequestsPage from '../pages/AdminChangeRequestsPage'
 import AdminChangeRequestPage from '../pages/AdminChangeRequestPage'
 import AdminPaymentsPage from '../pages/AdminPaymentsPage'
+import AdminPaymentPage from '../pages/AdminPaymentPage'
 import AdminUsersPage from '../pages/AdminUsersPage'
 import AdminVenuesPage from '../pages/AdminVenuesPage'
 import AdminEventsPage from '../pages/AdminEventsPage'
@@ -79,6 +80,7 @@ export const router = createBrowserRouter([
                             { path: 'paid-sales', element: <AdminActivationsPage /> },
                             { path: 'paid-sales/:requestId', element: <AdminActivationPage /> },
                             { path: 'payments', element: <AdminPaymentsPage /> },
+                            { path: 'payments/:paymentId', element: <AdminPaymentPage /> },
                             { path: 'refunds', element: <AdminRefundsPage /> },
                             { path: 'refunds/:requestId', element: <AdminRefundPage /> },
                             { path: 'support', element: <AdminSupportPage /> },

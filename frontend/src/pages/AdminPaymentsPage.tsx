@@ -1,26 +1,28 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import Button from '../components/ui/Button'
 import Icon from '../components/ui/Icon'
 import Input from '../components/ui/Input'
 import Select from '../components/ui/Select'
-import StatusBadge, { type BadgeIcon, type BadgeTone } from '../components/ui/StatusBadge'
-import { adminPaymentsKey, paymentFilters, reconcilePayments, useAdminPayments, type AdminPayment, type PaymentFilter, type PaymentStatus } from '../features/admin/api'
+import StatusBadge from '../components/ui/StatusBadge'
+import {
+    adminCountersKey,
+    adminPaymentsKey,
+    paymentFilters,
+    reconcilePayments,
+    useAdminCounters,
+    useAdminPayments,
+    type AdminPayment,
+    type PaymentFilter,
+} from '../features/admin/api'
+import { paymentBadge } from '../features/admin/paymentBadges'
 import { formatDateTime } from '../features/organizer/changes'
 import { useLanguage } from '../shared/i18n/language'
 import { formatKzt } from '../shared/lib/money'
 
 const PAGE_SIZE = 20
 const TIME_ZONE = 'Asia/Almaty'
-
-const paymentBadge: Record<PaymentStatus, { tone: BadgeTone; icon: BadgeIcon }> = {
-    PENDING: { tone: 'warning', icon: 'clock' },
-    AUTHORIZED: { tone: 'neutral', icon: 'clock' },
-    CAPTURING: { tone: 'neutral', icon: 'clock' },
-    SUCCEEDED: { tone: 'success', icon: 'check-circle' },
-    FAILED: { tone: 'danger', icon: 'x-circle' },
-    CANCELLED: { tone: 'neutral', icon: 'ban' },
-}
 
 const pagerButton =
     'flex size-8 items-center justify-center rounded-full border border-border text-foreground transition-colors hover:bg-surface-sunk focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-40'
@@ -36,9 +38,12 @@ const AdminPaymentsPage = () => {
     const [isReconciling, setIsReconciling] = useState(false)
     const [notice, setNotice] = useState('')
     const { data, isPending, isError } = useAdminPayments(filter, search, page, PAGE_SIZE)
+    const { data: counters } = useAdminCounters()
 
-    const payments = data?.slice(0, PAGE_SIZE) ?? []
-    const hasNextPage = (data?.length ?? 0) > PAGE_SIZE
+    const payments = data?.items ?? []
+    const total = data?.total ?? 0
+    const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
+    const overdue = counters?.payments_overdue ?? 0
 
     const reconcile = async () => {
         setIsReconciling(true)
@@ -47,6 +52,7 @@ const AdminPaymentsPage = () => {
             const { handled } = await reconcilePayments()
             setNotice(texts.reconciled(handled))
             await queryClient.invalidateQueries({ queryKey: adminPaymentsKey })
+            await queryClient.invalidateQueries({ queryKey: adminCountersKey })
         } catch {
             setNotice(texts.reconcileFailed)
         } finally {
@@ -76,6 +82,22 @@ const AdminPaymentsPage = () => {
                     {isReconciling ? texts.reconciling : texts.reconcile}
                 </Button>
             </header>
+
+            {overdue > 0 && filter !== 'PROBLEMS' && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-badge-warning-bg px-4 py-3 text-sm text-badge-warning-fg">
+                    <span className="font-semibold">{texts.overdueBanner(overdue)}</span>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setFilter('PROBLEMS')
+                            setPage(0)
+                        }}
+                        className="font-semibold underline focus-visible:outline-2 focus-visible:outline-accent"
+                    >
+                        {texts.showOverdue}
+                    </button>
+                </div>
+            )}
 
             {notice && (
                 <p role="status" className="text-sm text-muted">
@@ -116,14 +138,14 @@ const AdminPaymentsPage = () => {
                 <p className="rounded-2xl border border-dashed border-border py-12 text-center text-muted">{texts.empty}</p>
             ) : (
                 <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
-                    <table className="w-full min-w-[760px] text-left text-sm">
+                    <table className="w-full min-w-[820px] text-left text-sm">
                         <thead>
                             <tr className="border-b border-border text-xs font-semibold tracking-widest text-muted uppercase">
                                 <th className="px-5 py-3 font-semibold">{texts.columns.order}</th>
+                                <th className="px-5 py-3 font-semibold">{texts.columns.event}</th>
                                 <th className="px-5 py-3 text-right font-semibold">{texts.columns.amount}</th>
                                 <th className="px-5 py-3 font-semibold">{texts.columns.status}</th>
                                 <th className="px-5 py-3 font-semibold">{texts.columns.nextCheck}</th>
-                                <th className="px-5 py-3 font-semibold">{texts.columns.created}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
@@ -131,9 +153,16 @@ const AdminPaymentsPage = () => {
                                 const badge = paymentBadge[payment.status]
                                 return (
                                     <tr key={payment.id} className="align-top">
-                                        <td className="px-5 py-3 font-mono text-xs whitespace-nowrap text-foreground">
-                                            {payment.order_number}
-                                            {payment.is_simulated && <p className="mt-1 font-sans text-muted">{texts.simulated}</p>}
+                                        <td className="px-5 py-3">
+                                            <Link to={payment.id} className="font-mono text-xs font-semibold text-foreground hover:text-accent focus-visible:outline-2 focus-visible:outline-accent">
+                                                {payment.order_number}
+                                            </Link>
+                                            <p className="mt-0.5 text-xs text-muted">{formatDateTime(payment.created_at, TIME_ZONE, t)}</p>
+                                            {payment.is_simulated && <p className="text-xs text-muted">{texts.simulated}</p>}
+                                        </td>
+                                        <td className="px-5 py-3 text-foreground">
+                                            {payment.event_title}
+                                            <p className="mt-0.5 text-xs text-muted">{payment.buyer_name ?? payment.buyer_email}</p>
                                         </td>
                                         <td className="px-5 py-3 text-right font-semibold whitespace-nowrap text-foreground">{formatKzt(payment.amount_minor)}</td>
                                         <td className="px-5 py-3">
@@ -143,7 +172,6 @@ const AdminPaymentsPage = () => {
                                             {operation(payment) && <p className="mt-1 text-xs text-muted">{operation(payment)}</p>}
                                         </td>
                                         <td className="px-5 py-3 whitespace-nowrap text-foreground">{nextCheck(payment)}</td>
-                                        <td className="px-5 py-3 whitespace-nowrap text-muted">{formatDateTime(payment.created_at, TIME_ZONE, t)}</td>
                                     </tr>
                                 )
                             })}
@@ -154,13 +182,15 @@ const AdminPaymentsPage = () => {
 
             {payments.length > 0 && (
                 <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
-                    <span>{t.admin.applications.range(page * PAGE_SIZE + 1, page * PAGE_SIZE + payments.length)}</span>
+                    <span>{texts.range(page * PAGE_SIZE + 1, page * PAGE_SIZE + payments.length, total)}</span>
                     <div className="flex items-center gap-2">
                         <button type="button" aria-label={t.admin.applications.previousPage} disabled={page === 0} onClick={() => setPage(page - 1)} className={pagerButton}>
                             <Icon name="chevron-left" className="size-4" />
                         </button>
-                        <span className="px-2 text-foreground">{page + 1}</span>
-                        <button type="button" aria-label={t.admin.applications.nextPage} disabled={!hasNextPage} onClick={() => setPage(page + 1)} className={pagerButton}>
+                        <span className="px-2 text-foreground">
+                            {page + 1} / {pageCount}
+                        </span>
+                        <button type="button" aria-label={t.admin.applications.nextPage} disabled={page + 1 >= pageCount} onClick={() => setPage(page + 1)} className={pagerButton}>
                             <Icon name="chevron-left" className="size-4 rotate-180" />
                         </button>
                     </div>
