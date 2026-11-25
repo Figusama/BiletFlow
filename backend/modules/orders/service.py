@@ -14,7 +14,7 @@ from backend.modules.events.access import ensure_on_sale, ensure_purchase_access
 from backend.modules.events.models import events, event_seats
 from backend.modules.events.schemas import SeatingMode
 from backend.modules.orders.models import reservations, reservation_items, orders, order_items
-from backend.modules.orders.schemas import EventOrder, ReservationCreate, ReservationStatus, OrderStatus
+from backend.modules.orders.schemas import EventOrder, OrderItemPublic, ReservationCreate, ReservationStatus, OrderStatus
 from backend.modules.payments.activation import paid_sales_active
 from backend.modules.promotions import service as promo_service
 from backend.modules.promotions.schemas import PromoRejection
@@ -180,6 +180,12 @@ def create_reservation(session: Session, event_id: uuid.UUID, user: users, data:
     session.commit()
     session.refresh(reservation)
     return reservation
+
+
+def order_item_to_public(item: order_items) -> OrderItemPublic:
+    return OrderItemPublic(id=item.id, ticket_type_id=item.ticket_type_id, ticket_type_name=item.ticket_type_name, event_seat_id=item.event_seat_id,
+                           seat_label=ticket_service.seat_label(item.section_snapshot, item.row_snapshot, item.seat_snapshot), unit_price_minor=item.unit_price_minor,
+                           quantity=item.quantity, line_subtotal_minor=item.line_subtotal_minor, line_discount_minor=item.line_discount_minor)
 
 
 def list_event_orders(session: Session, event_id: uuid.UUID, q: str | None, order_status: OrderStatus | None, limit: int, offset: int) -> list[EventOrder]:
