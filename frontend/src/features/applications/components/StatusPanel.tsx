@@ -4,12 +4,13 @@ import type { Application } from '../api'
 
 interface StatusPanelProps {
     application: Application
-    isWithdrawing: boolean
+    isBusy: boolean
     error: string
     onWithdraw: () => void
+    onCopy: () => void
 }
 
-const StatusPanel = ({ application, isWithdrawing, error, onWithdraw }: StatusPanelProps) => {
+const StatusPanel = ({ application, isBusy, error, onWithdraw, onCopy }: StatusPanelProps) => {
     const { t } = useLanguage()
     const text = {
         DRAFT: '',
@@ -32,8 +33,13 @@ const StatusPanel = ({ application, isWithdrawing, error, onWithdraw }: StatusPa
             </div>
 
             {application.status === 'PENDING' && (
-                <Button variant="secondary" shape="pill" disabled={isWithdrawing} onClick={onWithdraw}>
+                <Button variant="secondary" shape="pill" disabled={isBusy} onClick={onWithdraw}>
                     {t.application.withdraw}
+                </Button>
+            )}
+            {(application.status === 'REJECTED' || application.status === 'WITHDRAWN') && (
+                <Button variant="secondary" shape="pill" disabled={isBusy} onClick={onCopy}>
+                    {t.application.copy}
                 </Button>
             )}
         </div>

@@ -129,6 +129,8 @@ export const acceptAgreements = (id: string, documents: AgreementType[]) =>
 
 export const deleteApplication = (id: string) => api<void>(`/event-applications/${id}`, { method: 'DELETE' })
 
+export const copyApplication = (id: string) => api<Application>(`/event-applications/${id}/copy`, { method: 'POST' })
+
 export const submitApplication = (id: string) => api<Application>(`/event-applications/${id}/submit`, { method: 'POST' })
 
 export const withdrawApplication = (id: string) => api<Application>(`/event-applications/${id}/withdraw`, { method: 'POST' })

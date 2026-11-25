@@ -12,6 +12,7 @@ import StatusBadge from '../components/ui/StatusBadge'
 import Textarea from '../components/ui/Textarea'
 import {
     acceptAgreements,
+    copyApplication,
     createApplication,
     deleteApplication,
     deleteApplicationImage,
@@ -49,7 +50,7 @@ import { useLanguage } from '../shared/i18n/language'
 
 const pageClass = 'mx-auto max-w-[1176px] px-4 pt-8 pb-16 sm:px-6'
 
-type BusyAction = 'save' | 'submit' | 'upload' | 'withdraw' | 'delete' | null
+type BusyAction = 'save' | 'submit' | 'upload' | 'withdraw' | 'delete' | 'copy' | null
 
 const FieldError = ({ message }: { message?: string }) =>
     message ? <p className="mt-2 text-sm text-error">{message}</p> : null
@@ -217,6 +218,18 @@ const ApplicationEditor = ({ application }: { application?: Application }) => {
             }
         })
 
+    const handleCopy = () =>
+        run('copy', async () => {
+            if (!application) return
+            try {
+                const copy = await copyApplication(application.id)
+                queryClient.setQueryData(['applications', copy.id], copy)
+                navigate(`/organizer/applications/${copy.id}`)
+            } catch {
+                setError(t.application.copyFailed)
+            }
+        })
+
     const handleDelete = () =>
         run('delete', async () => {
             if (!application) return
@@ -250,7 +263,13 @@ const ApplicationEditor = ({ application }: { application?: Application }) => {
             <p className="mt-2 max-w-2xl text-sm text-muted">{t.application.intro}</p>
 
             {application && !isDraft && (
-                <StatusPanel application={application} isWithdrawing={busy === 'withdraw'} error={error} onWithdraw={handleWithdraw} />
+                <StatusPanel
+                    application={application}
+                    isBusy={busy !== null}
+                    error={error}
+                    onWithdraw={handleWithdraw}
+                    onCopy={handleCopy}
+                />
             )}
 
             <div className={`mt-8 grid gap-8 lg:items-start ${isDraft ? 'lg:grid-cols-[minmax(0,1fr)_300px]' : 'max-w-3xl'}`}>
