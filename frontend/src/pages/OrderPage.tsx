@@ -6,6 +6,7 @@ import CalendarMenu from '../features/events/components/CalendarMenu'
 import { startPayment, useOrder, type OrderStatus } from '../features/orders/api'
 import CheckoutSteps from '../features/orders/components/CheckoutSteps'
 import { useMyTickets } from '../features/tickets/api'
+import OrderRefundSection from '../features/refunds/components/OrderRefundSection'
 import TicketCard from '../features/tickets/components/TicketCard'
 import { useLanguage } from '../shared/i18n/language'
 import { formatKzt } from '../shared/lib/money'
@@ -138,6 +139,8 @@ const OrderPage = () => {
                     </Link>
                 </div>
             </div>
+
+            {order.status === 'CONFIRMED' && order.total_minor > 0 && <OrderRefundSection orderId={order.id} orderNumber={order.order_number} totalMinor={order.total_minor} />}
 
             {orderTickets.length > 0 && (
                 <section aria-labelledby="order-tickets-title" className="mt-12">
