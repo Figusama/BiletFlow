@@ -104,11 +104,13 @@ def my_orders(session: Session = Depends(get_session), current_user: users = Dep
 
 
 @router.get("/events/{event_id}/orders", response_model=list[EventOrder])
-def event_orders(event_id: uuid.UUID, q: str | None = Query(default=None, max_length=200), order_status: OrderStatus | None = Query(default=None, alias="status"),
+def event_orders(event_id: uuid.UUID, response: Response, q: str | None = Query(default=None, max_length=200), order_status: OrderStatus | None = Query(default=None, alias="status"),
                  limit: int = Query(default=50, ge=1, le=200), offset: int = Query(default=0, ge=0), session: Session = Depends(get_session),
                  current_user: users = Depends(get_current_user)):
     require_organizer(session, event_id, current_user)
-    return service.list_event_orders(session, event_id, q, order_status, limit, offset)
+    rows, total = service.list_event_orders(session, event_id, q, order_status, limit, offset)
+    response.headers["X-Total-Count"] = str(total)
+    return rows
 
 
 @router.get("/events/{event_id}/orders/{order_id}", response_model=EventOrderDetail)

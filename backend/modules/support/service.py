@@ -7,10 +7,11 @@ from sqlmodel import Session, select
 
 from backend.core.clock import as_aware, db_now
 from backend.core.config import FRONTEND_URL
+from backend.modules.audit import service as audit
 from backend.modules.notifications import service as notify
 from backend.modules.orders.models import orders
 from backend.modules.support.models import support_case_history, support_cases, support_messages
-from backend.modules.support.schemas import CaseDetail, CasePublic, HistoryPublic, MessagePublic
+from backend.modules.support.schemas import CaseAssignee, CaseDetail, CasePublic, HistoryPublic, MessagePublic
 from backend.modules.users.user_model import EventRole, Role, event_user_roles, profiles, users
 
 REOPEN_WINDOW = timedelta(days=30)
@@ -72,6 +73,20 @@ def history(session: Session, case: support_cases, actor_id: uuid.UUID | None, a
             new_assignee=None, details: dict | None = None) -> None:
     session.add(support_case_history(support_case_id=case.id, actor_user_id=actor_id, action=action, old_status=old_status, new_status=new_status,
                                      old_assignee_user_id=old_assignee, new_assignee_user_id=new_assignee, details=details))
+    audit_case(session, case, actor_id, action, old_status, new_status)
+
+
+AUDIT_ACTIONS = {"CREATED": "SUPPORT_CASE_CREATED", "CLAIMED": "SUPPORT_CASE_CLAIMED", "ASSIGNED": "SUPPORT_CASE_REASSIGNED", "RELEASED": "SUPPORT_CASE_RELEASED",
+                 "ESCALATED": "SUPPORT_CASE_ESCALATED", "RETURNED_TO_EVENT": "SUPPORT_CASE_RETURNED_TO_EVENT", "STATUS_CHANGED": "SUPPORT_CASE_STATUS_CHANGED",
+                 "REOPENED": "SUPPORT_CASE_STATUS_CHANGED"}
+
+
+def audit_case(session: Session, case: support_cases, actor_id: uuid.UUID | None, action: str, old_status, new_status) -> None:
+    if action not in AUDIT_ACTIONS:
+        return
+    name = AUDIT_ACTIONS[action]
+    audit.record(session, action=name, entity_type="SUPPORT_CASE", entity_id=case.id, event_id=case.event_id if case.case_scope == "EVENT_SUPPORT" else None,
+                 actor_user_id=actor_id, details={"old_status": old_status, "new_status": new_status} if name == "SUPPORT_CASE_STATUS_CHANGED" else None)
 
 
 def incoming_unread(session: Session, case: support_cases, for_requester: bool, cursor: int) -> bool:
@@ -157,6 +172,19 @@ def to_public_list(session: Session, cases: list[support_cases], viewer: users) 
 
 def to_public(session: Session, case: support_cases, viewer: users) -> CasePublic:
     return to_public_list(session, [case], viewer)[0]
+
+
+def assignees(session: Session, case: support_cases) -> list[CaseAssignee]:
+    if platform_handles(case):
+        rows = [(u, "PLATFORM_ADMIN") for u in session.exec(select(users).where(users.personal_role == Role.PLATFORM_ADMIN, users.is_suspended.is_(False))).all()]
+    else:
+        rows = [(u, role.value) for u, role in session.exec(select(users, event_user_roles.event_role).join(event_user_roles, event_user_roles.user_id == users.id).where(
+            event_user_roles.event_id == case.event_id, event_user_roles.event_role.in_(EVENT_HANDLER_ROLES), users.is_suspended.is_(False))).all()]
+    names = full_names(session, [u.id for u, _ in rows])
+    people: dict[uuid.UUID, CaseAssignee] = {}
+    for user, role in rows:
+        people.setdefault(user.id, CaseAssignee(user_id=user.id, full_name=names.get(user.id), roles=[], is_current=user.id == case.assigned_to_user_id)).roles.append(role)
+    return sorted(people.values(), key=lambda p: (p.full_name or "", str(p.user_id)))
 
 
 def to_detail(session: Session, case: support_cases, viewer: users) -> CaseDetail:

@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from backend.core.clock import as_aware, db_now
+from backend.modules.audit import ticket_audit
 from backend.modules.auth.dependencies import get_current_user, get_optional_user
 from backend.modules.events.access import can_view_event, get_event_or_404, require_organizer
 from backend.modules.events.models import events, event_seats
@@ -90,10 +91,15 @@ def update_ticket_type(event_id: uuid.UUID, ticket_type_id: uuid.UUID, data: Tic
     changes = data.model_dump(exclude_unset=True)
     if set(changes) - {"sales_status"}:
         _require_draft(event)
+    before = {key: getattr(ticket_type, key) for key in ("price_minor", "quantity_total", "is_active", "sales_status")}
     for key, value in changes.items():
         setattr(ticket_type, key, value)
     _validate_type(event, ticket_type.kind, ticket_type.price_minor, ticket_type.sales_start_at, ticket_type.sales_end_at, ticket_type.quantity_total)
     session.add(ticket_type)
+    ticket_audit.price(session, event.id, ticket_type.id, before["price_minor"], ticket_type.price_minor, current_user.id)
+    ticket_audit.capacity(session, event.id, ticket_type.id, before["quantity_total"], ticket_type.quantity_total, current_user.id)
+    for field in ("is_active", "sales_status"):
+        ticket_audit.availability(session, event.id, ticket_type.id, field, before[field], getattr(ticket_type, field), current_user.id)
     session.commit()
     session.refresh(ticket_type)
     now = db_now(session)
@@ -127,6 +133,7 @@ class SeatPublic(BaseModel):
     seat_number: str
     is_accessible: bool
     ticket_type_id: uuid.UUID | None
+    is_enabled: bool
     state: str
 
 
@@ -156,7 +163,8 @@ def list_seats(event_id: uuid.UUID, session: Session = Depends(get_session), vie
     result = []
     for seat, section, row, number, accessible in _seat_rows(session, event.id):
         state = "UNAVAILABLE" if not seat.is_enabled or seat.ticket_type_id is None else ("TAKEN" if seat.id in taken else "AVAILABLE")
-        result.append(SeatPublic(id=seat.id, section=section, row=row, seat_number=number, is_accessible=accessible, ticket_type_id=seat.ticket_type_id, state=state))
+        result.append(SeatPublic(id=seat.id, section=section, row=row, seat_number=number, is_accessible=accessible, ticket_type_id=seat.ticket_type_id,
+                                 is_enabled=seat.is_enabled, state=state))
     return result
 
 
@@ -185,7 +193,7 @@ def list_seats_for_organizer(event_id: uuid.UUID, session: Session = Depends(get
     taken = taken_seat_ids(session, event.id, db_now(session))
     return [
         SeatPublic(id=seat.id, section=section, row=row, seat_number=number, is_accessible=accessible, ticket_type_id=seat.ticket_type_id,
-                   state="UNAVAILABLE" if not seat.is_enabled or seat.ticket_type_id is None else ("TAKEN" if seat.id in taken else "AVAILABLE"))
+                   is_enabled=seat.is_enabled, state="UNAVAILABLE" if not seat.is_enabled or seat.ticket_type_id is None else ("TAKEN" if seat.id in taken else "AVAILABLE"))
         for seat, section, row, number, accessible in _seat_rows(session, event.id)
     ]
 

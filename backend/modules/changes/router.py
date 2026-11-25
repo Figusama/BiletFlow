@@ -163,7 +163,7 @@ def approve_change(request_id: uuid.UUID, data: ChangeReview, background: Backgr
         raise HTTPException(status.HTTP_403_FORBIDDEN, "You cannot review your own request")
     now = db_now(session)
     items = list(session.exec(select(event_change_request_items).where(event_change_request_items.change_request_id == request.id)).all())
-    fields = service.apply(session, event, items, now)
+    fields = service.apply(session, event, items, now, admin.id)
     if fields & TERMS_FIELDS:
         event.purchase_terms_version += 1
         session.add(event)
@@ -174,6 +174,10 @@ def approve_change(request_id: uuid.UUID, data: ChangeReview, background: Backgr
     session.add(request)
     audit.record(session, action="EVENT_CHANGE_APPROVED", entity_type="EVENT_CHANGE_REQUEST", entity_id=request.id, event_id=event.id, actor_user_id=admin.id,
                  details={"request_number": request.request_number, "fields": sorted(f.value for f in fields)})
+    material = sorted(f.value for f in fields if f not in service.TICKET_FIELDS)
+    if material:
+        audit.record(session, action="EVENT_MATERIAL_DETAILS_CHANGED", entity_type="EVENT", entity_id=event.id, event_id=event.id, actor_user_id=admin.id,
+                     details={"fields": material})
     owner = refund_service.organizer_id(session, event.id)
     if owner:
         notify.publish(session, notify.Notice(key=f"CHANGE_APPROVED:{request.id}", event_type="EVENT_CHANGE_APPROVED", aggregate_type="EVENT", aggregate_id=event.id,

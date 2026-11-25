@@ -129,6 +129,8 @@ def approve_cancellation(request_id: uuid.UUID, data: CancellationApproval, back
     request.reviewed_at = now
     request.review_comment = (data.review_comment or "").strip() or None
     session.add(request)
+    audit.record(session, action="EVENT_CANCELLATION_APPROVED", entity_type="EVENT_CANCELLATION_REQUEST", entity_id=request.id, event_id=event.id, actor_user_id=admin.id,
+                 details={"refund_handling_mode": mode})
     service.cancel_event(session, event, admin.id, mode, request.reason, now)
     session.commit()
     run_background(background)

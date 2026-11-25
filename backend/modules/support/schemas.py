@@ -107,6 +107,13 @@ class CasePublic(BaseModel):
     updated_at: datetime
 
 
+class CaseAssignee(BaseModel):
+    user_id: uuid.UUID
+    full_name: str | None
+    roles: list[str]
+    is_current: bool
+
+
 class CaseDetail(CasePublic):
     messages: list[MessagePublic]
     history: list[HistoryPublic]

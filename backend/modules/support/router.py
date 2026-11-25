@@ -5,14 +5,13 @@ from sqlmodel import Session, select
 
 from backend.core.clock import db_now
 from backend.modules.admin.router import require_admin
-from backend.modules.audit import service as audit
 from backend.modules.auth.dependencies import get_current_user
 from backend.modules.events.access import can_view_event, get_event_or_404, require_event_role
 from backend.modules.notifications import service as notify
 from backend.modules.orders.models import orders
 from backend.modules.support import service
 from backend.modules.support.models import support_cases
-from backend.modules.support.schemas import Assignment, CaseCategory, CaseCreate, CaseDetail, CasePublic, CaseScope, CaseStatus, MessageCreate, ReadMark, StatusChange
+from backend.modules.support.schemas import Assignment, CaseAssignee, CaseCategory, CaseCreate, CaseDetail, CasePublic, CaseScope, CaseStatus, MessageCreate, ReadMark, StatusChange
 from backend.modules.tickets.models import tickets
 from backend.modules.users.user_model import EventRole, users
 from database.database import get_session
@@ -177,6 +176,14 @@ def release(case_id: uuid.UUID, session: Session = Depends(get_session), current
     return service.to_detail(session, case, current_user)
 
 
+@router.get("/support/cases/{case_id}/assignees", response_model=list[CaseAssignee])
+def case_assignees(case_id: uuid.UUID, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
+    case = service.get_case(session, case_id, current_user)
+    if not service.can_handle(session, case, current_user):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You do not handle this case")
+    return service.assignees(session, case)
+
+
 @router.post("/support/cases/{case_id}/assign", response_model=CaseDetail)
 def assign(case_id: uuid.UUID, data: Assignment, background: BackgroundTasks, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
     case = _staff_case(session, case_id, current_user)
@@ -220,8 +227,6 @@ def change_status(case_id: uuid.UUID, data: StatusChange, background: Background
     if data.status in (CaseStatus.WAITING_FOR_CUSTOMER, CaseStatus.RESOLVED):
         title = "Support case resolved" if data.status == CaseStatus.RESOLVED else "Support is waiting for your reply"
         service.notify_party(session, case, case.requester_user_id, f"SUPPORT_STATUS:{case.id}:{data.status.value}:{now.isoformat()}", title, title + ".", email=True)
-    audit.record(session, action="SUPPORT_CASE_STATUS_CHANGED", entity_type="SUPPORT_CASE", entity_id=case.id, event_id=case.event_id, actor_user_id=current_user.id,
-                 details={"status": data.status.value})
     session.commit()
     session.refresh(case)
     background.add_task(notify.deliver_due)

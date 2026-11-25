@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from backend.core.clock import as_aware
 from backend.modules.changes.schemas import TARGETED_FIELDS, ChangeField, ChangeItemInput
+from backend.modules.audit import ticket_audit
 from backend.modules.events.models import event_change_request_items, event_seats, events
 from backend.modules.events.schemas import SeatingMode
 from backend.modules.orders.models import order_items, reservation_items, reservations
@@ -149,11 +150,14 @@ def replace_items(session: Session, event: events, request_id: uuid.UUID, items:
                                                old_value=current_value(session, event, item.field, item.target_id), new_value=item.new_value))
 
 
+TICKET_FIELDS = {f for f in ChangeField if "TICKET_TYPE" in f.value or f == ChangeField.GA_CAPACITY}
+
+
 def ever_issued(session: Session, event_id: uuid.UUID) -> bool:
     return session.exec(select(tickets.id).where(tickets.event_id == event_id).limit(1)).first() is not None
 
 
-def apply(session: Session, event: events, items: list[event_change_request_items], now: datetime) -> set[ChangeField]:
+def apply(session: Session, event: events, items: list[event_change_request_items], now: datetime, actor_id: uuid.UUID | None = None) -> set[ChangeField]:
     from backend.modules.orders.service import ga_occupancy
 
     fields = {ChangeField(i.field) for i in items}
@@ -208,6 +212,8 @@ def apply(session: Session, event: events, items: list[event_change_request_item
         if capacity < sum(occupancy.values()):
             raise HTTPException(status.HTTP_409_CONFLICT, "Capacity is below tickets already sold or held")
 
+    if capacity != event.ga_capacity:
+        ticket_audit.capacity(session, event.id, None, event.ga_capacity, capacity, actor_id)
     for item in items:
         field, value = ChangeField(item.field), item.new_value
         if field == ChangeField.TITLE:
@@ -224,6 +230,7 @@ def apply(session: Session, event: events, items: list[event_change_request_item
             ticket_type = locked[item.target_id]
             if (ticket_type.kind == TicketKind.PAID) != (value > 0):
                 raise bad("Price must stay positive for paid and zero for free tickets")
+            ticket_audit.price(session, event.id, ticket_type.id, ticket_type.price_minor, value, actor_id)
             ticket_type.price_minor = value
         elif field == ChangeField.TICKET_TYPE_QUANTITY:
             ticket_type = locked[item.target_id]
@@ -231,8 +238,10 @@ def apply(session: Session, event: events, items: list[event_change_request_item
                 raise bad("Quantity is derived from assigned seats")
             if value is not None and value < occupancy.get(ticket_type.id, 0):
                 raise HTTPException(status.HTTP_409_CONFLICT, f"'{ticket_type.name}' already has more tickets sold or held")
+            ticket_audit.capacity(session, event.id, ticket_type.id, ticket_type.quantity_total, value, actor_id)
             ticket_type.quantity_total = value
         elif field == ChangeField.TICKET_TYPE_ACTIVE:
+            ticket_audit.availability(session, event.id, item.target_id, "is_active", locked[item.target_id].is_active, value, actor_id)
             locked[item.target_id].is_active = value
         elif field == ChangeField.TICKET_TYPE_SALES_WINDOW:
             start_at, end_at = parse_dt(value["sales_start_at"], "sales_start_at"), parse_dt(value["sales_end_at"], "sales_end_at")
