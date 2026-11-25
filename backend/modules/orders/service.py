@@ -14,7 +14,7 @@ from backend.modules.events.access import ensure_on_sale, ensure_purchase_access
 from backend.modules.events.models import events, event_seats
 from backend.modules.events.schemas import SeatingMode
 from backend.modules.orders.models import reservations, reservation_items, orders, order_items
-from backend.modules.orders.schemas import EventOrder, OrderItemPublic, ReservationCreate, ReservationStatus, OrderStatus
+from backend.modules.orders.schemas import AttendeeLine, EventOrder, OrderItemPublic, ReservationCreate, ReservationStatus, OrderStatus
 from backend.modules.payments.activation import paid_sales_active
 from backend.modules.promotions import service as promo_service
 from backend.modules.promotions.schemas import PromoRejection
@@ -185,7 +185,8 @@ def create_reservation(session: Session, event_id: uuid.UUID, user: users, data:
 def order_item_to_public(item: order_items) -> OrderItemPublic:
     return OrderItemPublic(id=item.id, ticket_type_id=item.ticket_type_id, ticket_type_name=item.ticket_type_name, event_seat_id=item.event_seat_id,
                            seat_label=ticket_service.seat_label(item.section_snapshot, item.row_snapshot, item.seat_snapshot), unit_price_minor=item.unit_price_minor,
-                           quantity=item.quantity, line_subtotal_minor=item.line_subtotal_minor, line_discount_minor=item.line_discount_minor)
+                           quantity=item.quantity, line_subtotal_minor=item.line_subtotal_minor, line_discount_minor=item.line_discount_minor,
+                           attendee_names=item.attendee_names or [None] * item.quantity)
 
 
 def list_event_orders(session: Session, event_id: uuid.UUID, q: str | None, order_status: OrderStatus | None, limit: int, offset: int) -> list[EventOrder]:
@@ -245,7 +246,21 @@ def _promo_error(rejection: PromoRejection) -> HTTPException:
     return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, {"code": rejection.value, "message": PROMO_MESSAGES[rejection]})
 
 
-def create_order(session: Session, reservation_id: uuid.UUID, user: users, promo_code: str | None) -> tuple[orders, list[tickets]]:
+def _names_by_item(rows: list[tuple[reservation_items, ticket_types]], attendees: list[AttendeeLine]) -> dict[uuid.UUID, list[str | None]]:
+    items = {(item.ticket_type_id, item.event_seat_id): item for item, _ in rows}
+    result: dict[uuid.UUID, list[str | None]] = {}
+    for line in attendees:
+        item = items.get((line.ticket_type_id, line.event_seat_id))
+        if item is None:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Attendee names do not match the reservation")
+        if len(line.names) > item.quantity:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Too many attendee names for the selected tickets")
+        if any(line.names):
+            result[item.id] = [name or None for name in line.names] + [None] * (item.quantity - len(line.names))
+    return result
+
+
+def create_order(session: Session, reservation_id: uuid.UUID, user: users, promo_code: str | None, attendees: list[AttendeeLine] | None = None) -> tuple[orders, list[tickets]]:
     reservation = get_own_reservation(session, reservation_id, user)
     existing = session.exec(select(orders).where(orders.reservation_id == reservation.id)).first()
     if existing is not None:
@@ -270,6 +285,7 @@ def create_order(session: Session, reservation_id: uuid.UUID, user: users, promo
         raise HTTPException(status.HTTP_409_CONFLICT, "Event purchase terms changed; please start a new checkout")
 
     lines, rows = priced_lines(session, reservation)
+    names = _names_by_item(rows, attendees or [])
     for _, ticket_type in rows:
         if sale_state(event, ticket_type, now, None) != "ON_SALE":
             raise HTTPException(status.HTTP_409_CONFLICT, f"Ticket type '{ticket_type.name}' is no longer on sale")
@@ -311,6 +327,7 @@ def create_order(session: Session, reservation_id: uuid.UUID, user: users, promo
             section_snapshot=section,
             row_snapshot=row,
             seat_snapshot=seat,
+            attendee_names=names.get(item.id),
         ))
     session.flush()
 

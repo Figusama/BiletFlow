@@ -88,7 +88,7 @@ def release_reservation(reservation_id: uuid.UUID, session: Session = Depends(ge
 
 @router.post("/reservations/{reservation_id}/order", response_model=OrderPublic, status_code=status.HTTP_201_CREATED)
 def create_order(reservation_id: uuid.UUID, data: OrderCreate, background: BackgroundTasks, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
-    order, issued = service.create_order(session, reservation_id, current_user, data.promo_code)
+    order, issued = service.create_order(session, reservation_id, current_user, data.promo_code, data.attendees)
     deliver_notices(background)
     return order_to_public(session, order)
 

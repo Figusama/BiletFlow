@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, ForeignKey, UniqueConstraint, func
+from sqlalchemy import Column, ForeignKey, Identity, UniqueConstraint, func
 from sqlalchemy.dialects import postgresql as pg
 from sqlmodel import SQLModel, Field
 
@@ -13,6 +13,7 @@ def _now() -> datetime:
 class support_cases(SQLModel, table=True):
     __tablename__ = "support_cases"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=Column(pg.UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()))
+    case_number: int | None = Field(default=None, sa_column=Column(pg.BIGINT, Identity(start=1001), unique=True, nullable=False))
     requester_user_id: uuid.UUID = Field(sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True))
     case_scope: str = Field(sa_column=Column(pg.TEXT, nullable=False))
     event_id: uuid.UUID | None = Field(default=None, sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("events.id"), nullable=True, index=True))
