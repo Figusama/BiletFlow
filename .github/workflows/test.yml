@@ -33,3 +33,8 @@ jobs:
       - run: python create_tables.py
       - run: pytest -v backend/tests/test_auth.py
       - run: pytest -v backend/tests/test_users.py
+      - run: pytest -v backend/tests/test_events.py
+      - run: pytest -v backend/tests/test_orders.py
+      - run: pytest -v backend/tests/test_payments.py
+      - run: pytest -v backend/tests/test_tickets.py
+      - run: pytest -v backend/tests/test_admin.py
