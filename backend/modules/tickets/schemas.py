@@ -4,6 +4,12 @@ from enum import Enum
 
 from pydantic import AwareDatetime, BaseModel, Field
 
+from typing import Literal
+
+TicketTypeColor = Literal[
+    "violet", "amber", "sky", "orange",
+    "lime", "pink", "emerald", "rose",
+]
 
 class TicketKind(str, Enum):
     FREE = "FREE"
@@ -43,6 +49,7 @@ class TicketTypeCreate(BaseModel):
     sales_start_at: AwareDatetime
     sales_end_at: AwareDatetime
     max_per_order: int = Field(gt=0)
+    color: TicketTypeColor | None = None
 
 
 class TicketTypeUpdate(BaseModel):
@@ -56,6 +63,7 @@ class TicketTypeUpdate(BaseModel):
     max_per_order: int | None = Field(default=None, gt=0)
     sales_status: SalesStatus | None = None
     is_active: bool | None = None
+    color: TicketTypeColor | None = None
 
 
 class TicketTypePublic(BaseModel):
@@ -73,6 +81,7 @@ class TicketTypePublic(BaseModel):
     max_per_order: int
     sale_state: str
     available: int | None
+    color: TicketTypeColor | None = None
 
 
 class TicketPublic(BaseModel):
@@ -94,6 +103,7 @@ class TicketPublic(BaseModel):
     checked_in_at: datetime | None
     qr_payload: str
     pdf_url: str
+    color: TicketTypeColor | None = None
 
 
 class ScanRequest(BaseModel):
