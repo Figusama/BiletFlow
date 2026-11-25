@@ -303,3 +303,300 @@ export const getPublishProblems = (error: unknown): string[] => {
     const detail = (error.body as { detail?: { problems?: unknown } } | null)?.detail
     return Array.isArray(detail?.problems) ? detail.problems.filter((problem): problem is string => typeof problem === 'string') : []
 }
+
+export type StaffRole = 'EVENT_ADMIN' | 'EVENT_SUPPORT'
+export type StaffInvitationStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'REVOKED' | 'EXPIRED'
+
+export interface StaffMember {
+    user_id: string
+    public_id: string
+    full_name: string | null
+    roles: string[]
+}
+
+export interface StaffInvitation {
+    id: string
+    invited_user_public_id: string
+    invited_user_name: string | null
+    invited_role: StaffRole
+    status: StaffInvitationStatus
+    expires_at: string
+    created_at: string
+    declined_at: string | null
+}
+
+export interface StaffOverview {
+    members: StaffMember[]
+    invitations: StaffInvitation[]
+}
+
+export const staffKey = (eventId: string | undefined) => ['organizer-events', eventId, 'staff']
+
+export const useStaff = (eventId: string | undefined) =>
+    useQuery({
+        queryKey: staffKey(eventId),
+        queryFn: () => api<StaffOverview>(`/events/${eventId}/staff`),
+        enabled: Boolean(eventId),
+    })
+
+export const inviteStaff = (eventId: string, userPublicId: string, role: StaffRole) =>
+    api<StaffInvitation>(`/events/${eventId}/staff-invitations`, { method: 'POST', json: { user_public_id: userPublicId, role } })
+
+export const revokeStaffInvitation = (eventId: string, invitationId: string) =>
+    api<StaffInvitation>(`/events/${eventId}/staff-invitations/${invitationId}/revoke`, { method: 'POST' })
+
+export const revokeStaffRole = (eventId: string, userId: string, role: StaffRole) =>
+    api<void>(`/events/${eventId}/staff/${userId}/roles/${role}`, { method: 'DELETE' })
+
+export type DiscountType = 'PERCENTAGE' | 'FIXED_AMOUNT'
+export type PromoScope = 'ORDER' | 'SELECTED_TICKET_TYPES'
+
+export interface PromoCode {
+    id: string
+    code: string
+    campaign_id: string | null
+    discount_type: DiscountType
+    percentage_bps: number | null
+    fixed_amount_minor: number | null
+    application_scope: PromoScope
+    ticket_type_ids: string[]
+    max_redemptions: number | null
+    redemption_count: number
+    valid_from: string
+    valid_until: string
+    is_active: boolean
+    campaign_link: string | null
+}
+
+export interface PromoCodeInput {
+    code: string | null
+    campaign_id: string | null
+    discount_type: DiscountType
+    percentage_bps: number | null
+    fixed_amount_minor: number | null
+    application_scope: PromoScope
+    ticket_type_ids: string[]
+    max_redemptions: number | null
+    valid_from: string
+    valid_until: string
+}
+
+export interface Campaign {
+    id: string
+    name: string
+}
+
+export interface CampaignStats {
+    redemptions: number
+    tickets_sold: number
+    gross_minor: number
+    discount_minor: number
+    net_minor: number
+    refunded_minor: number
+    net_after_refunds_minor: number
+}
+
+export const promoCodesKey = (eventId: string | undefined) => ['organizer-events', eventId, 'promo-codes']
+
+export const usePromoCodes = (eventId: string | undefined) =>
+    useQuery({
+        queryKey: promoCodesKey(eventId),
+        queryFn: () => api<PromoCode[]>(`/events/${eventId}/promo-codes`),
+        enabled: Boolean(eventId),
+    })
+
+export const useCampaigns = (eventId: string | undefined) =>
+    useQuery({
+        queryKey: ['organizer-events', eventId, 'campaigns'],
+        queryFn: () => api<Campaign[]>(`/events/${eventId}/campaigns`),
+        enabled: Boolean(eventId),
+    })
+
+export const useCampaignStats = (eventId: string, campaignId: string | null) =>
+    useQuery({
+        queryKey: ['organizer-events', eventId, 'campaigns', campaignId, 'stats'],
+        queryFn: () => api<CampaignStats>(`/events/${eventId}/campaigns/${campaignId}/stats`),
+        enabled: Boolean(campaignId),
+    })
+
+export const createCampaign = (eventId: string, name: string) =>
+    api<Campaign>(`/events/${eventId}/campaigns`, { method: 'POST', json: { name } })
+
+export const createPromoCode = (eventId: string, input: PromoCodeInput) =>
+    api<PromoCode>(`/events/${eventId}/promo-codes`, { method: 'POST', json: input })
+
+export const setPromoCodeActive = (eventId: string, promoId: string, isActive: boolean) =>
+    api<PromoCode>(`/events/${eventId}/promo-codes/${promoId}`, { method: 'PATCH', json: { is_active: isActive } })
+
+export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED'
+
+export interface EventOrder {
+    id: string
+    order_number: string
+    status: OrderStatus
+    buyer_name: string | null
+    buyer_email: string
+    tickets: number
+    subtotal_minor: number
+    discount_minor: number
+    total_minor: number
+    refund_status: string | null
+    refund_execution_status: string | null
+    created_at: string
+    confirmed_at: string | null
+}
+
+export const ORDERS_PAGE_SIZE = 50
+
+export const eventOrdersKey = (eventId: string | undefined) => ['organizer-events', eventId, 'orders']
+
+export const useEventOrders = (eventId: string | undefined, search: string, status: OrderStatus | null, limit: number) =>
+    useQuery({
+        queryKey: [...eventOrdersKey(eventId), search, status, limit],
+        queryFn: () => {
+            const params = new URLSearchParams({ limit: String(limit) })
+            if (search) params.set('q', search)
+            if (status) params.set('status', status)
+            return api<EventOrder[]>(`/events/${eventId}/orders?${params}`)
+        },
+        enabled: Boolean(eventId),
+        placeholderData: (previous) => previous,
+    })
+
+export type RefundRequestSource =
+    | 'CUSTOMER'
+    | 'PLATFORM_ADMIN'
+    | 'EVENT_CANCELLATION'
+    | 'EVENT_CHANGED'
+    | 'SYSTEM_FAST_REFUND'
+    | 'ORGANIZER_INITIATED'
+    | 'EVENT_SUSPENSION'
+
+export type RefundRequestStatus = 'PENDING' | 'PENDING_ADMIN' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN'
+export type RefundExecutionStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'SUCCEEDED' | 'FAILED_FINAL'
+
+export interface EventRefundRequest {
+    id: string
+    order_id: string
+    order_number: string
+    source: RefundRequestSource
+    status: RefundRequestStatus
+    execution_status: RefundExecutionStatus | null
+    reason_code: string | null
+    comment: string | null
+    amount_minor: number
+    created_at: string
+    reviewed_at: string | null
+    execution_finalized_at: string | null
+}
+
+export const eventRefundsKey = (eventId: string | undefined) => ['organizer-events', eventId, 'refund-requests']
+
+export const usePendingRefunds = (eventId: string | undefined) =>
+    useQuery({
+        queryKey: [...eventRefundsKey(eventId), 'PENDING'],
+        queryFn: () => api<EventRefundRequest[]>(`/events/${eventId}/refund-requests?status=PENDING`),
+        enabled: Boolean(eventId),
+    })
+
+export const useEventRefundRequests = (eventId: string | undefined) =>
+    useQuery({
+        queryKey: [...eventRefundsKey(eventId), 'ALL'],
+        queryFn: () => api<EventRefundRequest[]>(`/events/${eventId}/refund-requests`),
+        enabled: Boolean(eventId),
+    })
+
+export const approveRefundRequest = (requestId: string) =>
+    api<EventRefundRequest>(`/refund-requests/${requestId}/approve`, { method: 'POST', json: {} })
+
+export const rejectRefundRequest = (requestId: string, comment: string) =>
+    api<EventRefundRequest>(`/refund-requests/${requestId}/reject`, { method: 'POST', json: { comment } })
+
+export const refundWholeOrder = (orderId: string, comment: string | null) =>
+    api<EventRefundRequest>(`/orders/${orderId}/organizer-refund`, { method: 'POST', json: { comment } })
+
+export type AnalyticsBucket = 'hour' | 'day' | 'week'
+
+export interface AnalyticsInventory {
+    capacity: number | null
+    sold: number
+    historical_confirmed_tickets: number
+    inventory_occupied: number
+    remaining_inventory: number | null
+    percent_sold: number | null
+}
+
+export interface AnalyticsFinancial {
+    gross_sales_minor: number
+    discounts_minor: number
+    collected_minor: number | null
+    refunded_minor: number | null
+    net_revenue_minor: number | null
+    estimated_processing_fees_minor: number | null
+    estimated_proceeds_minor: number | null
+    is_demonstration: boolean
+}
+
+export interface AnalyticsSalesPoint {
+    bucket_start: string
+    orders: number
+    tickets: number
+    gross_sales_minor: number
+}
+
+export interface AnalyticsTicketType {
+    ticket_type_id: string
+    name: string
+    sold: number
+    available: number
+    reserved: number
+    refunded: number
+    cancelled: number
+    checked_in: number
+    confirmed_tickets: number
+    gross_sales_minor: number
+    discounts_minor: number
+    net_sales_minor: number
+}
+
+export interface AnalyticsPromotion {
+    promo_code_id: string
+    code: string
+    campaign_name: string | null
+    redemptions: number
+    tickets: number
+    gross_sales_minor: number
+    discounts_minor: number
+    refunded_minor: number | null
+}
+
+export interface AnalyticsAttendance {
+    eligible: number
+    checked_in: number
+    absent: number
+    check_in_percentage: number | null
+}
+
+export interface EventAnalytics {
+    event_id: string
+    timezone: string
+    inventory: AnalyticsInventory
+    financial: AnalyticsFinancial
+    sales_over_time: AnalyticsSalesPoint[]
+    by_ticket_type: AnalyticsTicketType[]
+    promotions: AnalyticsPromotion[]
+    attendance: AnalyticsAttendance
+}
+
+export const useEventAnalytics = (eventId: string | undefined, days: number | null, ticketTypeId: string | null) =>
+    useQuery({
+        queryKey: ['organizer-events', eventId, 'analytics', days, ticketTypeId],
+        queryFn: () => {
+            const params = new URLSearchParams()
+            if (days) params.set('from', new Date(Date.now() - days * 86_400_000).toISOString())
+            if (ticketTypeId) params.set('ticket_type_id', ticketTypeId)
+            const query = params.toString()
+            return api<EventAnalytics>(`/events/${eventId}/analytics${query ? `?${query}` : ''}`)
+        },
+        enabled: Boolean(eventId),
+    })

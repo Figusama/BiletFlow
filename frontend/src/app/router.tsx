@@ -22,6 +22,12 @@ import OrganizerSeatingPage from '../pages/OrganizerSeatingPage'
 import OrganizerPaidSalesPage from '../pages/OrganizerPaidSalesPage'
 import FeeSimulatorPage from '../pages/FeeSimulatorPage'
 import OrganizerChangeRequestsPage from '../pages/OrganizerChangeRequestsPage'
+import OrganizerTeamPage from '../pages/OrganizerTeamPage'
+import OrganizerPromoCodesPage from '../pages/OrganizerPromoCodesPage'
+import OrganizerOrdersPage from '../pages/OrganizerOrdersPage'
+import OrganizerAnalyticsPage from '../pages/OrganizerAnalyticsPage'
+import OrganizerRefundDetailPage from '../pages/OrganizerRefundDetailPage'
+import OrganizerRefundsPage from '../pages/OrganizerRefundsPage'
 import OrganizerEventLayout from '../features/organizer/components/OrganizerEventLayout'
 import RequireAuth from '../features/auth/requireAuth'
 import { verifyEmail } from '../features/auth/auth'
@@ -142,6 +148,30 @@ export const router = createBrowserRouter([
                                     {
                                         path: 'change-requests',
                                         element: <OrganizerChangeRequestsPage />,
+                                    },
+                                    {
+                                        path: 'promo-codes',
+                                        element: <OrganizerPromoCodesPage />,
+                                    },
+                                    {
+                                        path: 'orders',
+                                        element: <OrganizerOrdersPage />,
+                                    },
+                                    {
+                                        path: 'refunds',
+                                        element: <OrganizerRefundsPage />,
+                                    },
+                                    {
+                                        path: 'refunds/:requestId',
+                                        element: <OrganizerRefundDetailPage />,
+                                    },
+                                    {
+                                        path: 'analytics',
+                                        element: <OrganizerAnalyticsPage />,
+                                    },
+                                    {
+                                        path: 'team',
+                                        element: <OrganizerTeamPage />,
                                     },
                                 ],
                             },

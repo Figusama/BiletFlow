@@ -2,7 +2,7 @@ import { Link, NavLink, Outlet, useParams } from 'react-router-dom'
 import Icon from '../../../components/ui/Icon'
 import StatusBadge from '../../../components/ui/StatusBadge'
 import { useLanguage } from '../../../shared/i18n/language'
-import { useManagedEvent } from '../api'
+import { useManagedEvent, usePendingRefunds } from '../api'
 import { eventBadge, suspendedBadge } from '../status'
 
 const menuLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -14,6 +14,7 @@ const OrganizerEventLayout = () => {
     const { t } = useLanguage()
     const { eventId = '' } = useParams()
     const { data: event } = useManagedEvent(eventId)
+    const { data: pendingRefunds = [] } = usePendingRefunds(eventId)
     const badge = event?.is_suspended ? suspendedBadge : eventBadge[event?.status ?? 'DRAFT']
 
     return (
@@ -58,8 +59,26 @@ const OrganizerEventLayout = () => {
                     <NavLink to={`/organizer/events/${eventId}/paid-sales`} className={menuLinkClass}>
                         {t.organizerPaidSales.title}
                     </NavLink>
+                    <NavLink to={`/organizer/events/${eventId}/promo-codes`} className={menuLinkClass}>
+                        {t.organizerPromo.title}
+                    </NavLink>
                     <NavLink to={`/organizer/events/${eventId}/change-requests`} className={menuLinkClass}>
                         {t.organizerChanges.title}
+                    </NavLink>
+                    <NavLink to={`/organizer/events/${eventId}/orders`} className={menuLinkClass}>
+                        {t.organizerOrders.title}
+                    </NavLink>
+                    <NavLink to={`/organizer/events/${eventId}/refunds`} className={({ isActive }) => `${menuLinkClass({ isActive })} justify-between`}>
+                        {t.organizerRefunds.title}
+                        {pendingRefunds.length > 0 && (
+                            <span className="rounded-full bg-badge-warning-bg px-2 py-0.5 text-xs font-semibold text-badge-warning-fg">{pendingRefunds.length}</span>
+                        )}
+                    </NavLink>
+                    <NavLink to={`/organizer/events/${eventId}/analytics`} className={menuLinkClass}>
+                        {t.organizerAnalytics.title}
+                    </NavLink>
+                    <NavLink to={`/organizer/events/${eventId}/team`} className={menuLinkClass}>
+                        {t.organizerTeam.title}
                     </NavLink>
                 </nav>
             </aside>
