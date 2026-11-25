@@ -127,6 +127,8 @@ export const reorderApplicationImages = (id: string, imageIds: string[]) =>
 export const acceptAgreements = (id: string, documents: AgreementType[]) =>
     api<Application>(`/event-applications/${id}/agreements`, { method: 'PUT', json: { documents } })
 
+export const deleteApplication = (id: string) => api<void>(`/event-applications/${id}`, { method: 'DELETE' })
+
 export const submitApplication = (id: string) => api<Application>(`/event-applications/${id}/submit`, { method: 'POST' })
 
 export const withdrawApplication = (id: string) => api<Application>(`/event-applications/${id}/withdraw`, { method: 'POST' })

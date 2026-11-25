@@ -13,6 +13,7 @@ import Textarea from '../components/ui/Textarea'
 import {
     acceptAgreements,
     createApplication,
+    deleteApplication,
     deleteApplicationImage,
     reorderApplicationImages,
     submitApplication,
@@ -48,7 +49,7 @@ import { useLanguage } from '../shared/i18n/language'
 
 const pageClass = 'mx-auto max-w-[1176px] px-4 pt-8 pb-16 sm:px-6'
 
-type BusyAction = 'save' | 'submit' | 'upload' | 'withdraw' | null
+type BusyAction = 'save' | 'submit' | 'upload' | 'withdraw' | 'delete' | null
 
 const FieldError = ({ message }: { message?: string }) =>
     message ? <p className="mt-2 text-sm text-error">{message}</p> : null
@@ -73,6 +74,7 @@ const ApplicationEditor = ({ application }: { application?: Application }) => {
     const [error, setError] = useState('')
     const [imageError, setImageError] = useState('')
     const [showErrors, setShowErrors] = useState(false)
+    const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
     const createdId = useRef<string | null>(null)
 
     const isDraft = !application || application.status === 'DRAFT'
@@ -212,6 +214,19 @@ const ApplicationEditor = ({ application }: { application?: Application }) => {
                 store(await withdrawApplication(application.id))
             } catch {
                 setError(t.application.withdrawFailed)
+            }
+        })
+
+    const handleDelete = () =>
+        run('delete', async () => {
+            if (!application) return
+            try {
+                await deleteApplication(application.id)
+                queryClient.removeQueries({ queryKey: ['applications', application.id] })
+                await queryClient.invalidateQueries({ queryKey: ['applications', 'mine'] })
+                navigate('/organizer/events', { replace: true })
+            } catch {
+                setError(t.application.deleteFailed)
             }
         })
 
@@ -492,6 +507,41 @@ const ApplicationEditor = ({ application }: { application?: Application }) => {
                         >
                             {busy === 'save' ? t.application.saving : t.application.saveDraft}
                         </Button>
+
+                        {application && (
+                            <div className="mt-4 border-t border-border pt-4 text-center text-sm">
+                                {isConfirmingDelete ? (
+                                    <>
+                                        <p className="text-foreground">{t.application.deleteConfirm}</p>
+                                        <div className="mt-2 flex justify-center gap-4 font-semibold">
+                                            <button
+                                                type="button"
+                                                disabled={busy !== null}
+                                                onClick={handleDelete}
+                                                className="text-error hover:underline"
+                                            >
+                                                {t.application.deleteDraft}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsConfirmingDelete(false)}
+                                                className="text-muted hover:underline"
+                                            >
+                                                {t.application.cancel}
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsConfirmingDelete(true)}
+                                        className="font-semibold text-error hover:underline"
+                                    >
+                                        {t.application.deleteDraft}
+                                    </button>
+                                )}
+                            </div>
+                        )}
 
                         {error ? (
                             <p role="alert" className="mt-3 text-sm text-error">
