@@ -2,6 +2,7 @@ import { createBrowserRouter, redirect } from 'react-router-dom'
 import AppLayout from '../components/layout/AppLayout'
 import EventsPage from '../pages/EventsPage'
 import NotFoundPage from '../pages/NotFoundPage'
+import InvitationPage from '../pages/InvitationPage'
 import ErrorPage from '../pages/ErrorPage'
 import ComingSoonPage from '../pages/ComingSoonPage'
 import EventDetailsPage from '../pages/EventDetailsPage'
@@ -116,6 +117,10 @@ export const router = createBrowserRouter([
                     {
                         path: 'events/:eventId',
                         element: <EventDetailsPage />,
+                    },
+                    {
+                        path: 'invitations/:token',
+                        element: <InvitationPage />,
                     },
                     {
                         path: 'events/:eventId/paid-sales',

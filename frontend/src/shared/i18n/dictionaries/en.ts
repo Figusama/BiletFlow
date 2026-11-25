@@ -135,6 +135,34 @@ export const en = {
         unavailableText: 'We could not check your link. Try opening it again.',
         backToRegistration: 'Back to registration',
     },
+    invitation: {
+        kicker: 'Private event',
+        goHome: 'Go to home',
+        guest: {
+            title: "You're invited",
+            text: 'Sign in with the email address this invitation was sent to, to see the event. New to BiletFlow? Create an account with the same email.',
+            signIn: 'Sign in',
+            createAccount: 'Create account',
+            note: 'The link works for 24 hours and only for that email. Forwarding it won’t give anyone else access.',
+        },
+        expired: {
+            title: 'This invitation has expired',
+            text: 'Invitations work for 24 hours. Ask the organizer to send you a new one.',
+            ticketsBefore: 'Already bought tickets? They’re still yours in ',
+            myTickets: 'My tickets',
+            ticketsAfter: ', and a payment you started in time will finish.',
+        },
+        wrong: {
+            title: 'Wrong account',
+            text: (email: string) => `This invitation isn’t for the account you’re signed in as (${email}), or the link isn’t valid.`,
+            switchAccount: 'Switch account',
+            note: 'If this is your invitation, ask the organizer to send it to the email you use on BiletFlow.',
+        },
+        failed: {
+            title: 'Could not open the invitation',
+            text: 'Something went wrong. Try opening the link again.',
+        },
+    },
     notFound: {
         title: 'Page not found',
         text: 'The page you’re looking for doesn’t exist or may have been moved.',
