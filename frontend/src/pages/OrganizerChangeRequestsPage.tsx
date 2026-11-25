@@ -141,9 +141,9 @@ const ChangeRequests = ({ event }: { event: ManagedEvent }) => {
                                                 {item.target_id && <span className="block text-foreground">{ticketTypeName(ticketTypes, item.target_id)}</span>}
                                             </span>
                                             <span className="text-foreground">
-                                                <span className="text-muted line-through">{formatChangeValue(item.field, item.old_value, { t, event, venues })}</span>
+                                                <span className="text-muted line-through">{formatChangeValue(item.field, item.old_value, { t, timeZone: event.timezone, venues })}</span>
                                                 <Icon name="chevron-left" className="mx-2 inline-block size-3.5 rotate-180 text-muted" />
-                                                <span className="font-semibold">{formatChangeValue(item.field, item.new_value, { t, event, venues })}</span>
+                                                <span className="font-semibold">{formatChangeValue(item.field, item.new_value, { t, timeZone: event.timezone, venues })}</span>
                                             </span>
                                         </li>
                                     ))}

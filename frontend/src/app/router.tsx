@@ -39,6 +39,11 @@ import RequireAdmin from '../features/auth/requireAdmin'
 import AdminLayout from '../features/admin/components/AdminLayout'
 import AdminApplicationsPage from '../pages/AdminApplicationsPage'
 import AdminApplicationPage from '../pages/AdminApplicationPage'
+import AdminChangeRequestsPage from '../pages/AdminChangeRequestsPage'
+import AdminChangeRequestPage from '../pages/AdminChangeRequestPage'
+import AdminPaymentsPage from '../pages/AdminPaymentsPage'
+import AdminActivationsPage from '../pages/AdminActivationsPage'
+import AdminActivationPage from '../pages/AdminActivationPage'
 import { verifyEmail } from '../features/auth/auth'
 import { ApiError } from '../shared/api/client'
 
@@ -57,6 +62,11 @@ export const router = createBrowserRouter([
                             { index: true, loader: () => redirect('/admin/applications') },
                             { path: 'applications', element: <AdminApplicationsPage /> },
                             { path: 'applications/:applicationId', element: <AdminApplicationPage /> },
+                            { path: 'change-requests', element: <AdminChangeRequestsPage /> },
+                            { path: 'change-requests/:requestId', element: <AdminChangeRequestPage /> },
+                            { path: 'paid-sales', element: <AdminActivationsPage /> },
+                            { path: 'paid-sales/:requestId', element: <AdminActivationPage /> },
+                            { path: 'payments', element: <AdminPaymentsPage /> },
                         ],
                     },
                 ],

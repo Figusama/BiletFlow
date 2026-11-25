@@ -304,7 +304,7 @@ const ChangeRequestForm = ({ event, ticketTypes, onDone }: ChangeRequestFormProp
                                         {texts.fields[item.field]}
                                         {item.target_id && <span className="font-normal text-muted"> {ticketTypeName(ticketTypes, item.target_id)}</span>}
                                     </p>
-                                    <p className="mt-0.5 text-muted">{formatChangeValue(item.field, item.new_value, { t, event, venues })}</p>
+                                    <p className="mt-0.5 text-muted">{formatChangeValue(item.field, item.new_value, { t, timeZone: event.timezone, venues })}</p>
                                 </div>
                                 <button
                                     type="button"

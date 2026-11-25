@@ -32,6 +32,18 @@ const AdminLayout = () => {
                             <NavLink to="/admin/applications" className={menuLinkClass}>
                                 {t.admin.applications.title}
                             </NavLink>
+                            <NavLink to="/admin/change-requests" className={menuLinkClass}>
+                                {t.admin.changes.title}
+                            </NavLink>
+                            <NavLink to="/admin/paid-sales" className={menuLinkClass}>
+                                {t.admin.activations.title}
+                            </NavLink>
+                        </div>
+                        <div>
+                            <p className={groupTitleClass}>{t.admin.groups.commerce}</p>
+                            <NavLink to="/admin/payments" className={menuLinkClass}>
+                                {t.admin.payments.title}
+                            </NavLink>
                         </div>
                     </nav>
 

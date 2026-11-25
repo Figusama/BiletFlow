@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { api } from '../../shared/api/client'
 import type { Application, ApplicationStatus } from '../applications/api'
+import type { ChangeRequest } from '../organizer/api'
 
 export type ReviewStatus = Exclude<ApplicationStatus, 'DRAFT'>
 
@@ -49,3 +50,122 @@ export const waitingTime = (submittedAt: string) => {
     if (minutes >= 60) return { value: Math.floor(minutes / 60), unit: 'hour' as const }
     return { value: minutes, unit: 'minute' as const }
 }
+
+export type AdminEventStatus = 'DRAFT' | 'PUBLISHED' | 'COMPLETED' | 'CANCELLED'
+
+export interface AdminEvent {
+    id: string
+    public_id: string
+    title: string
+    status: AdminEventStatus
+    is_suspended: boolean
+    starts_at: string
+    organizer_email: string | null
+    tickets_issued: number
+}
+
+export const useAdminEvents = () =>
+    useQuery({
+        queryKey: ['admin', 'events'],
+        queryFn: () => api<AdminEvent[]>('/admin/events?limit=200'),
+        staleTime: 60_000,
+    })
+
+export type ChangeReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN'
+
+export const changeReviewStatuses: ChangeReviewStatus[] = ['PENDING', 'APPROVED', 'REJECTED', 'WITHDRAWN']
+
+export interface AdminChangeRequest extends ChangeRequest {
+    event_id: string
+}
+
+export const adminChangesKey = ['admin', 'change-requests']
+
+export const useAdminChangeRequests = (status: ChangeReviewStatus) =>
+    useQuery({
+        queryKey: [...adminChangesKey, status],
+        queryFn: () => api<AdminChangeRequest[]>(`/admin/change-requests?status=${status}`),
+    })
+
+export const approveChangeRequest = (requestId: string, reviewComment: string | null) =>
+    api<AdminChangeRequest>(`/admin/change-requests/${requestId}/approve`, { method: 'POST', json: { review_comment: reviewComment } })
+
+export const rejectChangeRequest = (requestId: string, reviewComment: string) =>
+    api<AdminChangeRequest>(`/admin/change-requests/${requestId}/reject`, { method: 'POST', json: { review_comment: reviewComment } })
+
+export type PaymentStatus = 'PENDING' | 'AUTHORIZED' | 'CAPTURING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
+
+export type PaymentFilter = PaymentStatus | 'ALL' | 'PROBLEMS'
+
+export const paymentFilters: PaymentFilter[] = ['ALL', 'PROBLEMS', 'PENDING', 'AUTHORIZED', 'CAPTURING', 'SUCCEEDED', 'FAILED', 'CANCELLED']
+
+export interface AdminPayment {
+    id: string
+    order_id: string
+    order_number: string
+    status: PaymentStatus
+    pending_operation: 'CAPTURE' | 'CANCEL' | null
+    cancellation_reason: 'USER_REQUESTED' | 'RESERVATION_EXPIRED' | 'CAPTURE_FAILED' | null
+    amount_minor: number
+    is_simulated: boolean
+    is_overdue: boolean
+    next_check_at: string | null
+    created_at: string
+    finalized_at: string | null
+}
+
+export const adminPaymentsKey = ['admin', 'payments']
+
+export const useAdminPayments = (filter: PaymentFilter, search: string, page: number, pageSize: number) =>
+    useQuery({
+        queryKey: [...adminPaymentsKey, filter, search, page],
+        queryFn: () => {
+            const params = new URLSearchParams({ limit: String(pageSize + 1), offset: String(page * pageSize) })
+            if (filter === 'PROBLEMS') params.set('problems_only', 'true')
+            else if (filter !== 'ALL') params.set('status', filter)
+            if (search) params.set('q', search)
+            return api<AdminPayment[]>(`/admin/payments?${params}`)
+        },
+        placeholderData: keepPreviousData,
+    })
+
+export const reconcilePayments = () => api<{ handled: number }>('/admin/payments/reconcile', { method: 'POST' })
+
+export type ActivationReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+export const activationReviewStatuses: ActivationReviewStatus[] = ['PENDING', 'APPROVED', 'REJECTED']
+
+export interface ActivationRequest {
+    id: string
+    event_id: string
+    event_title: string
+    status: ActivationReviewStatus
+    verification_snapshot: {
+        owner_type?: 'INDIVIDUAL' | 'LEGAL_ENTITY'
+        owner_name?: string
+        identifier_masked?: string
+        iban_masked?: string
+        bank_name?: string
+        account_holder_name?: string
+        responsible_person_name?: string
+        contact_email?: string
+        contact_phone?: string
+    }
+    terms_version: string
+    submitted_at: string
+    reviewed_at: string | null
+    rejection_reason: string | null
+}
+
+export const activationsKey = ['admin', 'paid-sales']
+
+export const useActivationRequests = (status: ActivationReviewStatus) =>
+    useQuery({
+        queryKey: [...activationsKey, status],
+        queryFn: () => api<ActivationRequest[]>(`/admin/paid-sales/requests?status=${status}`),
+    })
+
+export const approveActivation = (requestId: string) => api<unknown>(`/admin/paid-sales/requests/${requestId}/approve`, { method: 'POST' })
+
+export const rejectActivation = (requestId: string, reason: string) =>
+    api<unknown>(`/admin/paid-sales/requests/${requestId}/reject`, { method: 'POST', json: { reason } })

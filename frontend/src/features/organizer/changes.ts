@@ -2,7 +2,7 @@ import type { Dictionary } from '../../shared/i18n/dictionaries/en'
 import { formatTime, getDateParts } from '../../shared/lib/date'
 import { formatKzt } from '../../shared/lib/money'
 import type { Venue } from '../applications/api'
-import type { ChangeField, ManagedEvent, ManagedTicketType } from './api'
+import type { ChangeField } from './api'
 
 export const EVENT_FIELDS: ChangeField[] = [
     'TITLE',
@@ -22,7 +22,7 @@ export const REFUND_HOURS = [24, 72, 168]
 
 interface FormatContext {
     t: Dictionary
-    event: ManagedEvent
+    timeZone: string
     venues: Venue[]
 }
 
@@ -34,7 +34,7 @@ export const formatDateTime = (iso: string, timeZone: string, t: Dictionary) => 
 
 const asRecord = (value: unknown): Record<string, unknown> => (value && typeof value === 'object' ? (value as Record<string, unknown>) : {})
 
-export const formatChangeValue = (field: ChangeField, value: unknown, { t, event, venues }: FormatContext): string => {
+export const formatChangeValue = (field: ChangeField, value: unknown, { t, timeZone, venues }: FormatContext): string => {
     const texts = t.organizerChanges
     if (value === null || value === undefined || value === '') {
         return field === 'TICKET_TYPE_QUANTITY' ? texts.noLimit : texts.notSet
@@ -42,7 +42,7 @@ export const formatChangeValue = (field: ChangeField, value: unknown, { t, event
     switch (field) {
         case 'STARTS_AT':
         case 'ENDS_AT':
-            return formatDateTime(String(value), event.timezone, t)
+            return formatDateTime(String(value), timeZone, t)
         case 'VENUE': {
             const venue = venues.find((item) => item.id === value)
             return venue ? `${venue.name}, ${venue.city}` : String(value)
@@ -61,8 +61,8 @@ export const formatChangeValue = (field: ChangeField, value: unknown, { t, event
             return value ? texts.visible : texts.hidden
         case 'TICKET_TYPE_SALES_WINDOW': {
             const window = asRecord(value)
-            const start = typeof window.sales_start_at === 'string' ? formatDateTime(window.sales_start_at, event.timezone, t) : '?'
-            const end = typeof window.sales_end_at === 'string' ? formatDateTime(window.sales_end_at, event.timezone, t) : '?'
+            const start = typeof window.sales_start_at === 'string' ? formatDateTime(window.sales_start_at, timeZone, t) : '?'
+            const end = typeof window.sales_end_at === 'string' ? formatDateTime(window.sales_end_at, timeZone, t) : '?'
             return `${start} – ${end}`
         }
         default:
@@ -70,5 +70,5 @@ export const formatChangeValue = (field: ChangeField, value: unknown, { t, event
     }
 }
 
-export const ticketTypeName = (ticketTypes: ManagedTicketType[], id: string | null) =>
+export const ticketTypeName = (ticketTypes: { id: string; name: string }[], id: string | null) =>
     ticketTypes.find((type) => type.id === id)?.name ?? ''
