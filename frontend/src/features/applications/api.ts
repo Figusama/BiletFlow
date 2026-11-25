@@ -65,6 +65,7 @@ export interface Category {
 export interface VenueLayout {
     id: string
     name: string
+    version?: number
     is_active: boolean
     seats: number
 }

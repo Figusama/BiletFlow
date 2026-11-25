@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { api } from '../../shared/api/client'
-import type { Application, ApplicationStatus } from '../applications/api'
-import type { ChangeRequest, EventRefundRequest } from '../organizer/api'
+import type { Application, ApplicationStatus, Venue } from '../applications/api'
+import type { ChangeRequest, EventRefundRequest, HistoryEntry, HistoryPage } from '../organizer/api'
 import type { SupportCase, SupportCaseDetail } from '../organizer/support'
 
 export type ReviewStatus = Exclude<ApplicationStatus, 'DRAFT'>
@@ -343,3 +343,84 @@ export const approveCancellation = (requestId: string, mode: RefundHandlingMode)
 
 export const rejectCancellation = (requestId: string, reviewComment: string) =>
     api<AdminCancellation>(`/admin/cancellation-requests/${requestId}/reject`, { method: 'POST', json: { review_comment: reviewComment } })
+
+export type EventSuspendedFilter = 'ALL' | 'ACTIVE' | 'SUSPENDED'
+
+export const eventSuspendedFilters: EventSuspendedFilter[] = ['ALL', 'ACTIVE', 'SUSPENDED']
+
+export const eventStatusFilters: ('ALL' | AdminEventStatus)[] = ['ALL', 'DRAFT', 'PUBLISHED', 'COMPLETED', 'CANCELLED']
+
+export interface AdminEventDetails extends AdminEvent {
+    suspended_at: string | null
+    suspension_reason: string | null
+}
+
+export const adminEventsKey = ['admin', 'events']
+
+export const useAdminEventList = (status: 'ALL' | AdminEventStatus, suspended: EventSuspendedFilter, search: string, page: number, pageSize: number) =>
+    useQuery({
+        queryKey: [...adminEventsKey, 'list', status, suspended, search, page],
+        queryFn: () => {
+            const params = new URLSearchParams({ limit: String(pageSize + 1), offset: String(page * pageSize) })
+            if (status !== 'ALL') params.set('status', status)
+            if (suspended !== 'ALL') params.set('suspended', String(suspended === 'SUSPENDED'))
+            if (search) params.set('q', search)
+            return api<AdminEventDetails[]>(`/admin/events?${params}`)
+        },
+        placeholderData: keepPreviousData,
+    })
+
+export const useAdminEventDetails = (publicId: string | undefined) =>
+    useQuery({
+        queryKey: [...adminEventsKey, 'detail', publicId],
+        queryFn: async () => {
+            const rows = await api<AdminEventDetails[]>(`/admin/events?q=${encodeURIComponent(publicId ?? '')}&limit=5`)
+            return rows.find((event) => event.public_id === publicId) ?? null
+        },
+        enabled: Boolean(publicId),
+    })
+
+export const suspendEvent = (eventId: string, reason: string) =>
+    api<AdminEventDetails>(`/admin/events/${eventId}/suspend`, { method: 'POST', json: { reason } })
+
+export const restoreEvent = (eventId: string) => api<AdminEventDetails>(`/admin/events/${eventId}/restore`, { method: 'POST' })
+
+export interface AuditEntry extends HistoryEntry {
+    entity_id: string | null
+}
+
+export interface AuditPage extends Omit<HistoryPage, 'items'> {
+    items: AuditEntry[]
+}
+
+export interface AuditFilters {
+    from: string | null
+    category: string
+    result: '' | 'SUCCESS' | 'DENIED'
+    eventId: string
+    limit: number
+    offset: number
+}
+
+export const useAdminAudit = (filters: AuditFilters) => {
+    const params = new URLSearchParams({ limit: String(filters.limit), offset: String(filters.offset) })
+    if (filters.from) params.set('from', filters.from)
+    if (filters.category) params.append('category', filters.category)
+    if (filters.result) params.set('result', filters.result)
+    if (filters.eventId) params.set('event_id', filters.eventId)
+    return useQuery({
+        queryKey: ['admin', 'audit', filters],
+        queryFn: () => api<AuditPage>(`/admin/audit?${params}`),
+        placeholderData: keepPreviousData,
+    })
+}
+
+export interface VenueInput {
+    name: string
+    address: string
+    city: string
+    timezone: string
+    max_capacity: number
+}
+
+export const createVenue = (input: VenueInput) => api<Venue>('/admin/venues', { method: 'POST', json: input })

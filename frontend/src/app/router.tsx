@@ -43,6 +43,10 @@ import AdminChangeRequestsPage from '../pages/AdminChangeRequestsPage'
 import AdminChangeRequestPage from '../pages/AdminChangeRequestPage'
 import AdminPaymentsPage from '../pages/AdminPaymentsPage'
 import AdminUsersPage from '../pages/AdminUsersPage'
+import AdminVenuesPage from '../pages/AdminVenuesPage'
+import AdminEventsPage from '../pages/AdminEventsPage'
+import AdminEventPage from '../pages/AdminEventPage'
+import AdminAuditPage from '../pages/AdminAuditPage'
 import AdminCancellationsPage from '../pages/AdminCancellationsPage'
 import AdminCancellationPage from '../pages/AdminCancellationPage'
 import AdminSupportPage from '../pages/AdminSupportPage'
@@ -81,6 +85,10 @@ export const router = createBrowserRouter([
                             { path: 'support/:caseId', element: <AdminSupportCasePage /> },
                             { path: 'cancellations', element: <AdminCancellationsPage /> },
                             { path: 'cancellations/:requestId', element: <AdminCancellationPage /> },
+                            { path: 'events', element: <AdminEventsPage /> },
+                            { path: 'events/:publicId', element: <AdminEventPage /> },
+                            { path: 'audit', element: <AdminAuditPage /> },
+                            { path: 'venues', element: <AdminVenuesPage /> },
                             { path: 'users', element: <AdminUsersPage /> },
                             { path: 'users/:publicId', element: <AdminUserPage /> },
                         ],
