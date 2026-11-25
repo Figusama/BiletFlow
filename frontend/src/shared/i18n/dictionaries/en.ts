@@ -1281,7 +1281,7 @@ export const en = {
             noOrders: 'No orders yet.',
             orderColumns: { order: 'Order', event: 'Event', status: 'Status', total: 'Total' },
             suspendTitle: 'Suspend account',
-            suspendHint: 'Signs the user out of every session. Their issued tickets stay valid.',
+            suspendHint: 'Signs the user out of every session.',
             suspend: 'Suspend',
             restoreTitle: 'Restore account',
             restoreHint: 'The user can sign in again.',

@@ -1286,7 +1286,7 @@ export const kk: Dictionary = {
             noOrders: 'Тапсырыс әзірге жоқ.',
             orderColumns: { order: 'Тапсырыс', event: 'Іс-шара', status: 'Күйі', total: 'Сома' },
             suspendTitle: 'Аккаунтты бұғаттау',
-            suspendHint: 'Пайдаланушының барлық сессиясын аяқтайды. Берілген билеттер жарамды болып қалады.',
+            suspendHint: 'Пайдаланушының барлық сессиясын аяқтайды.',
             suspend: 'Бұғаттау',
             restoreTitle: 'Аккаунтты қалпына келтіру',
             restoreHint: 'Пайдаланушы қайта кіре алады.',

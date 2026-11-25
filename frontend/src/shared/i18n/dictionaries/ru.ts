@@ -1297,7 +1297,7 @@ export const ru: Dictionary = {
             noOrders: 'Заказов пока нет.',
             orderColumns: { order: 'Заказ', event: 'Событие', status: 'Статус', total: 'Сумма' },
             suspendTitle: 'Заблокировать аккаунт',
-            suspendHint: 'Завершает все сессии пользователя. Выданные билеты остаются действительными.',
+            suspendHint: 'Завершает все сессии пользователя.',
             suspend: 'Заблокировать',
             restoreTitle: 'Восстановить аккаунт',
             restoreHint: 'Пользователь снова сможет войти.',
