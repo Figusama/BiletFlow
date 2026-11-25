@@ -147,8 +147,12 @@ const Review = ({ request, index, all, status }: ReviewProps) => {
                 <StatusBadge tone={badge.tone} icon={badge.icon}>
                     {t.admin.applications.status[request.status]}
                 </StatusBadge>
-                <h1 className="mt-3 text-2xl font-bold tracking-tight text-foreground">{request.event_title}</h1>
-                <p className="mt-1 text-sm text-muted">{texts.submittedAt(formatDateTime(request.submitted_at, TIME_ZONE, t))}</p>
+                <h1 className="mt-3 text-2xl font-bold tracking-tight text-foreground">
+                    {request.event_title} <span className="font-mono text-base font-normal text-muted">{request.event_public_id}</span>
+                </h1>
+                <p className="mt-1 text-sm text-muted">
+                    {[request.organizer_name, texts.submittedAt(formatDateTime(request.submitted_at, TIME_ZONE, t))].filter(Boolean).join(', ')}
+                </p>
 
                 <div className="mt-6 grid gap-6 md:grid-cols-2">
                     <section>
@@ -158,12 +162,30 @@ const Review = ({ request, index, all, status }: ReviewProps) => {
                             <Row label={texts.fields.owner}>
                                 {[snapshot.owner_type && texts.ownerTypes[snapshot.owner_type], snapshot.owner_name].filter(Boolean).join(', ') || '—'}
                             </Row>
-                            <Row label={texts.fields.identifier}>{snapshot.identifier_masked ? groupDigits(snapshot.identifier_masked) : '—'}</Row>
+                            <Row label={texts.fields.identifier}>
+                                {snapshot.identifier_masked ? groupDigits(snapshot.identifier_masked) : '—'}
+                                {request.checks && (
+                                    <span className="mt-1 flex flex-wrap gap-1.5">
+                                        <StatusBadge tone={request.checks.identifier_format ? 'success' : 'danger'}>{request.checks.identifier_format ? texts.formatOk : texts.formatBad}</StatusBadge>
+                                        <StatusBadge tone={request.checks.identifier_checksum ? 'success' : 'danger'}>
+                                            {request.checks.identifier_checksum ? texts.checksumOk : texts.checksumBad}
+                                        </StatusBadge>
+                                    </span>
+                                )}
+                            </Row>
                             <Row label={texts.fields.responsible}>
                                 {[snapshot.responsible_person_name, snapshot.contact_email, snapshot.contact_phone].filter(Boolean).join(', ') || '—'}
                             </Row>
                             <Row label={texts.fields.bank}>{snapshot.bank_name ?? '—'}</Row>
-                            <Row label={texts.fields.iban}>{snapshot.iban_masked ? groupDigits(snapshot.iban_masked) : '—'}</Row>
+                            <Row label={texts.fields.iban}>
+                                {snapshot.iban_masked ? groupDigits(snapshot.iban_masked) : '—'}
+                                {request.checks && (
+                                    <span className="mt-1 flex flex-wrap gap-1.5">
+                                        <StatusBadge tone={request.checks.iban_format ? 'success' : 'danger'}>{request.checks.iban_format ? texts.formatOk : texts.formatBad}</StatusBadge>
+                                        <StatusBadge tone={request.checks.iban_checksum ? 'success' : 'danger'}>{request.checks.iban_checksum ? texts.checksumOk : texts.checksumBad}</StatusBadge>
+                                    </span>
+                                )}
+                            </Row>
                             <Row label={texts.fields.holder}>
                                 {snapshot.account_holder_name ?? '—'}
                                 {holderDiffers && <p className="mt-1 font-normal text-badge-warning-fg">{texts.holderDiffers}</p>}

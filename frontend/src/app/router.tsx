@@ -57,6 +57,7 @@ import AdminRefundPage from '../pages/AdminRefundPage'
 import AdminUserPage from '../pages/AdminUserPage'
 import AdminActivationsPage from '../pages/AdminActivationsPage'
 import AdminActivationPage from '../pages/AdminActivationPage'
+import AdminActivationEventPage from '../pages/AdminActivationEventPage'
 import { verifyEmail } from '../features/auth/auth'
 import { ApiError } from '../shared/api/client'
 
@@ -78,6 +79,7 @@ export const router = createBrowserRouter([
                             { path: 'change-requests', element: <AdminChangeRequestsPage /> },
                             { path: 'change-requests/:requestId', element: <AdminChangeRequestPage /> },
                             { path: 'paid-sales', element: <AdminActivationsPage /> },
+                            { path: 'paid-sales/events/:eventId', element: <AdminActivationEventPage /> },
                             { path: 'paid-sales/:requestId', element: <AdminActivationPage /> },
                             { path: 'payments', element: <AdminPaymentsPage /> },
                             { path: 'payments/:paymentId', element: <AdminPaymentPage /> },

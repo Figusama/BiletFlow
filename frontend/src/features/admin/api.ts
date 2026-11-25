@@ -214,11 +214,21 @@ export type ActivationReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
 export const activationReviewStatuses: ActivationReviewStatus[] = ['PENDING', 'APPROVED', 'REJECTED']
 
+export interface VerificationChecks {
+    identifier_format: boolean
+    identifier_checksum: boolean
+    iban_format: boolean
+    iban_checksum: boolean
+}
+
 export interface ActivationRequest {
     id: string
     event_id: string
     event_title: string
+    event_public_id: string
+    organizer_name: string | null
     status: ActivationReviewStatus
+    checks: VerificationChecks | null
     verification_snapshot: {
         owner_type?: 'INDIVIDUAL' | 'LEGAL_ENTITY'
         owner_name?: string
@@ -240,9 +250,76 @@ export const activationsKey = ['admin', 'paid-sales']
 
 export const useActivationRequests = (status: ActivationReviewStatus) =>
     useQuery({
-        queryKey: [...activationsKey, status],
+        queryKey: [...activationsKey, 'requests', status],
         queryFn: () => api<ActivationRequest[]>(`/admin/paid-sales/requests?status=${status}`),
     })
+
+export type ActivationStatus = 'PENDING_VERIFICATION' | 'FEE_PENDING' | 'ACTIVE' | 'SUSPENDED'
+
+export type ActivationFilter = 'ALL' | ActivationStatus
+
+export const activationFilters: ActivationFilter[] = ['ALL', 'PENDING_VERIFICATION', 'FEE_PENDING', 'ACTIVE', 'SUSPENDED']
+
+export interface AdminActivation {
+    id: string | null
+    event_id: string
+    event_title: string
+    event_public_id: string
+    event_status: string
+    organizer_id: string | null
+    organizer_name: string | null
+    organizer_email: string | null
+    status: ActivationStatus | 'NOT_REQUESTED'
+    pending_request_id: string | null
+    fee_amount_minor: number
+    fee_currency: string
+    fee_paid_at: string | null
+    activated_at: string | null
+    suspended_at: string | null
+    suspension_reason: string | null
+    suspended_by_name: string | null
+    created_at: string | null
+}
+
+export interface ActivationFeePayment {
+    id: string
+    amount_minor: number
+    currency: string
+    status: 'PENDING' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'UNKNOWN'
+    payment_mode: 'SANDBOX' | 'SIMULATION'
+    created_at: string
+    finalized_at: string | null
+}
+
+export interface AdminActivationDetail extends AdminActivation {
+    paid_terms_version: string | null
+    requests: ActivationRequest[]
+    fee_payments: ActivationFeePayment[]
+}
+
+export const useAdminActivations = (status: ActivationFilter, search: string, page: number, pageSize: number) =>
+    useQuery({
+        queryKey: [...activationsKey, 'list', status, search, page],
+        queryFn: () => {
+            const params = new URLSearchParams({ limit: String(pageSize), offset: String(page * pageSize) })
+            if (status !== 'ALL') params.set('status', status)
+            if (search) params.set('q', search)
+            return apiPage<AdminActivation>(`/admin/paid-sales/activations?${params}`)
+        },
+        placeholderData: keepPreviousData,
+    })
+
+export const useAdminActivationDetail = (eventId: string | undefined) =>
+    useQuery({
+        queryKey: [...activationsKey, 'detail', eventId],
+        queryFn: () => api<AdminActivationDetail>(`/admin/events/${eventId}/paid-sales`),
+        enabled: Boolean(eventId),
+    })
+
+export const suspendPaidSales = (eventId: string, reason: string) =>
+    api<unknown>(`/admin/events/${eventId}/paid-sales/suspend`, { method: 'POST', json: { reason } })
+
+export const resumePaidSales = (eventId: string) => api<unknown>(`/admin/events/${eventId}/paid-sales/resume`, { method: 'POST' })
 
 export const approveActivation = (requestId: string) => api<unknown>(`/admin/paid-sales/requests/${requestId}/approve`, { method: 'POST' })
 
