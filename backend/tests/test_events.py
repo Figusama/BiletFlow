@@ -95,8 +95,7 @@ def make_event(owner_email: str = USER["email"], *, status=EventLifecycleStatus.
     starts = now + timedelta(days=starts_in_days)
     with Session(engine) as s:
         venue = s.exec(select(venues).limit(1)).first()
-        if venue is None:
-            pytest.skip("test database has no venue")
+        assert venue is not None, "No venue visible to the test database"
         owner_id = user_id(owner_email)
         application = event_applications(
             application_number=f"APP-TEST-{token.upper()}", applicant_user_id=owner_id,
@@ -134,8 +133,7 @@ def add_role(event_id: str, email: str, role: EventRole) -> None:
 def first_category_id() -> str:
     with Session(engine) as s:
         category = s.exec(select(categories).where(categories.is_active.is_(True))).first()
-        if category is None:
-            pytest.skip("test database has no active category")
+        assert category is not None, "No active category visible to the test database"
         return str(category.id)
 
 
