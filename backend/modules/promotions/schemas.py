@@ -124,8 +124,7 @@ class CampaignPublic(BaseModel):
     codes: list[PromoCodePublic]
 
 
-class CampaignStats(BaseModel):
-    campaign_id: uuid.UUID
+class PromoStats(BaseModel):
     redemptions: int
     tickets_sold: int
     gross_minor: int
@@ -133,3 +132,18 @@ class CampaignStats(BaseModel):
     net_minor: int
     refunded_minor: int
     net_after_refunds_minor: int
+
+
+class CampaignStats(PromoStats):
+    campaign_id: uuid.UUID
+
+
+class PromoCodeStats(PromoStats):
+    promo_code_id: uuid.UUID
+    code: str
+    max_redemptions: int | None
+
+
+class PromoQr(BaseModel):
+    link: str
+    data_url: str

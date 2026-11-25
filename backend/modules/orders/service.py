@@ -189,7 +189,7 @@ def order_item_to_public(item: order_items) -> OrderItemPublic:
                            attendee_names=item.attendee_names or [None] * item.quantity)
 
 
-def list_event_orders(session: Session, event_id: uuid.UUID, q: str | None, order_status: OrderStatus | None, limit: int, offset: int) -> list[EventOrder]:
+def list_event_orders(session: Session, event_id: uuid.UUID, q: str | None, order_status: OrderStatus | None, limit: int, offset: int) -> tuple[list[EventOrder], int]:
     quantity = select(order_items.order_id, func.sum(order_items.quantity).label("quantity")).group_by(order_items.order_id).subquery()
     query = (select(orders, users.email, profiles.full_name, quantity.c.quantity).join(users, users.id == orders.buyer_user_id)
              .outerjoin(profiles, profiles.user_id == users.id).outerjoin(quantity, quantity.c.order_id == orders.id).where(orders.event_id == event_id))
@@ -198,6 +198,7 @@ def list_event_orders(session: Session, event_id: uuid.UUID, q: str | None, orde
     if q and q.strip():
         pattern = "%" + re.sub(r"([\\%_])", r"\\\1", q.strip()) + "%"
         query = query.where(or_(orders.order_number.ilike(pattern), users.email.ilike(pattern), profiles.full_name.ilike(pattern)))
+    total = session.exec(select(func.count()).select_from(query.with_only_columns(orders.id).order_by(None).subquery())).one()
     rows = session.exec(query.order_by(orders.created_at.desc(), orders.id).limit(limit).offset(offset)).all()
     latest = {}
     for request in session.exec(select(refund_requests).where(refund_requests.order_id.in_([order.id for order, *_ in rows])).order_by(refund_requests.created_at)).all():
@@ -213,7 +214,7 @@ def list_event_orders(session: Session, event_id: uuid.UUID, q: str | None, orde
                                  subtotal_minor=order.subtotal_minor, discount_minor=order.discount_minor, total_minor=order.total_minor,
                                  refund_status=request.status if request else None, refund_execution_status=request.execution_status if request else None,
                                  created_at=order.created_at, confirmed_at=order.confirmed_at))
-    return result
+    return result, total
 
 
 def get_own_reservation(session: Session, reservation_id: uuid.UUID, user: users, for_update: bool = False) -> reservations:

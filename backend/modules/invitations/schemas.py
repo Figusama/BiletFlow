@@ -52,6 +52,7 @@ class PrivateInvitationPublic(BaseModel):
     created_at: datetime
     expires_at: datetime
     is_active: bool
+    tickets_count: int
 
 
 class PrivateInvitationTarget(BaseModel):

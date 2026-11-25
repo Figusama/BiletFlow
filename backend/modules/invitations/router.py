@@ -17,6 +17,9 @@ from backend.modules.events.schemas import EventLifecycleStatus, Visibility
 from backend.modules.invitations.schemas import (PrivateInvitationCreate, PrivateInvitationPublic, PrivateInvitationTarget, StaffInvitationCreate,
                                                  StaffInvitationPublic, StaffMember, StaffOverview, StaffRole)
 from backend.modules.notifications import service as notify
+from backend.modules.orders.models import orders
+from backend.modules.tickets.models import tickets
+from backend.modules.tickets.schemas import TicketStatus
 from backend.modules.users.user_model import EventRole, event_user_roles, profiles, users
 from database.database import get_session
 
@@ -218,9 +221,13 @@ def decline_staff_invitation(invitation_id: uuid.UUID, session: Session = Depend
     return staff_to_public(session, invitation, now)
 
 
-def private_to_public(invitation: private_event_invitations, now) -> PrivateInvitationPublic:
-    return PrivateInvitationPublic(id=invitation.id, invited_email=invitation.invited_email, created_at=invitation.created_at,
-                                   expires_at=invitation.expires_at, is_active=as_aware(invitation.expires_at) > now)
+def private_to_public_list(session: Session, event_id: uuid.UUID, rows: list[private_event_invitations], now) -> list[PrivateInvitationPublic]:
+    email = func.lower(users.email)
+    bought = dict(session.exec(select(email, func.count(tickets.id)).join(orders, orders.buyer_user_id == users.id).join(tickets, tickets.order_id == orders.id)
+                               .where(orders.event_id == event_id, email.in_({i.invited_email.lower() for i in rows}),
+                                      tickets.status.in_((TicketStatus.VALID, TicketStatus.CHECKED_IN))).group_by(email)).all())
+    return [PrivateInvitationPublic(id=i.id, invited_email=i.invited_email, created_at=i.created_at, expires_at=i.expires_at,
+                                    is_active=as_aware(i.expires_at) > now, tickets_count=bought.get(i.invited_email.lower(), 0)) for i in rows]
 
 
 @router.post("/events/{event_id}/private-invitations", response_model=list[PrivateInvitationPublic], status_code=status.HTTP_201_CREATED)
@@ -253,7 +260,7 @@ def invite_private_guests(event_id: uuid.UUID, data: PrivateInvitationCreate, ba
                  details={"count": len(created)})
     session.commit()
     background.add_task(notify.deliver_due)
-    return [private_to_public(i, now) for i in created]
+    return private_to_public_list(session, event.id, created, now)
 
 
 @router.get("/events/{event_id}/private-invitations", response_model=list[PrivateInvitationPublic])
@@ -261,7 +268,7 @@ def list_private_invitations(event_id: uuid.UUID, session: Session = Depends(get
     require_organizer(session, event_id, current_user)
     now = db_now(session)
     rows = session.exec(select(private_event_invitations).where(private_event_invitations.event_id == event_id).order_by(private_event_invitations.created_at.desc())).all()
-    return [private_to_public(i, now) for i in rows]
+    return private_to_public_list(session, event_id, rows, now)
 
 
 @router.get("/private-invitations/{token}", response_model=PrivateInvitationTarget)

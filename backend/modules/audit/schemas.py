@@ -20,6 +20,8 @@ class HistoryEntry(BaseModel):
     actor: HistoryActor
     entity_type: str
     entity_id: uuid.UUID | None
+    entity_label: str | None
+    details: dict
 
 
 class HistoryPage(BaseModel):
