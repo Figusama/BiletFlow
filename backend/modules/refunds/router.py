@@ -182,6 +182,9 @@ def organizer_refund(order_id: uuid.UUID, data: StaffRefundCreate, background: B
     require_event_role(session, order.event_id, current_user, (EventRole.ORGANIZER,), allow_platform_admin=False)
     _, order = service.lock_order(session, order_id)
     service.ensure_refundable(session, order, allow_checked_in=True)
+    if service.has_checked_in(session, order.id):
+        audit.record(session, action="REFUND_EXCEPTION_DECIDED", entity_type="ORDER", entity_id=order.id, event_id=order.event_id, actor_user_id=current_user.id,
+                     details={"order_number": order.order_number})
     request = service.create_request(session, order, RefundSource.ORGANIZER_INITIATED, db_now(session), requested_by=current_user.id,
                                      approved_by=current_user.id, comment=data.comment)
     session.commit()
@@ -204,6 +207,9 @@ def admin_refund(order_id: uuid.UUID, data: StaffRefundCreate, background: Backg
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Order not found")
     _, order = service.lock_order(session, order_id)
     service.ensure_refundable(session, order, allow_checked_in=True)
+    if service.has_checked_in(session, order.id):
+        audit.record(session, action="REFUND_EXCEPTION_DECIDED", entity_type="ORDER", entity_id=order.id, event_id=order.event_id, actor_user_id=admin.id,
+                     details={"order_number": order.order_number})
     request = service.create_request(session, order, RefundSource.PLATFORM_ADMIN, db_now(session), requested_by=admin.id, approved_by=admin.id, comment=data.comment)
     session.commit()
     run_background(background)

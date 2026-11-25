@@ -1,3 +1,4 @@
+import base64
 import io
 import uuid
 from collections import Counter
@@ -23,7 +24,7 @@ from backend.modules.orders.service import get_own_reservation, priced_lines
 from backend.modules.promotions import service
 from backend.modules.promotions.models import promo_codes, promo_code_ticket_types, promotional_campaigns, promo_redemptions
 from backend.modules.promotions.schemas import (
-    ApplicationScope, CampaignCreate, CampaignPublic, CampaignStats, PromoCodeCreate, PromoCodePublic, PromoCodeToggle,
+    ApplicationScope, CampaignCreate, CampaignPublic, CampaignStats, PromoCodeCreate, PromoCodePublic, PromoCodeStats, PromoCodeToggle, PromoQr,
     PromoRejection, PromoValidateRequest, PromoValidateResponse,
 )
 from backend.modules.refunds.models import refunds
@@ -225,17 +226,31 @@ def campaign_qr(event_id: uuid.UUID, promo_id: uuid.UUID, session: Session = Dep
     return Response(content=campaign_qr_image(campaign_link(promo), promo.code), media_type="image/png")
 
 
+@router.get("/events/{event_id}/promo-codes/{promo_id}/qr", response_model=PromoQr)
+def campaign_qr_json(event_id: uuid.UUID, promo_id: uuid.UUID, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
+    require_organizer(session, event_id, current_user)
+    promo = get_event_promo(session, event_id, promo_id)
+    if promo.campaign_token is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Only campaign promo codes have a Campaign QR")
+    image = base64.b64encode(campaign_qr_image(campaign_link(promo), promo.code)).decode()
+    return PromoQr(link=campaign_link(promo), data_url=f"data:image/png;base64,{image}")
+
+
 @router.get("/events/{event_id}/campaigns/{campaign_id}/stats", response_model=CampaignStats)
 def campaign_stats(event_id: uuid.UUID, campaign_id: uuid.UUID, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
     require_organizer(session, event_id, current_user)
     campaign = session.get(promotional_campaigns, campaign_id)
     if campaign is None or campaign.event_id != event_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Campaign not found")
+    return CampaignStats(campaign_id=campaign.id, **promo_stats(session, promo_codes.campaign_id == campaign.id))
+
+
+def promo_stats(session: Session, condition) -> dict:
     redeemed_orders = (
         select(orders.id)
         .join(promo_redemptions, promo_redemptions.order_id == orders.id)
         .join(promo_codes, promo_codes.id == promo_redemptions.promo_code_id)
-        .where(promo_codes.campaign_id == campaign.id, orders.status == OrderStatus.CONFIRMED)
+        .where(condition, orders.status == OrderStatus.CONFIRMED)
     )
     redemptions, gross, discount = session.exec(
         select(func.count(), func.coalesce(func.sum(orders.subtotal_minor), 0), func.coalesce(func.sum(orders.discount_minor), 0)).where(orders.id.in_(redeemed_orders))
@@ -243,8 +258,15 @@ def campaign_stats(event_id: uuid.UUID, campaign_id: uuid.UUID, session: Session
     tickets_sold = session.exec(select(func.coalesce(func.sum(order_items.quantity), 0)).where(order_items.order_id.in_(redeemed_orders))).one()
     refunded = session.exec(select(func.coalesce(func.sum(refunds.amount_minor), 0)).where(refunds.order_id.in_(redeemed_orders), refunds.status == "SUCCEEDED")).one()
     net = int(gross) - int(discount)
-    return CampaignStats(campaign_id=campaign.id, redemptions=redemptions, tickets_sold=int(tickets_sold), gross_minor=int(gross), discount_minor=int(discount), net_minor=net,
-                         refunded_minor=int(refunded), net_after_refunds_minor=net - int(refunded))
+    return dict(redemptions=redemptions, tickets_sold=int(tickets_sold), gross_minor=int(gross), discount_minor=int(discount), net_minor=net,
+                refunded_minor=int(refunded), net_after_refunds_minor=net - int(refunded))
+
+
+@router.get("/events/{event_id}/promo-codes/{promo_id}/stats", response_model=PromoCodeStats)
+def promo_code_stats(event_id: uuid.UUID, promo_id: uuid.UUID, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
+    require_organizer(session, event_id, current_user)
+    promo = get_event_promo(session, event_id, promo_id)
+    return PromoCodeStats(promo_code_id=promo.id, code=promo.code, max_redemptions=promo.max_redemptions, **promo_stats(session, promo_codes.id == promo.id))
 
 
 @router.get("/c/{token}")

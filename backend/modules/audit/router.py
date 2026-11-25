@@ -7,6 +7,7 @@ from sqlmodel import Session, select
 
 from backend.modules.audit.catalog import ACTIONS, CATEGORIES, describe
 from backend.modules.audit.models import audit_logs
+from backend.modules.audit.presentation import entity_labels, safe_details
 from backend.modules.audit.schemas import HistoryActor, HistoryEntry, HistoryPage
 from backend.modules.auth.dependencies import get_current_user
 from backend.modules.events.access import require_organizer
@@ -46,6 +47,7 @@ def history_page(session: Session, query, count_query, limit: int, offset: int, 
     total = session.exec(count_query).one()
     rows = session.exec(query.order_by(audit_logs.created_at.desc(), audit_logs.id.desc()).limit(limit).offset(offset)).all()
     actors = actors_for(session, rows, event_id, full_identity)
+    labels = entity_labels(session, rows)
     items = []
     for row in rows:
         category, description = describe(row.action_type)
@@ -53,6 +55,7 @@ def history_page(session: Session, query, count_query, limit: int, offset: int, 
         items.append(HistoryEntry(
             id=row.id, created_at=row.created_at, action_type=row.action_type, category=category, description=description,
             result=row.result, actor=actor, entity_type=row.entity_type, entity_id=row.entity_id,
+            entity_label=labels.get((row.entity_type, row.entity_id)), details=safe_details(row),
         ))
     return HistoryPage(total=total, limit=limit, offset=offset, items=items)
 
