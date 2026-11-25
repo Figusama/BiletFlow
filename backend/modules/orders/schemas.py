@@ -86,3 +86,19 @@ class OrderPublic(BaseModel):
     confirmed_at: datetime | None
     items: list[OrderItemPublic]
     ticket_ids: list[uuid.UUID]
+
+
+class EventOrder(BaseModel):
+    id: uuid.UUID
+    order_number: str
+    status: OrderStatus
+    buyer_name: str | None
+    buyer_email: str
+    tickets: int
+    subtotal_minor: int
+    discount_minor: int
+    total_minor: int
+    refund_status: str | None
+    refund_execution_status: str | None
+    created_at: datetime
+    confirmed_at: datetime | None

@@ -7,7 +7,7 @@ from backend.core.clock import as_aware, db_now
 from backend.modules.admin.router import require_admin
 from backend.modules.audit import service as audit
 from backend.modules.auth.dependencies import get_current_user
-from backend.modules.events.access import event_roles, require_organizer
+from backend.modules.events.access import event_roles, require_event_role, require_organizer
 from backend.modules.notifications import service as notify
 from backend.modules.orders.models import orders
 from backend.modules.orders.schemas import OrderStatus
@@ -65,8 +65,11 @@ def request_refund(order_id: uuid.UUID, data: CustomerRefundCreate, background: 
 
 
 @router.post("/orders/{order_id}/cancel-registration", status_code=status.HTTP_204_NO_CONTENT)
-def cancel_free_registration(order_id: uuid.UUID, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
-    own_order(session, order_id, current_user)
+def cancel_free_registration(order_id: uuid.UUID, background: BackgroundTasks, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
+    snapshot = session.get(orders, order_id)
+    by_organizer = snapshot is not None and snapshot.buyer_user_id != current_user.id and EventRole.ORGANIZER in event_roles(session, snapshot.event_id, current_user)
+    if snapshot is None or (snapshot.buyer_user_id != current_user.id and not by_organizer):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Order not found")
     event, order = service.lock_order(session, order_id)
     if order.status != OrderStatus.CONFIRMED or order.total_minor != 0:
         raise HTTPException(status.HTTP_409_CONFLICT, "Only confirmed free registrations can be cancelled")
@@ -75,11 +78,20 @@ def cancel_free_registration(order_id: uuid.UUID, session: Session = Depends(get
         raise HTTPException(status.HTTP_409_CONFLICT, "Event has already started")
     if service.has_checked_in(session, order.id):
         raise HTTPException(status.HTTP_409_CONFLICT, "Tickets of this order were already used")
+    cancelled = False
     for ticket in session.exec(select(tickets).where(tickets.order_id == order.id, tickets.status == TicketStatus.VALID).with_for_update()).all():
         ticket.status = TicketStatus.CANCELLED
         session.add(ticket)
+        audit.record(session, action="TICKET_INVALIDATED", entity_type="TICKET", entity_id=ticket.id, event_id=order.event_id, actor_user_id=current_user.id)
+        cancelled = True
+    if not cancelled:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Registration is already cancelled")
     audit.record(session, action="REGISTRATION_CANCELLED", entity_type="ORDER", entity_id=order.id, event_id=order.event_id, actor_user_id=current_user.id)
+    if by_organizer:
+        service.notify_buyer(session, order, f"REGISTRATION_CANCELLED:{order.id}", "REGISTRATION_CANCELLED", "Registration cancelled",
+                             f"The organizer cancelled your registration {order.order_number} for \"{event.title}\".")
     session.commit()
+    background.add_task(notify.deliver_due)
 
 
 @router.get("/orders/{order_id}/refund-requests", response_model=list[RefundRequestPublic])
@@ -167,7 +179,7 @@ def organizer_refund(order_id: uuid.UUID, data: StaffRefundCreate, background: B
     order = session.get(orders, order_id)
     if order is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Order not found")
-    require_organizer(session, order.event_id, current_user)
+    require_event_role(session, order.event_id, current_user, (EventRole.ORGANIZER,), allow_platform_admin=False)
     _, order = service.lock_order(session, order_id)
     service.ensure_refundable(session, order, allow_checked_in=True)
     request = service.create_request(session, order, RefundSource.ORGANIZER_INITIATED, db_now(session), requested_by=current_user.id,

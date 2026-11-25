@@ -30,10 +30,10 @@ class PromoCodeCreate(BaseModel):
     campaign_id: uuid.UUID | None = None
     discount_type: DiscountType
     percentage_bps: int | None = Field(default=None, ge=1, le=10000)
-    fixed_amount_minor: int | None = Field(default=None, gt=0)
+    fixed_amount_minor: int | None = Field(default=None, gt=0, le=10 ** 12)
     application_scope: ApplicationScope = ApplicationScope.ORDER
     ticket_type_ids: list[uuid.UUID] = Field(default_factory=list)
-    max_redemptions: int | None = Field(default=None, gt=0)
+    max_redemptions: int | None = Field(default=None, gt=0, le=10 ** 9)
     valid_from: AwareDatetime
     valid_until: AwareDatetime
 
@@ -77,9 +77,29 @@ class PromoCodePublic(BaseModel):
     campaign_qr_png_url: str | None
 
 
+class PromoPreviewLine(BaseModel):
+    ticket_type_id: uuid.UUID
+    quantity: int = Field(gt=0, le=1000)
+
+
 class PromoValidateRequest(BaseModel):
     code: str = Field(min_length=1, max_length=64)
-    reservation_id: uuid.UUID
+    reservation_id: uuid.UUID | None = None
+    event_id: uuid.UUID | None = None
+    items: list[PromoPreviewLine] = Field(default_factory=list, max_length=50)
+    event_seat_ids: list[uuid.UUID] = Field(default_factory=list, max_length=100)
+
+    @model_validator(mode="after")
+    def one_source(self):
+        if self.reservation_id is not None:
+            if self.event_id or self.items or self.event_seat_ids:
+                raise ValueError("Provide either reservation_id or a selection")
+            return self
+        if self.event_id is None or bool(self.items) == bool(self.event_seat_ids):
+            raise ValueError("Provide reservation_id, or event_id with items or event_seat_ids")
+        if len({line.ticket_type_id for line in self.items}) != len(self.items) or len(set(self.event_seat_ids)) != len(self.event_seat_ids):
+            raise ValueError("Duplicate selection")
+        return self
 
 
 class PromoValidateResponse(BaseModel):
@@ -111,3 +131,5 @@ class CampaignStats(BaseModel):
     gross_minor: int
     discount_minor: int
     net_minor: int
+    refunded_minor: int
+    net_after_refunds_minor: int

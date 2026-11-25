@@ -72,6 +72,7 @@ def _process_order(order_id: uuid.UUID, mode: str) -> None:
                 for ticket in session.exec(select(tickets).where(tickets.order_id == order.id, tickets.status == TicketStatus.VALID).with_for_update()).all():
                     ticket.status = TicketStatus.CANCELLED
                     session.add(ticket)
+                    audit.record(session, action="TICKET_INVALIDATED", entity_type="TICKET", entity_id=ticket.id, event_id=event.id)
             elif not refund_service.is_refunded(session, order.id) and refund_service.succeeded_payment(session, order.id) is not None:
                 current = refund_service.open_request(session, order.id)
                 if current is not None and current.status == "APPROVED":

@@ -12,6 +12,8 @@ ALTER TABLE paid_sales_activations
   ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now(),
   ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
 
+ALTER TABLE ticket_types ADD COLUMN IF NOT EXISTS color varchar(16);
+
 CREATE UNIQUE INDEX IF NOT EXISTS ux_one_organizer_per_event ON event_user_roles(event_id) WHERE event_role = 'ORGANIZER';
 CREATE UNIQUE INDEX IF NOT EXISTS ux_pending_event_change ON event_change_requests(event_id) WHERE status = 'PENDING';
 CREATE UNIQUE INDEX IF NOT EXISTS ux_unfinished_payment ON payments(order_id) WHERE status IN ('PENDING','AUTHORIZED','CAPTURING');

@@ -1,14 +1,15 @@
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlmodel import Session, select
 
 from backend.core.clock import as_aware, db_now
 from backend.modules.auth.dependencies import get_current_user
+from backend.modules.events.access import require_organizer
 from backend.modules.events.models import events
 from backend.modules.orders import service
 from backend.modules.orders.models import orders, order_items, reservations, reservation_items
-from backend.modules.orders.schemas import OrderCreate, OrderPublic, OrderItemPublic, ReservationCreate, ReservationItemPublic, ReservationPublic, ReservationStatus
+from backend.modules.orders.schemas import EventOrder, OrderCreate, OrderPublic, OrderItemPublic, OrderStatus, ReservationCreate, ReservationItemPublic, ReservationPublic, ReservationStatus
 from backend.modules.promotions.models import promo_codes
 from backend.modules.tickets.models import tickets
 from backend.modules.tickets.notify import deliver_notices
@@ -91,12 +92,19 @@ def create_order(reservation_id: uuid.UUID, data: OrderCreate, background: Backg
 @router.get("/orders/mine", response_model=list[OrderPublic])
 def my_orders(session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
     rows = session.exec(select(orders).where(orders.buyer_user_id == current_user.id).order_by(orders.created_at.desc())).all()
-    changed = False
     for order in rows:
-        changed = service.expire_if_stale(session, order) or changed
-    if changed:
-        session.commit()
+        if order.status == OrderStatus.PENDING:
+            service.expire_if_stale(session, order)
+            session.commit()
     return [order_to_public(session, order) for order in rows]
+
+
+@router.get("/events/{event_id}/orders", response_model=list[EventOrder])
+def event_orders(event_id: uuid.UUID, q: str | None = Query(default=None, max_length=200), order_status: OrderStatus | None = Query(default=None, alias="status"),
+                 limit: int = Query(default=50, ge=1, le=200), offset: int = Query(default=0, ge=0), session: Session = Depends(get_session),
+                 current_user: users = Depends(get_current_user)):
+    require_organizer(session, event_id, current_user)
+    return service.list_event_orders(session, event_id, q, order_status, limit, offset)
 
 
 @router.get("/orders/{order_id}", response_model=OrderPublic)
