@@ -76,30 +76,3 @@ def can_view_event(session: Session, event: events, user: users | None) -> bool:
 def ensure_purchase_access(session: Session, event: events, user: users) -> None:
     if event.visibility == Visibility.PRIVATE and not has_private_invitation(session, event, user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "A valid invitation is required for this private event")
-_PUBLIC_ID_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
-
-
-def generate_public_id(length: int = 8) -> str:
-    return "".join(secrets.choice(_PUBLIC_ID_ALPHABET) for _ in range(length))
-
-def generate_slug(title: str) -> str:
-    base = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:60] or "event"
-    return f"{base}-{secrets.token_hex(3)}"
-
-
-def require_platform_admin(user: users) -> None:
-    if user.personal_role != Role.PLATFORM_ADMIN:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Platform admin only")
-
-
-def load_pending_application(session: Session, application_number: str) -> event_applications:
-    application = session.exec(
-        select(event_applications)
-        .where(event_applications.application_number == application_number)
-        .with_for_update() 
-    ).first()
-    if application is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Application not found")
-    if application.status != EventStatus.PENDING:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Only pending applications can be reviewed")
-    return application
