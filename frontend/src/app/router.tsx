@@ -23,6 +23,8 @@ import OrganizerPaidSalesPage from '../pages/OrganizerPaidSalesPage'
 import FeeSimulatorPage from '../pages/FeeSimulatorPage'
 import OrganizerChangeRequestsPage from '../pages/OrganizerChangeRequestsPage'
 import OrganizerTeamPage from '../pages/OrganizerTeamPage'
+import OrganizerSupportPage from '../pages/OrganizerSupportPage'
+import OrganizerSupportCasePage from '../pages/OrganizerSupportCasePage'
 import OrganizerPromoCodesPage from '../pages/OrganizerPromoCodesPage'
 import OrganizerOrdersPage from '../pages/OrganizerOrdersPage'
 import OrganizerAnalyticsPage from '../pages/OrganizerAnalyticsPage'
@@ -177,6 +179,14 @@ export const router = createBrowserRouter([
                                     {
                                         path: 'team',
                                         element: <OrganizerTeamPage />,
+                                    },
+                                    {
+                                        path: 'support',
+                                        element: <OrganizerSupportPage />,
+                                    },
+                                    {
+                                        path: 'support/:caseId',
+                                        element: <OrganizerSupportCasePage />,
                                     },
                                 ],
                             },

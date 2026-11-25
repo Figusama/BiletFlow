@@ -4,6 +4,7 @@ import StatusBadge from '../../../components/ui/StatusBadge'
 import { useLanguage } from '../../../shared/i18n/language'
 import { useManagedEvent, usePendingRefunds } from '../api'
 import { eventBadge, suspendedBadge } from '../status'
+import { matchesSupportTab, useEventSupportCases } from '../support'
 
 const menuLinkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center rounded-xl px-3 py-2.5 text-[15px] transition-colors focus-visible:outline-2 focus-visible:outline-accent ${
@@ -15,6 +16,8 @@ const OrganizerEventLayout = () => {
     const { eventId = '' } = useParams()
     const { data: event } = useManagedEvent(eventId)
     const { data: pendingRefunds = [] } = usePendingRefunds(eventId)
+    const { data: supportCases = [] } = useEventSupportCases(eventId)
+    const queuedCases = supportCases.filter((supportCase) => matchesSupportTab(supportCase, 'UNASSIGNED', undefined))
     const badge = event?.is_suspended ? suspendedBadge : eventBadge[event?.status ?? 'DRAFT']
 
     return (
@@ -72,6 +75,12 @@ const OrganizerEventLayout = () => {
                         {t.organizerRefunds.title}
                         {pendingRefunds.length > 0 && (
                             <span className="rounded-full bg-badge-warning-bg px-2 py-0.5 text-xs font-semibold text-badge-warning-fg">{pendingRefunds.length}</span>
+                        )}
+                    </NavLink>
+                    <NavLink to={`/organizer/events/${eventId}/support`} className={({ isActive }) => `${menuLinkClass({ isActive })} justify-between`}>
+                        {t.organizerSupport.title}
+                        {queuedCases.length > 0 && (
+                            <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold text-accent ring-1 ring-border">{queuedCases.length}</span>
                         )}
                     </NavLink>
                     <NavLink to={`/organizer/events/${eventId}/analytics`} className={menuLinkClass}>
