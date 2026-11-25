@@ -6,6 +6,7 @@ import Icon from '../components/ui/Icon'
 import Input from '../components/ui/Input'
 import StatusBadge, { type BadgeIcon, type BadgeTone } from '../components/ui/StatusBadge'
 import {
+    eventAttendeesKey,
     eventOrdersKey,
     eventRefundsKey,
     ORDERS_PAGE_SIZE,
@@ -16,8 +17,10 @@ import {
     type ManagedEvent,
     type OrderStatus,
 } from '../features/organizer/api'
+import AttendeesTable from '../features/organizer/components/AttendeesTable'
 import RefundOrderDialog from '../features/organizer/components/RefundOrderDialog'
 import { formatDateTime } from '../features/organizer/changes'
+import { canRefund, refundState, type RefundState } from '../features/organizer/refunds'
 import { useLanguage } from '../shared/i18n/language'
 import { formatKzt } from '../shared/lib/money'
 
@@ -30,26 +33,11 @@ const orderBadge: Record<OrderStatus, { tone: BadgeTone; icon: BadgeIcon }> = {
 
 const filters: (OrderStatus | null)[] = [null, 'CONFIRMED', 'PENDING', 'CANCELLED', 'EXPIRED']
 
-type RefundState = 'REQUESTED' | 'IN_PROGRESS' | 'REFUNDED' | 'FAILED'
-
-const refundState = (order: EventOrder): RefundState | null => {
-    if (order.refund_status === 'PENDING' || order.refund_status === 'PENDING_ADMIN') return 'REQUESTED'
-    if (order.refund_status !== 'APPROVED') return null
-    if (order.refund_execution_status === 'SUCCEEDED') return 'REFUNDED'
-    if (order.refund_execution_status === 'FAILED_FINAL') return 'FAILED'
-    return 'IN_PROGRESS'
-}
-
 const refundBadge: Record<RefundState, { tone: BadgeTone; icon: BadgeIcon }> = {
     REQUESTED: { tone: 'warning', icon: 'clock' },
     IN_PROGRESS: { tone: 'warning', icon: 'clock' },
     REFUNDED: { tone: 'danger', icon: 'x-circle' },
     FAILED: { tone: 'danger', icon: 'x-circle' },
-}
-
-const canRefund = (order: EventOrder) => {
-    const state = refundState(order)
-    return order.status === 'CONFIRMED' && order.total_minor > 0 && (state === null || state === 'FAILED')
 }
 
 const OrganizerOrdersPage = () => {
@@ -71,6 +59,7 @@ const Orders = ({ event }: { event: ManagedEvent }) => {
     const [search, setSearch] = useState('')
     const [status, setStatus] = useState<OrderStatus | null>(null)
     const [limit, setLimit] = useState(ORDERS_PAGE_SIZE)
+    const [view, setView] = useState<'ATTENDEES' | 'ORDERS'>('ATTENDEES')
     const [refunding, setRefunding] = useState<EventOrder | null>(null)
     const { data: orders = [], isPending, isError, isFetching } = useEventOrders(event.id, search, status, limit)
     const { data: pendingRefunds = [] } = usePendingRefunds(event.id)
@@ -107,6 +96,26 @@ const Orders = ({ event }: { event: ManagedEvent }) => {
                 </div>
             )}
 
+            <div className="flex gap-2" role="group" aria-label={texts.views.label}>
+                {(['ATTENDEES', 'ORDERS'] as const).map((value) => (
+                    <button
+                        key={value}
+                        type="button"
+                        aria-pressed={view === value}
+                        onClick={() => setView(value)}
+                        className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-accent ${
+                            view === value ? 'bg-accent text-white' : 'text-foreground hover:bg-surface-sunk'
+                        }`}
+                    >
+                        {texts.views[value]}
+                    </button>
+                ))}
+            </div>
+
+            {view === 'ATTENDEES' ? (
+                <AttendeesTable eventId={event.id} />
+            ) : (
+                <>
             <div className="flex flex-wrap items-center gap-2">
                 <div className="relative w-full sm:w-72">
                     <Icon name="search" className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
@@ -183,6 +192,13 @@ const Orders = ({ event }: { event: ManagedEvent }) => {
                                             </td>
                                             <td className="px-5 py-3 text-right whitespace-nowrap text-foreground">{formatKzt(order.total_minor)}</td>
                                             <td className="px-5 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-4">
+                                                    <Link
+                                                        to={order.id}
+                                                        className="text-sm font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+                                                    >
+                                                        {texts.open}
+                                                    </Link>
                                                 {canRefund(order) && !event.is_suspended && (
                                                     <button
                                                         type="button"
@@ -192,6 +208,7 @@ const Orders = ({ event }: { event: ManagedEvent }) => {
                                                         {texts.refundAction}
                                                     </button>
                                                 )}
+                                                </div>
                                             </td>
                                         </tr>
                                     )
@@ -209,6 +226,9 @@ const Orders = ({ event }: { event: ManagedEvent }) => {
                 </>
             )}
 
+                </>
+            )}
+
             {refunding && (
                 <RefundOrderDialog
                     order={refunding}
@@ -217,6 +237,7 @@ const Orders = ({ event }: { event: ManagedEvent }) => {
                         if (refunded) {
                             queryClient.invalidateQueries({ queryKey: eventOrdersKey(event.id) })
                             queryClient.invalidateQueries({ queryKey: eventRefundsKey(event.id) })
+                            queryClient.invalidateQueries({ queryKey: eventAttendeesKey(event.id) })
                         }
                     }}
                 />

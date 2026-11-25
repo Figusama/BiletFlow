@@ -26,6 +26,7 @@ import OrganizerTeamPage from '../pages/OrganizerTeamPage'
 import OrganizerPromoCodesPage from '../pages/OrganizerPromoCodesPage'
 import OrganizerOrdersPage from '../pages/OrganizerOrdersPage'
 import OrganizerAnalyticsPage from '../pages/OrganizerAnalyticsPage'
+import OrganizerOrderDetailPage from '../pages/OrganizerOrderDetailPage'
 import OrganizerRefundDetailPage from '../pages/OrganizerRefundDetailPage'
 import OrganizerRefundsPage from '../pages/OrganizerRefundsPage'
 import OrganizerEventLayout from '../features/organizer/components/OrganizerEventLayout'
@@ -168,6 +169,10 @@ export const router = createBrowserRouter([
                                     {
                                         path: 'analytics',
                                         element: <OrganizerAnalyticsPage />,
+                                    },
+                                    {
+                                        path: 'orders/:orderId',
+                                        element: <OrganizerOrderDetailPage />,
                                     },
                                     {
                                         path: 'team',

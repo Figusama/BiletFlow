@@ -1,4 +1,4 @@
-import type { EventRefundRequest } from './api'
+import type { EventOrder, EventRefundRequest } from './api'
 
 export const ORGANIZER_DECISION_HOURS = 48
 
@@ -23,7 +23,7 @@ export const byOldestFirst = (first: EventRefundRequest, second: EventRefundRequ
     new Date(first.created_at).getTime() - new Date(second.created_at).getTime()
 
 export const decisionDeadline = (request: EventRefundRequest) =>
-    new Date(new Date(request.created_at).getTime() + ORGANIZER_DECISION_HOURS * 3_600_000)
+    new Date(request.escalates_at ?? new Date(request.created_at).getTime() + ORGANIZER_DECISION_HOURS * 3_600_000)
 
 export const hoursLeft = (request: EventRefundRequest) =>
     Math.max(0, Math.ceil((decisionDeadline(request).getTime() - Date.now()) / 3_600_000))
@@ -37,4 +37,21 @@ export const isInProgress = (request: EventRefundRequest) => {
     if (request.execution_status !== 'SUCCEEDED') return true
     const finishedAt = request.execution_finalized_at ? new Date(request.execution_finalized_at).getTime() : 0
     return Date.now() - finishedAt < RECENT_REFUND_DAYS * 86_400_000
+}
+
+export type RefundState = 'REQUESTED' | 'IN_PROGRESS' | 'REFUNDED' | 'FAILED'
+
+type RefundFields = Pick<EventOrder, 'refund_status' | 'refund_execution_status'>
+
+export const refundState = (order: RefundFields): RefundState | null => {
+    if (order.refund_status === 'PENDING' || order.refund_status === 'PENDING_ADMIN') return 'REQUESTED'
+    if (order.refund_status !== 'APPROVED') return null
+    if (order.refund_execution_status === 'SUCCEEDED') return 'REFUNDED'
+    if (order.refund_execution_status === 'FAILED_FINAL') return 'FAILED'
+    return 'IN_PROGRESS'
+}
+
+export const canRefund = (order: RefundFields & Pick<EventOrder, 'status' | 'total_minor'>) => {
+    const state = refundState(order)
+    return order.status === 'CONFIRMED' && order.total_minor > 0 && (state === null || state === 'FAILED')
 }

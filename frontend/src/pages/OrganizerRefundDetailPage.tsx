@@ -7,10 +7,11 @@ import StatusBadge from '../components/ui/StatusBadge'
 import Textarea from '../components/ui/Textarea'
 import {
     approveRefundRequest,
+    eventAttendeesKey,
     eventOrdersKey,
     eventRefundsKey,
     rejectRefundRequest,
-    useEventOrders,
+    useEventOrderDetail,
     useEventRefundRequests,
     useManagedEvent,
     type EventRefundRequest,
@@ -51,8 +52,7 @@ const RefundDetail = ({ event }: { event: ManagedEvent }) => {
     const queryClient = useQueryClient()
     const { data: requests = [], isPending } = useEventRefundRequests(event.id)
     const request = requests.find((item) => item.id === requestId)
-    const { data: orders = [] } = useEventOrders(event.id, request?.order_number ?? '', null, 5)
-    const order = orders.find((item) => item.order_number === request?.order_number)
+    const { data: order } = useEventOrderDetail(event.id, request?.order_id)
     const [declineReason, setDeclineReason] = useState('')
     const [isBusy, setIsBusy] = useState(false)
     const [error, setError] = useState('')
@@ -72,6 +72,7 @@ const RefundDetail = ({ event }: { event: ManagedEvent }) => {
             await action(request)
             await queryClient.invalidateQueries({ queryKey: eventRefundsKey(event.id) })
             queryClient.invalidateQueries({ queryKey: eventOrdersKey(event.id) })
+            queryClient.invalidateQueries({ queryKey: eventAttendeesKey(event.id) })
             navigate('..', { relative: 'path' })
         } catch (caught) {
             setError(caught instanceof ApiError && caught.status === 409 ? texts.notAllowed : texts.failed)
@@ -153,7 +154,23 @@ const RefundDetail = ({ event }: { event: ManagedEvent }) => {
                         {formatKzt(request.amount_minor)}
                         <span className="text-muted">{`, ${texts.wholeOrder}`}</span>
                     </Row>
-                    {order && <Row label={texts.tickets}>{order.tickets}</Row>}
+                    {order && (
+                        <Row label={texts.tickets}>
+                            {order.tickets.map((ticket) => (
+                                <p key={ticket.ticket_id}>
+                                    <span className="font-mono">{ticket.ticket_public_id}</span>
+                                    {`, ${ticket.attendee_name}`}
+                                    {ticket.seat_label && `, ${ticket.seat_label}`}
+                                    <span className="text-muted">{`, ${t.organizerOrders.attendees.ticketStatus[ticket.status]}`}</span>
+                                </p>
+                            ))}
+                        </Row>
+                    )}
+                    {order && (
+                        <Row label={texts.policy}>
+                            {order.refund_deadline ? texts.policyDeadline(formatDateTime(order.refund_deadline, event.timezone, t)) : texts.policyNone}
+                        </Row>
+                    )}
                 </dl>
             </section>
 

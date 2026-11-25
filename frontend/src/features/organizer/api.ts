@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
-import { api, ApiError } from '../../shared/api/client'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { api, apiBlob, ApiError } from '../../shared/api/client'
 import type { EventCategory, EventPhoto } from '../events/api'
 import type { Seat, TicketType, TicketTypeColor } from '../tickets/api'
 
@@ -488,6 +488,7 @@ export interface EventRefundRequest {
     created_at: string
     reviewed_at: string | null
     execution_finalized_at: string | null
+    escalates_at: string | null
 }
 
 export const eventRefundsKey = (eventId: string | undefined) => ['organizer-events', eventId, 'refund-requests']
@@ -599,4 +600,118 @@ export const useEventAnalytics = (eventId: string | undefined, days: number | nu
             return api<EventAnalytics>(`/events/${eventId}/analytics${query ? `?${query}` : ''}`)
         },
         enabled: Boolean(eventId),
+    })
+
+export type TicketStatus = 'VALID' | 'CHECKED_IN' | 'CANCELLED' | 'REFUNDED'
+export type PaymentStatus = 'PENDING' | 'AUTHORIZED' | 'CAPTURING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
+
+export interface EventAttendee {
+    ticket_id: string | null
+    ticket_public_id: string | null
+    attendee_name: string | null
+    ticket_type_id: string | null
+    ticket_type_name: string | null
+    seat_label: string | null
+    ticket_status: TicketStatus | null
+    checked_in_at: string | null
+    quantity: number
+    order_id: string
+    order_number: string
+    order_status: OrderStatus
+    payment_status: PaymentStatus | null
+    buyer_name: string | null
+    buyer_email: string
+    paid_minor: number
+    promo_code: string | null
+}
+
+export interface AttendeePage {
+    items: EventAttendee[]
+    total: number
+    counts: { all: number; checked_in: number; pending_orders: number }
+}
+
+export interface AttendeeFilters {
+    search: string
+    checkedIn: boolean | null
+    ticketTypeId: string | null
+    hasPromo: boolean
+}
+
+export const eventAttendeesKey = (eventId: string | undefined) => ['organizer-events', eventId, 'attendees']
+
+const attendeeParams = (filters: AttendeeFilters) => {
+    const params = new URLSearchParams()
+    if (filters.search) params.set('q', filters.search)
+    if (filters.checkedIn !== null) params.set('checked_in', String(filters.checkedIn))
+    if (filters.ticketTypeId) params.set('ticket_type_id', filters.ticketTypeId)
+    if (filters.hasPromo) params.set('has_promo', 'true')
+    return params
+}
+
+export const useEventAttendees = (eventId: string | undefined, filters: AttendeeFilters, limit: number) =>
+    useQuery({
+        queryKey: [...eventAttendeesKey(eventId), filters, limit],
+        queryFn: () => {
+            const params = attendeeParams(filters)
+            params.set('limit', String(limit))
+            return api<AttendeePage>(`/events/${eventId}/attendees?${params}`)
+        },
+        enabled: Boolean(eventId),
+        placeholderData: keepPreviousData,
+    })
+
+export const downloadAttendeesCsv = async (eventId: string, filters: AttendeeFilters) => {
+    const blob = await apiBlob(`/events/${eventId}/attendees/export.csv?${attendeeParams(filters)}`)
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = 'attendees.csv'
+    link.click()
+    URL.revokeObjectURL(link.href)
+}
+
+export interface OrderDetailTicket {
+    ticket_id: string
+    ticket_public_id: string
+    attendee_name: string
+    ticket_type_name: string
+    seat_label: string | null
+    status: TicketStatus
+    checked_in_at: string | null
+}
+
+export interface OrderDetailItem {
+    id: string
+    ticket_type_name: string
+    seat_label: string | null
+    unit_price_minor: number
+    quantity: number
+}
+
+export interface EventOrderDetail {
+    id: string
+    order_number: string
+    status: OrderStatus
+    created_at: string
+    confirmed_at: string | null
+    buyer_name: string | null
+    buyer_email: string
+    items: OrderDetailItem[]
+    tickets: OrderDetailTicket[]
+    subtotal_minor: number
+    discount_minor: number
+    total_minor: number
+    promo_code: string | null
+    payment: { status: PaymentStatus; attempt_number: number } | null
+    refund_deadline: string | null
+    refund: { id: string; source: RefundRequestSource; status: RefundRequestStatus; execution_status: RefundExecutionStatus | null } | null
+}
+
+export const eventOrderDetailKey = (eventId: string | undefined, orderId: string | undefined) => [...eventOrdersKey(eventId), 'detail', orderId]
+
+export const useEventOrderDetail = (eventId: string | undefined, orderId: string | undefined) =>
+    useQuery({
+        queryKey: eventOrderDetailKey(eventId, orderId),
+        queryFn: () => api<EventOrderDetail>(`/events/${eventId}/orders/${orderId}`),
+        enabled: Boolean(eventId && orderId),
     })

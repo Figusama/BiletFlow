@@ -113,7 +113,7 @@ const AnalyticsContent = ({ data, filteredByType }: { data: EventAnalytics; filt
                     note={texts.checkedInNote(attendance.eligible)}
                 />
                 <Metric label={texts.gross} value={formatKzt(financial.gross_sales_minor)} note={texts.grossNote} />
-                <Metric label={texts.discounts} value={`−${formatKzt(financial.discounts_minor)}`} note={texts.discountsNote} />
+                <Metric label={texts.discounts} value={financial.discounts_minor > 0 ? `−${formatKzt(financial.discounts_minor)}` : formatKzt(0)} note={texts.discountsNote} />
                 <Metric label={texts.collected} value={money(financial.collected_minor)} note={texts.collectedNote} />
                 <Metric label={texts.refunded} value={money(financial.refunded_minor)} note={texts.refundedNote} />
                 <Metric label={texts.net} value={money(financial.net_revenue_minor)} note={texts.netNote} />
@@ -132,7 +132,7 @@ const AnalyticsContent = ({ data, filteredByType }: { data: EventAnalytics; filt
                             <li
                                 key={point.bucket_start}
                                 title={`${point.bucket_start.slice(0, 10)}: ${point.tickets}`}
-                                className="flex h-full min-w-8 flex-1 flex-col justify-end gap-1 text-center"
+                                className="flex h-full max-w-20 min-w-8 flex-1 flex-col justify-end gap-1 text-center"
                             >
                                 <span className="text-xs text-muted">{point.tickets}</span>
                                 <div className="rounded-t-md bg-accent" style={{ height: `${(point.tickets / peak) * 80}%`, minHeight: 4 }} />
