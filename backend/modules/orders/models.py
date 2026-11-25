@@ -73,4 +73,5 @@ class order_items(SQLModel, table=True):
     section_snapshot: str | None = Field(default=None, sa_column=Column(pg.TEXT, nullable=True))
     row_snapshot: str | None = Field(default=None, sa_column=Column(pg.TEXT, nullable=True))
     seat_snapshot: str | None = Field(default=None, sa_column=Column(pg.TEXT, nullable=True))
+    attendee_names: list[str | None] | None = Field(default=None, sa_column=Column(pg.JSONB(none_as_null=True), nullable=True))
     created_at: datetime = Field(default_factory=_now, sa_column=Column(pg.TIMESTAMP(timezone=True), nullable=False, server_default=func.now()))

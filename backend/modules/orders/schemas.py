@@ -2,10 +2,13 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from backend.modules.payments.schemas import PaymentStatus
 from backend.modules.tickets.schemas import TicketStatus
+
+
+MAX_ATTENDEE_NAME = 120
 
 
 class ReservationStatus(str, Enum):
@@ -56,11 +59,34 @@ class ReservationPublic(BaseModel):
     items: list[ReservationItemPublic]
 
 
+class AttendeeLine(BaseModel):
+    ticket_type_id: uuid.UUID
+    event_seat_id: uuid.UUID | None = None
+    names: list[str] = Field(max_length=100)
+
+    @field_validator("names")
+    @classmethod
+    def clean(cls, names: list[str]) -> list[str]:
+        cleaned = [" ".join(name.split()) for name in names]
+        if any(len(name) > MAX_ATTENDEE_NAME or not name.isprintable() for name in cleaned):
+            raise ValueError(f"Attendee name must be plain text of at most {MAX_ATTENDEE_NAME} characters")
+        return cleaned
+
+
 class OrderCreate(BaseModel):
     promo_code: str | None = Field(default=None, max_length=64)
+    attendees: list[AttendeeLine] = Field(default_factory=list, max_length=200)
+
+    @model_validator(mode="after")
+    def unique_lines(self):
+        keys = [(line.ticket_type_id, line.event_seat_id) for line in self.attendees]
+        if len(set(keys)) != len(keys):
+            raise ValueError("Duplicate attendee lines")
+        return self
 
 
 class OrderItemPublic(BaseModel):
+    attendee_names: list[str | None]
     id: uuid.UUID
     ticket_type_id: uuid.UUID
     ticket_type_name: str
