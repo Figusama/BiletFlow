@@ -21,6 +21,8 @@ class HistoryEntry(BaseModel):
     entity_type: str
     entity_id: uuid.UUID | None
     entity_label: str | None
+    event_id: uuid.UUID | None
+    event_title: str | None
     details: dict
 
 

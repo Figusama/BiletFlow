@@ -62,6 +62,9 @@ class ChangeRequestPublic(BaseModel):
     id: uuid.UUID
     request_number: str
     event_id: uuid.UUID
+    event_title: str
+    event_public_id: str
+    organizer_name: str | None
     status: str
     comment: str | None
     submitted_at: datetime | None

@@ -65,12 +65,22 @@ class FeeDecision(BaseModel):
     outcome: FeeOutcome
 
 
+class VerificationChecks(BaseModel):
+    identifier_format: bool
+    identifier_checksum: bool
+    iban_format: bool
+    iban_checksum: bool
+
+
 class RequestPublic(BaseModel):
     id: uuid.UUID
     event_id: uuid.UUID
     event_title: str
+    event_public_id: str
+    organizer_name: str | None
     status: str
     verification_snapshot: dict
+    checks: VerificationChecks | None
     terms_version: str
     submitted_at: datetime
     reviewed_at: datetime | None
@@ -98,6 +108,33 @@ class ActivationPublic(BaseModel):
     paid_terms_version: str | None
     activated_at: datetime | None
     suspended_at: datetime | None
+    requests: list[RequestPublic]
+    fee_payments: list[FeePaymentPublic]
+
+
+class AdminActivation(BaseModel):
+    id: uuid.UUID | None
+    event_id: uuid.UUID
+    event_title: str
+    event_public_id: str
+    event_status: str
+    organizer_id: uuid.UUID | None
+    organizer_name: str | None
+    organizer_email: str | None
+    status: str
+    pending_request_id: uuid.UUID | None
+    fee_amount_minor: int
+    fee_currency: str
+    fee_paid_at: datetime | None
+    activated_at: datetime | None
+    suspended_at: datetime | None
+    suspension_reason: str | None
+    suspended_by_name: str | None
+    created_at: datetime | None
+
+
+class AdminActivationDetail(AdminActivation):
+    paid_terms_version: str | None
     requests: list[RequestPublic]
     fee_payments: list[FeePaymentPublic]
 

@@ -384,39 +384,41 @@ def simulate_bank(session: Session, payment_id: uuid.UUID, outcome: SimulatedOut
 
 
 def reconcile_due(session: Session) -> tuple[int, list[list[tickets]]]:
-    from backend.modules.orders.service import expire_if_stale
-
-    now = db_now(session)
-    due = session.exec(select(payments.id).where(payments.status.in_(UNFINISHED_PAYMENT_STATUSES), payments.next_check_at <= now)
+    due = session.exec(select(payments.id).where(payments.status.in_(UNFINISHED_PAYMENT_STATUSES), payments.next_check_at <= db_now(session))
                        .order_by(payments.next_check_at).limit(RECONCILE_LIMIT)).all()
     handled = 0
     issued_batches: list[list[tickets]] = []
     for payment_id in due:
-        payment = session.get(payments, payment_id)
-        order = session.get(orders, payment.order_id)
-        if not is_simulated(payment):
-            issued = reconcile_bank(session, payment_id)
-            if issued:
-                issued_batches.append(issued)
-            handled += 1
-        elif payment.status == PaymentStatus.PENDING:
-            order, _, payment = _lock_chain(session, payment_id)
-            if payment.status == PaymentStatus.PENDING:
-                bank_has_no_authorization = is_simulated(payment) and payment.cancellation_reason is not None
-                if bank_has_no_authorization:
-                    _finish(payment, PaymentStatus.CANCELLED, payment.cancellation_reason)
-                elif not expire_if_stale(session, order):
-                    payment.next_check_at = now + timedelta(seconds=PAYMENT_CHECK_INTERVAL_SECONDS)
-                    payment.check_failure_count = 0
-                session.add(payment)
-            session.commit()
-            handled += 1
-        elif payment.status == PaymentStatus.CAPTURING and is_simulated(payment):
-            issued = run_capture(session, payment_id, SimulatedOutcome.APPROVE)
-            if issued:
-                issued_batches.append(issued)
-            handled += 1
+        issued = reconcile_payment(session, payment_id)
+        if issued is None:
+            continue
+        handled += 1
+        if issued:
+            issued_batches.append(issued)
     return handled, issued_batches
+
+
+def reconcile_payment(session: Session, payment_id: uuid.UUID) -> list[tickets] | None:
+    from backend.modules.orders.service import expire_if_stale
+
+    payment = session.get(payments, payment_id)
+    if not is_simulated(payment):
+        return reconcile_bank(session, payment_id)
+    if payment.status == PaymentStatus.PENDING:
+        now = db_now(session)
+        order, _, payment = _lock_chain(session, payment_id)
+        if payment.status == PaymentStatus.PENDING:
+            if payment.cancellation_reason is not None:
+                _finish(payment, PaymentStatus.CANCELLED, payment.cancellation_reason)
+            elif not expire_if_stale(session, order):
+                payment.next_check_at = now + timedelta(seconds=PAYMENT_CHECK_INTERVAL_SECONDS)
+                payment.check_failure_count = 0
+            session.add(payment)
+        session.commit()
+        return []
+    if payment.status == PaymentStatus.CAPTURING and as_aware(payment.next_check_at) <= db_now(session):
+        return run_capture(session, payment_id, SimulatedOutcome.APPROVE)
+    return None
 
 
 def reconcile_bank(session: Session, payment_id: uuid.UUID) -> list[tickets]:

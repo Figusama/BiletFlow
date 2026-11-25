@@ -90,6 +90,9 @@ class CasePublic(BaseModel):
     requester_name: str | None
     case_scope: CaseScope
     event_id: uuid.UUID | None
+    event_title: str | None
+    event_public_id: str | None
+    organizer_name: str | None
     order_id: uuid.UUID | None
     order_number: str | None
     ticket_id: uuid.UUID | None
@@ -112,6 +115,12 @@ class CaseAssignee(BaseModel):
     full_name: str | None
     roles: list[str]
     is_current: bool
+
+
+class PlatformAssignee(BaseModel):
+    user_id: uuid.UUID
+    full_name: str | None
+    email: str
 
 
 class CaseDetail(CasePublic):
