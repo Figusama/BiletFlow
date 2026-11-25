@@ -20,7 +20,7 @@ jobs:
           --health-retries 5
     env:
       PYTHONPATH: .
-      DATABASE_URL: postgresql://test:test@localhost:5432/biletflow_test
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
       EMAIL_API: ${{ secrets.EMAIL_API }}
       APP_URL: http://localhost:8000
       MAIL_FROM: BiletFlow <onboarding@resend.dev>

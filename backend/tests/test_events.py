@@ -129,7 +129,6 @@ def add_role(event_id: str, email: str, role: EventRole) -> None:
         s.add(event_user_roles(event_id=uuid.UUID(event_id), user_id=user_id(email), event_role=role))
         s.commit()
 
-
 def first_category_id() -> str:
     with Session(engine) as s:
         category = s.exec(select(categories).where(categories.is_active.is_(True))).first()
