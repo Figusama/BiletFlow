@@ -1406,6 +1406,9 @@ export const kk: Dictionary = {
             refundNo: 'Болдырмау',
             refundStarted: 'Қайтарым басталды. Оны «Қайтарымдар» бөлімінен бақылаңыз.',
             refundConflict: 'Бұл тапсырысты қайтару мүмкін емес немесе қайтарым қазірдің өзінде жүріп жатыр.',
+            assignTo: 'Тағайындау',
+            chooseAgent: 'Әріптесті таңдаңыз',
+            organizerLabel: (name: string) => `ұйымдастырушы ${name}`,
         },
         cancellations: {
             title: 'Күшін жою сұраныстары',

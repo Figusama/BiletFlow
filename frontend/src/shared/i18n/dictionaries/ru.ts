@@ -1417,6 +1417,9 @@ export const ru: Dictionary = {
             refundNo: 'Отмена',
             refundStarted: 'Возврат начат. Следите за ним в разделе «Возвраты».',
             refundConflict: 'Этот заказ нельзя вернуть, или возврат уже идёт.',
+            assignTo: 'Назначить',
+            chooseAgent: 'Выберите коллегу',
+            organizerLabel: (name: string) => `организатор ${name}`,
         },
         cancellations: {
             title: 'Запросы на отмену',

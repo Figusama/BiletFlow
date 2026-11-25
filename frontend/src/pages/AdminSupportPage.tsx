@@ -5,7 +5,7 @@ import type { RootState } from '../app/store'
 import Input from '../components/ui/Input'
 import Select from '../components/ui/Select'
 import StatusBadge from '../components/ui/StatusBadge'
-import { useAdminEvents, useAdminSupportCases } from '../features/admin/api'
+import { useAdminSupportCases } from '../features/admin/api'
 import { caseNumber, type SupportCase, type SupportCaseStatus, type SupportCategory } from '../features/organizer/support'
 import { useLanguage } from '../shared/i18n/language'
 import { formatRelativeTime } from '../shared/lib/relativeTime'
@@ -31,32 +31,25 @@ const matchesTab = (supportCase: SupportCase, tab: AdminSupportTab, myUserId: st
 }
 
 const statusBadge = (status: SupportCaseStatus) =>
-    status === 'RESOLVED' ? { tone: 'success' as const, icon: 'check-circle' as const } : status === 'OPEN' ? { tone: 'warning' as const, icon: 'clock' as const } : { tone: 'neutral' as const, icon: 'clock' as const }
+    status === 'RESOLVED'
+        ? { tone: 'success' as const, icon: 'check-circle' as const }
+        : status === 'OPEN'
+          ? { tone: 'warning' as const, icon: 'clock' as const }
+          : { tone: 'neutral' as const, icon: 'clock' as const }
 
 const AdminSupportPage = () => {
     const { t, language } = useLanguage()
     const texts = t.admin.support
     const myUserId = useSelector((state: RootState) => state.auth.user?.id)
     const [tab, setTab] = useState<AdminSupportTab>('QUEUE')
+    const [searchInput, setSearchInput] = useState('')
     const [search, setSearch] = useState('')
     const [category, setCategory] = useState<SupportCategory | 'ALL'>('ALL')
-    const { data, isPending, isError } = useAdminSupportCases()
-    const { data: events = [] } = useAdminEvents()
+    const { data, isPending, isError } = useAdminSupportCases(search, category)
 
     const cases = data ?? []
     const count = (value: AdminSupportTab) => cases.filter((item) => matchesTab(item, value, myUserId)).length
-    const eventTitle = (eventId: string | null) => events.find((event) => event.id === eventId)?.title
-
-    const query = search.trim().toLowerCase().replace(/^#/, '')
-    const visible = cases
-        .filter((item) => matchesTab(item, tab, myUserId))
-        .filter((item) => category === 'ALL' || item.category === category)
-        .filter(
-            (item) =>
-                !query ||
-                [String(item.case_number), item.requester_name, item.order_number, eventTitle(item.event_id)].some((value) => value?.toLowerCase().includes(query)),
-        )
-        .sort((first, second) => new Date(second.updated_at).getTime() - new Date(first.updated_at).getTime())
+    const visible = cases.filter((item) => matchesTab(item, tab, myUserId))
 
     return (
         <div className="flex flex-col gap-6">
@@ -83,20 +76,38 @@ const AdminSupportPage = () => {
                 ))}
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <form
+                className="flex flex-wrap items-center gap-3"
+                onSubmit={(submitEvent) => {
+                    submitEvent.preventDefault()
+                    setSearch(searchInput.trim())
+                }}
+            >
                 <div className="w-full max-w-sm">
                     <label htmlFor="support-search" className="sr-only">
                         {texts.searchPlaceholder}
                     </label>
-                    <Input id="support-search" type="search" value={search} placeholder={texts.searchPlaceholder} onChange={(changeEvent) => setSearch(changeEvent.target.value)} />
+                    <Input
+                        id="support-search"
+                        type="search"
+                        value={searchInput}
+                        placeholder={texts.searchPlaceholder}
+                        onChange={(changeEvent) => setSearchInput(changeEvent.target.value)}
+                    />
                 </div>
                 <Select
                     value={category}
                     ariaLabel={texts.topic}
-                    options={[{ value: 'ALL' as const, label: texts.anyTopic }, ...categoryValues.map((value) => ({ value, label: t.organizerSupport.categories[value] }))]}
+                    options={[
+                        { value: 'ALL' as const, label: texts.anyTopic },
+                        ...categoryValues.map((value) => ({
+                            value,
+                            label: t.organizerSupport.categories[value],
+                        })),
+                    ]}
                     onValueChange={setCategory}
                 />
-            </div>
+            </form>
 
             {isPending ? (
                 <div className="h-64 animate-pulse rounded-2xl bg-surface-sunk" />
@@ -122,11 +133,17 @@ const AdminSupportPage = () => {
                                 return (
                                     <tr key={item.id} className="align-top">
                                         <td className="px-5 py-3">
-                                            <Link to={item.id} className="font-mono font-semibold text-foreground hover:text-accent focus-visible:outline-2 focus-visible:outline-accent">
+                                            <Link
+                                                to={item.id}
+                                                className="font-mono font-semibold text-foreground hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
+                                            >
                                                 {caseNumber(item)}
                                             </Link>
                                             {item.unread > 0 && <span aria-label={t.organizerSupport.unread} className="ml-2 inline-block size-2 rounded-full bg-accent" />}
-                                            <p className="mt-0.5 text-xs text-muted">{item.case_scope === 'PLATFORM_SUPPORT' ? texts.platformScope : texts.escalatedFrom(eventTitle(item.event_id) ?? '—')}</p>
+                                            <p className="mt-0.5 text-xs text-muted">
+                                                {item.case_scope === 'PLATFORM_SUPPORT' ? texts.platformScope : texts.escalatedFrom(item.event_title ?? '—')}
+                                            </p>
+                                            {item.organizer_name && <p className="text-xs text-muted">{item.organizer_name}</p>}
                                         </td>
                                         <td className="px-5 py-3 text-foreground">
                                             {item.requester_name ?? t.organizerSupport.buyer}

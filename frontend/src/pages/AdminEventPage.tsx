@@ -29,7 +29,7 @@ const Details = ({ event }: { event: AdminEventDetails }) => {
     const { t } = useLanguage()
     const texts = t.admin.events
     const queryClient = useQueryClient()
-    const { data: supportCases = [] } = useAdminSupportCases()
+    const { data: supportCases = [] } = useAdminSupportCases('', 'ALL')
     const [reason, setReason] = useState('')
     const [isBusy, setIsBusy] = useState(false)
     const [error, setError] = useState('')

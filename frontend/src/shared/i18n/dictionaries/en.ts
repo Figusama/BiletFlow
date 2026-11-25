@@ -1401,6 +1401,9 @@ export const en = {
             refundNo: 'Cancel',
             refundStarted: 'The refund was started. Follow it in Refunds.',
             refundConflict: 'This order cannot be refunded, or a refund is already running.',
+            assignTo: 'Assign to',
+            chooseAgent: 'Choose a colleague',
+            organizerLabel: (name: string) => `organizer ${name}`,
         },
         cancellations: {
             title: 'Cancellation requests',

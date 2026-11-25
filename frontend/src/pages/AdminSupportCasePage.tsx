@@ -8,9 +8,10 @@ import Icon from '../components/ui/Icon'
 import Select from '../components/ui/Select'
 import StatusBadge from '../components/ui/StatusBadge'
 import Textarea from '../components/ui/Textarea'
-import { adminRefundsKey, adminSupportKey, returnCaseToEvent, startFullRefund, useAdminEvents, useAdminOrderPayments } from '../features/admin/api'
+import { adminRefundsKey, adminSupportKey, returnCaseToEvent, startFullRefund, useAdminOrderPayments, usePlatformAssignees } from '../features/admin/api'
 import { formatDateTime } from '../features/organizer/changes'
 import {
+    assignCase,
     caseNumber,
     changeCaseStatus,
     claimCase,
@@ -56,7 +57,7 @@ const CaseView = ({ supportCase }: { supportCase: SupportCaseDetail }) => {
     const adminTexts = t.admin.support
     const queryClient = useQueryClient()
     const myUserId = useSelector((state: RootState) => state.auth.user?.id)
-    const { data: events = [] } = useAdminEvents()
+    const { data: assignees = [] } = usePlatformAssignees()
     const { data: payments = [] } = useAdminOrderPayments(supportCase.order_number)
     const [reply, setReply] = useState('')
     const [clientMessageId, setClientMessageId] = useState(() => crypto.randomUUID())
@@ -68,7 +69,6 @@ const CaseView = ({ supportCase }: { supportCase: SupportCaseDetail }) => {
     const isResolved = supportCase.status === 'RESOLVED'
     const isMine = supportCase.assigned_to_user_id !== null && supportCase.assigned_to_user_id === myUserId
     const canReply = isMine && !isResolved
-    const eventTitle = events.find((event) => event.id === supportCase.event_id)?.title
     const payment = payments.find((item) => item.order_number === supportCase.order_number)
 
     const { id: caseId, unread, last_message_seq: lastSeq } = supportCase
@@ -96,12 +96,34 @@ const CaseView = ({ supportCase }: { supportCase: SupportCaseDetail }) => {
             return true
         } catch (caught) {
             setError(caught instanceof ApiError && (caught.status === 409 || caught.status === 403) ? texts.conflict : texts.failed)
-            queryClient.invalidateQueries({ queryKey: supportCaseKey(supportCase.id) })
+            queryClient.invalidateQueries({
+                queryKey: supportCaseKey(supportCase.id),
+            })
             return false
         } finally {
             setIsBusy(false)
         }
     }
+
+    const assigneeOptions = assignees.map((person) => ({
+        value: person.user_id,
+        label: person.user_id === myUserId ? `${person.full_name ?? person.email} (${texts.you})` : (person.full_name ?? person.email),
+    }))
+    const assignControl = (
+        <>
+            <p className="mt-4 text-sm font-medium text-foreground">{adminTexts.assignTo}</p>
+            <div className="mt-2">
+                <Select
+                    fullWidth
+                    ariaLabel={adminTexts.assignTo}
+                    value={supportCase.assigned_to_user_id ?? ''}
+                    placeholder={adminTexts.chooseAgent}
+                    options={assigneeOptions}
+                    onValueChange={(userId) => run(() => assignCase(supportCase.id, userId))}
+                />
+            </div>
+        </>
+    )
 
     const sendReply = async (submitEvent: FormEvent) => {
         submitEvent.preventDefault()
@@ -132,10 +154,18 @@ const CaseView = ({ supportCase }: { supportCase: SupportCaseDetail }) => {
     const topic = supportCase.custom_subject ?? texts.categories[supportCase.category]
 
     const thread: ThreadItem[] = [
-        ...supportCase.messages.map((message): ThreadItem => ({ kind: 'message', at: message.created_at, message })),
+        ...supportCase.messages.map((message): ThreadItem => ({
+            kind: 'message',
+            at: message.created_at,
+            message,
+        })),
         ...supportCase.history
             .filter((entry) => entry.action !== 'CREATED')
-            .map((entry): ThreadItem => ({ kind: 'history', at: entry.created_at, entry })),
+            .map((entry): ThreadItem => ({
+                kind: 'history',
+                at: entry.created_at,
+                entry,
+            })),
     ].sort((first, second) => new Date(first.at).getTime() - new Date(second.at).getTime())
 
     const historyText = (entry: SupportHistoryEntry) => {
@@ -176,7 +206,7 @@ const CaseView = ({ supportCase }: { supportCase: SupportCaseDetail }) => {
             <header className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <p className="text-xs font-bold tracking-widest text-accent uppercase">
-                        {supportCase.case_scope === 'PLATFORM_SUPPORT' ? adminTexts.platformScope : adminTexts.escalatedFrom(eventTitle ?? '—')}
+                        {supportCase.case_scope === 'PLATFORM_SUPPORT' ? adminTexts.platformScope : adminTexts.escalatedFrom(supportCase.event_title ?? '—')}
                     </p>
                     <h1 className="mt-2 text-2xl font-bold tracking-tight text-foreground">
                         <span className="font-mono">{caseNumber(supportCase)}</span> {topic}
@@ -190,6 +220,17 @@ const CaseView = ({ supportCase }: { supportCase: SupportCaseDetail }) => {
                             .filter(Boolean)
                             .join(', ')}
                     </p>
+                    {supportCase.event_id && supportCase.event_public_id && (
+                        <p className="mt-1 text-sm text-muted">
+                            <Link
+                                to={`/admin/events/${supportCase.event_public_id}`}
+                                className="font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+                            >
+                                {supportCase.event_title}
+                            </Link>
+                            {supportCase.organizer_name && `, ${adminTexts.organizerLabel(supportCase.organizer_name)}`}
+                        </p>
+                    )}
                 </div>
                 <StatusBadge tone={isResolved ? 'success' : supportCase.status === 'OPEN' ? 'warning' : 'neutral'} icon={isResolved ? 'check-circle' : 'clock'}>
                     {statusLabel}
@@ -248,9 +289,7 @@ const CaseView = ({ supportCase }: { supportCase: SupportCaseDetail }) => {
                         {isResolved ? (
                             <>
                                 <h2 className="text-lg font-bold text-foreground">{texts.status.RESOLVED}</h2>
-                                <p className="mt-2 text-sm text-muted">
-                                    {texts.resolvedNote(formatDateTime(supportCase.resolved_at ?? supportCase.updated_at, TIME_ZONE, t))}
-                                </p>
+                                <p className="mt-2 text-sm text-muted">{texts.resolvedNote(formatDateTime(supportCase.resolved_at ?? supportCase.updated_at, TIME_ZONE, t))}</p>
                             </>
                         ) : supportCase.assigned_to_user_id === null ? (
                             <>
@@ -259,6 +298,7 @@ const CaseView = ({ supportCase }: { supportCase: SupportCaseDetail }) => {
                                 <Button className="mt-4" fullWidth shape="pill" disabled={isBusy} onClick={() => run(() => claimCase(supportCase.id))}>
                                     {texts.take}
                                 </Button>
+                                {assignControl}
                             </>
                         ) : isMine ? (
                             <>
@@ -269,10 +309,14 @@ const CaseView = ({ supportCase }: { supportCase: SupportCaseDetail }) => {
                                         fullWidth
                                         ariaLabel={texts.statusLabel}
                                         value={supportCase.status as StaffStatus}
-                                        options={staffStatuses.map((value) => ({ value, label: texts.status[value] }))}
+                                        options={staffStatuses.map((value) => ({
+                                            value,
+                                            label: texts.status[value],
+                                        }))}
                                         onValueChange={(value) => run(() => changeCaseStatus(supportCase.id, value))}
                                     />
                                 </div>
+                                {assignControl}
                                 <div className="mt-4 flex flex-wrap gap-2">
                                     <Button variant="secondary" size="sm" shape="pill" disabled={isBusy} onClick={() => run(() => releaseCase(supportCase.id))}>
                                         {texts.release}
@@ -289,6 +333,7 @@ const CaseView = ({ supportCase }: { supportCase: SupportCaseDetail }) => {
                             <>
                                 <h2 className="text-lg font-bold text-foreground">{texts.case}</h2>
                                 <p className="mt-2 text-sm text-muted">{adminTexts.takenBy(supportCase.assignee_name ?? texts.platformAgent)}</p>
+                                {assignControl}
                             </>
                         )}
                         {error && (
@@ -308,7 +353,15 @@ const CaseView = ({ supportCase }: { supportCase: SupportCaseDetail }) => {
                                 </div>
                                 <div className="flex justify-between gap-3">
                                     <dt className="text-muted">{adminTexts.payment}</dt>
-                                    <dd className="text-foreground">{payment ? `${t.admin.payments.status[payment.status]}, ${formatKzt(payment.amount_minor)}` : '—'}</dd>
+                                    <dd className="text-foreground">
+                                        {payment ? (
+                                            <Link to={`/admin/payments/${payment.id}`} className="text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent">
+                                                {`${t.admin.payments.status[payment.status]}, ${formatKzt(payment.amount_minor)}`}
+                                            </Link>
+                                        ) : (
+                                            '—'
+                                        )}
+                                    </dd>
                                 </div>
                             </dl>
                             {supportCase.order_id && (

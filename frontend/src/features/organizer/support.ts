@@ -24,6 +24,9 @@ export interface SupportCase {
     requester_name: string | null
     case_scope: 'EVENT_SUPPORT' | 'PLATFORM_SUPPORT'
     event_id: string | null
+    event_title: string | null
+    event_public_id: string | null
+    organizer_name: string | null
     order_id: string | null
     order_number: string | null
     ticket_id: string | null

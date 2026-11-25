@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { api, apiPage } from '../../shared/api/client'
 import type { Application, ApplicationStatus, Venue } from '../applications/api'
 import type { ChangeRequest, EventRefundRequest, HistoryEntry, HistoryPage } from '../organizer/api'
-import type { SupportCase, SupportCaseDetail } from '../organizer/support'
+import type { SupportCase, SupportCaseDetail, SupportCategory } from '../organizer/support'
 
 export type ReviewStatus = Exclude<ApplicationStatus, 'DRAFT'>
 
@@ -522,10 +522,28 @@ export const retryAdminRefund = (requestId: string) => api<AdminRefundRequest>(`
 
 export const adminSupportKey = ['admin', 'support-cases']
 
-export const useAdminSupportCases = () =>
+export const useAdminSupportCases = (search: string, category: SupportCategory | 'ALL') =>
     useQuery({
-        queryKey: adminSupportKey,
-        queryFn: () => api<SupportCase[]>('/admin/support/cases'),
+        queryKey: [...adminSupportKey, search, category],
+        queryFn: () => {
+            const params = new URLSearchParams({ limit: '200' })
+            if (search) params.set('q', search)
+            if (category !== 'ALL') params.set('category', category)
+            return api<SupportCase[]>(`/admin/support/cases?${params}`)
+        },
+        placeholderData: keepPreviousData,
+    })
+
+export interface PlatformAssignee {
+    user_id: string
+    full_name: string | null
+    email: string
+}
+
+export const usePlatformAssignees = () =>
+    useQuery({
+        queryKey: ['admin', 'support-assignees'],
+        queryFn: () => api<PlatformAssignee[]>('/admin/support/assignees'),
     })
 
 export const returnCaseToEvent = (caseId: string) => api<SupportCaseDetail>(`/support/cases/${caseId}/return`, { method: 'POST' })
