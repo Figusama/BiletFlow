@@ -15,6 +15,7 @@ import {
 } from '../features/organizer/api'
 import TicketTypeForm from '../features/organizer/components/TicketTypeForm'
 import type { SaleState } from '../features/tickets/api'
+import { getTypeColor } from '../features/tickets/seats'
 import type { Dictionary } from '../shared/i18n/dictionaries/en'
 import { useLanguage } from '../shared/i18n/language'
 import { formatTime, getDateParts } from '../shared/lib/date'
@@ -146,7 +147,10 @@ const TicketTypes = ({ event }: { event: ManagedEvent }) => {
                                 className="grid gap-3 rounded-2xl border border-border bg-surface px-5 py-4 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.4fr)_auto] sm:items-center"
                             >
                                 <div className="min-w-0">
-                                    <p className="truncate font-semibold text-foreground">{type.name}</p>
+                                    <p className="flex items-center gap-2 font-semibold text-foreground">
+                                        <span aria-hidden="true" className={`size-3 shrink-0 rounded-full ${getTypeColor(ticketTypes, type.id)}`} />
+                                        <span className="truncate">{type.name}</span>
+                                    </p>
                                     <p className="mt-0.5 text-sm text-muted">{t.tickets.maxPerOrder(type.max_per_order)}</p>
                                 </div>
                                 <div>

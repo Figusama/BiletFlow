@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api, ApiError } from '../../shared/api/client'
 import type { EventCategory, EventPhoto } from '../events/api'
-import type { Seat, TicketType } from '../tickets/api'
+import type { Seat, TicketType, TicketTypeColor } from '../tickets/api'
 
 export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'CANCELLED' | 'COMPLETED'
 export type EventVisibility = 'PUBLIC' | 'UNLISTED' | 'PRIVATE'
@@ -61,6 +61,7 @@ export interface TicketTypeInput {
     sales_start_at: string
     sales_end_at: string
     max_per_order: number
+    color: TicketTypeColor | null
     is_active?: boolean
 }
 

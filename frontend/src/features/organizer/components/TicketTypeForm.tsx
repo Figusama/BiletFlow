@@ -6,6 +6,8 @@ import { ApiError } from '../../../shared/api/client'
 import { useLanguage } from '../../../shared/i18n/language'
 import { fromDateTimeInput, toDateTimeInput } from '../../../shared/lib/date'
 import ChoiceCards from '../../applications/components/ChoiceCards'
+import type { TicketTypeColor } from '../../tickets/api'
+import { COLOR_CLASSES, DEFAULT_ORDER } from '../../tickets/seats'
 import {
     createTicketType,
     deleteTicketType,
@@ -26,6 +28,7 @@ interface TicketTypeFormState {
     maxPerOrder: string
     quantity: string
     isActive: boolean
+    color: TicketTypeColor | null
 }
 
 const WHOLE_NUMBER = /^[1-9]\d*$/
@@ -40,6 +43,7 @@ const formFromType = (event: ManagedEvent, type: ManagedTicketType | null): Tick
     maxPerOrder: String(type?.max_per_order ?? 10),
     quantity: type?.quantity_total ? String(type.quantity_total) : '',
     isActive: type?.is_active ?? true,
+    color: type?.color ?? null,
 })
 
 interface TicketTypeFormProps {
@@ -84,6 +88,7 @@ const TicketTypeForm = ({ event, ticketType, onDone }: TicketTypeFormProps) => {
         sales_start_at: salesStartAt ?? '',
         sales_end_at: salesEndAt ?? '',
         max_per_order: Number(form.maxPerOrder),
+        color: form.color,
         ...(ticketType ? { is_active: form.isActive } : {}),
     })
 
@@ -214,6 +219,33 @@ const TicketTypeForm = ({ event, ticketType, onDone }: TicketTypeFormProps) => {
                     <p className="mt-2 rounded-[14px] bg-surface-sunk px-4 py-3 text-sm text-muted">{texts.quantityBySeats}</p>
                 </div>
             )}
+
+            <div role="radiogroup" aria-label={texts.color}>
+                <p className="text-sm font-medium text-foreground">{texts.color}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        role="radio"
+                        aria-checked={form.color === null}
+                        onClick={() => update('color', null)}
+                        className={`h-8 rounded-full border px-3 text-sm ${form.color === null ? 'border-accent bg-accent-soft font-semibold text-accent' : 'border-border text-foreground hover:bg-surface-sunk'}`}
+                    >
+                        {texts.colorAuto}
+                    </button>
+                    {DEFAULT_ORDER.map((color) => (
+                        <button
+                            key={color}
+                            type="button"
+                            role="radio"
+                            aria-checked={form.color === color}
+                            aria-label={texts.colorNames[color]}
+                            title={texts.colorNames[color]}
+                            onClick={() => update('color', color)}
+                            className={`size-8 rounded-full ${COLOR_CLASSES[color]} ${form.color === color ? 'ring-2 ring-foreground ring-offset-2 ring-offset-surface' : ''} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent`}
+                        />
+                    ))}
+                </div>
+            </div>
 
             {ticketType && (
                 <label className="flex cursor-pointer items-start gap-3">

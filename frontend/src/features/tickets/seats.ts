@@ -38,7 +38,7 @@ export const groupSeats = (seats: Seat[]): SeatSection[] => {
         }))
 }
 
-const COLOR_CLASSES: Record<TicketTypeColor, string> = {
+export const COLOR_CLASSES: Record<TicketTypeColor, string> = {
     violet: 'bg-violet-600 dark:bg-violet-400',
     amber: 'bg-amber-600 dark:bg-amber-400',
     sky: 'bg-sky-600 dark:bg-sky-400',
@@ -49,7 +49,7 @@ const COLOR_CLASSES: Record<TicketTypeColor, string> = {
     rose: 'bg-rose-600 dark:bg-rose-400',
 }
 
-const DEFAULT_ORDER = Object.keys(COLOR_CLASSES) as TicketTypeColor[]
+export const DEFAULT_ORDER = Object.keys(COLOR_CLASSES) as TicketTypeColor[]
 
 export const getTypeColor = (ticketTypes: TicketType[], ticketTypeId: string | null) => {
     const index = Math.max(
