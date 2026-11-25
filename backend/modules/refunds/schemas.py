@@ -72,6 +72,7 @@ class RefundRequestPublic(BaseModel):
     created_at: datetime
     reviewed_at: datetime | None
     execution_finalized_at: datetime | None
+    escalates_at: datetime | None
     attempts: list[RefundAttemptPublic]
 
 

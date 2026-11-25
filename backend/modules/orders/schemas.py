@@ -4,6 +4,9 @@ from enum import Enum
 
 from pydantic import BaseModel, Field, model_validator
 
+from backend.modules.payments.schemas import PaymentStatus
+from backend.modules.tickets.schemas import TicketStatus
+
 
 class ReservationStatus(str, Enum):
     ACTIVE = "ACTIVE"
@@ -102,3 +105,87 @@ class EventOrder(BaseModel):
     refund_execution_status: str | None
     created_at: datetime
     confirmed_at: datetime | None
+
+
+class EventAttendee(BaseModel):
+    ticket_id: uuid.UUID | None
+    ticket_public_id: str | None
+    attendee_name: str | None
+    ticket_type_id: uuid.UUID | None
+    ticket_type_name: str | None
+    seat_label: str | None
+    ticket_status: TicketStatus | None
+    checked_in_at: datetime | None
+    quantity: int
+    order_id: uuid.UUID
+    order_number: str
+    order_status: OrderStatus
+    payment_status: PaymentStatus | None
+    buyer_name: str | None
+    buyer_email: str
+    paid_minor: int
+    promo_code: str | None
+
+
+class AttendeeCounts(BaseModel):
+    all: int
+    checked_in: int
+    pending_orders: int
+
+
+class AttendeePage(BaseModel):
+    items: list[EventAttendee]
+    total: int
+    counts: AttendeeCounts
+
+
+class OrderTicket(BaseModel):
+    ticket_id: uuid.UUID
+    ticket_public_id: str
+    attendee_name: str
+    ticket_type_id: uuid.UUID
+    ticket_type_name: str
+    seat_label: str | None
+    status: TicketStatus
+    checked_in_at: datetime | None
+
+
+class OrderPaymentInfo(BaseModel):
+    id: uuid.UUID
+    status: PaymentStatus
+    attempt_number: int
+    created_at: datetime
+    finalized_at: datetime | None
+
+
+class OrderRefundInfo(BaseModel):
+    id: uuid.UUID
+    source: str
+    status: str
+    execution_status: str | None
+    reason_code: str | None
+    comment: str | None
+    created_at: datetime
+    reviewed_at: datetime | None
+    escalates_at: datetime | None
+
+
+class EventOrderDetail(BaseModel):
+    id: uuid.UUID
+    event_id: uuid.UUID
+    order_number: str
+    status: OrderStatus
+    created_at: datetime
+    confirmed_at: datetime | None
+    buyer_name: str | None
+    buyer_email: str
+    items: list[OrderItemPublic]
+    tickets: list[OrderTicket]
+    subtotal_minor: int
+    discount_minor: int
+    total_minor: int
+    promo_code: str | None
+    payment: OrderPaymentInfo | None
+    refund_policy: dict
+    refund_deadline: datetime | None
+    refund: OrderRefundInfo | None

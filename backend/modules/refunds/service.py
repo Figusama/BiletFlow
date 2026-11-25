@@ -221,12 +221,17 @@ def reject(session: Session, order: orders, request: refund_requests, reviewer_i
                  f"The refund request for order {order.order_number} was rejected: {comment}")
 
 
+def escalates_at(request: refund_requests) -> datetime | None:
+    return as_aware(request.created_at) + ESCALATE_AFTER if request.status == "PENDING" else None
+
+
 def to_public(session: Session, request: refund_requests) -> RefundRequestPublic:
     order = session.get(orders, request.order_id)
     attempts = session.exec(select(refunds).where(refunds.refund_request_id == request.id).order_by(refunds.created_at)).all()
     return RefundRequestPublic(id=request.id, order_id=order.id, order_number=order.order_number, event_id=order.event_id, source=request.source, status=request.status,
                                execution_status=request.execution_status, reason_code=request.reason_code, comment=request.comment, amount_minor=order.total_minor,
                                created_at=request.created_at, reviewed_at=request.reviewed_at, execution_finalized_at=request.execution_finalized_at,
+                               escalates_at=escalates_at(request),
                                attempts=[RefundAttemptPublic(id=a.id, amount_minor=a.amount_minor, status=a.status, attempt_actor=a.attempt_actor, created_at=a.created_at,
                                                              finalized_at=a.finalized_at) for a in attempts])
 
