@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, Field, select, delete
 from database.database import get_session
 from backend.modules.audit import service as audit
-from backend.modules.auth.dependencies import oauth_2_scheme, get_current_user, authenticate_user, create_access_token, get_password_hash, verify_password
+from backend.modules.auth.dependencies import oauth_2_scheme, get_current_user, authenticate_user, create_access_token, get_password_hash, verify_password, revoke_all_sessions
 from backend.modules.auth.config import SECRET_KEY, ALGORITHM
 from backend.modules.users.schemas import Role
 from backend.modules.users.user_model import users, profiles, refresh_sessions, password_reset_tokens
@@ -82,7 +82,7 @@ def read_user(user_id: uuid.UUID, session: Session = Depends(get_session), admin
 
 @router.post("/{user_id}/suspend", status_code=status.HTTP_204_NO_CONTENT)
 def suspend_user(user_id: uuid.UUID, session: Session = Depends(get_session), admin: users = Depends(require_admin)):
-    user = session.get(users, user_id)
+    user = session.exec(select(users).where(users.id == user_id).with_for_update().execution_options(populate_existing=True)).first()
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
     if user.id == admin.id:
@@ -91,6 +91,7 @@ def suspend_user(user_id: uuid.UUID, session: Session = Depends(get_session), ad
         user.is_suspended = True
         session.add(user)
         audit.record(session, action="USER_SUSPENDED", entity_type="USER", entity_id=user.id, actor_user_id=admin.id)
+    revoke_all_sessions(session, user.id)
     session.commit()
 
 @router.post("/{user_id}/unsuspend", status_code=status.HTTP_204_NO_CONTENT)
