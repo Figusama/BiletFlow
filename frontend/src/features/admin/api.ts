@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { api } from '../../shared/api/client'
 import type { Application, ApplicationStatus } from '../applications/api'
 import type { ChangeRequest, EventRefundRequest } from '../organizer/api'
+import type { SupportCase, SupportCaseDetail } from '../organizer/support'
 
 export type ReviewStatus = Exclude<ApplicationStatus, 'DRAFT'>
 
@@ -290,3 +291,55 @@ export const rejectAdminRefund = (requestId: string, comment: string) =>
     api<AdminRefundRequest>(`/refund-requests/${requestId}/reject`, { method: 'POST', json: { comment } })
 
 export const retryAdminRefund = (requestId: string) => api<AdminRefundRequest>(`/admin/refund-requests/${requestId}/retry`, { method: 'POST' })
+
+export const adminSupportKey = ['admin', 'support-cases']
+
+export const useAdminSupportCases = () =>
+    useQuery({
+        queryKey: adminSupportKey,
+        queryFn: () => api<SupportCase[]>('/admin/support/cases'),
+    })
+
+export const returnCaseToEvent = (caseId: string) => api<SupportCaseDetail>(`/support/cases/${caseId}/return`, { method: 'POST' })
+
+export const startFullRefund = (orderId: string, comment: string | null) =>
+    api<AdminRefundRequest>(`/admin/orders/${orderId}/refund`, { method: 'POST', json: { comment } })
+
+export const useAdminOrderPayments = (orderNumber: string | null) =>
+    useQuery({
+        queryKey: ['admin', 'payments', 'by-order', orderNumber],
+        queryFn: () => api<AdminPayment[]>(`/admin/payments?q=${encodeURIComponent(orderNumber ?? '')}&limit=5`),
+        enabled: Boolean(orderNumber),
+    })
+
+export type CancellationReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN'
+
+export const cancellationStatuses: CancellationReviewStatus[] = ['PENDING', 'APPROVED', 'REJECTED', 'WITHDRAWN']
+
+export type RefundHandlingMode = 'AUTOMATIC_FULL' | 'ADMIN_REVIEW'
+
+export interface AdminCancellation {
+    id: string
+    event_id: string
+    event_title: string
+    status: CancellationReviewStatus
+    reason: string
+    refund_handling_mode: RefundHandlingMode | null
+    review_comment: string | null
+    reviewed_at: string | null
+    created_at: string
+}
+
+export const adminCancellationsKey = ['admin', 'cancellations']
+
+export const useAdminCancellations = (status: CancellationReviewStatus) =>
+    useQuery({
+        queryKey: [...adminCancellationsKey, status],
+        queryFn: () => api<AdminCancellation[]>(`/admin/cancellation-requests?status=${status}`),
+    })
+
+export const approveCancellation = (requestId: string, mode: RefundHandlingMode) =>
+    api<AdminCancellation>(`/admin/cancellation-requests/${requestId}/approve`, { method: 'POST', json: { refund_handling_mode: mode } })
+
+export const rejectCancellation = (requestId: string, reviewComment: string) =>
+    api<AdminCancellation>(`/admin/cancellation-requests/${requestId}/reject`, { method: 'POST', json: { review_comment: reviewComment } })

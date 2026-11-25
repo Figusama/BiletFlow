@@ -38,6 +38,9 @@ const AdminLayout = () => {
                             <NavLink to="/admin/paid-sales" className={menuLinkClass}>
                                 {t.admin.activations.title}
                             </NavLink>
+                            <NavLink to="/admin/cancellations" className={menuLinkClass}>
+                                {t.admin.cancellations.title}
+                            </NavLink>
                         </div>
                         <div>
                             <p className={groupTitleClass}>{t.admin.groups.commerce}</p>
@@ -46,6 +49,12 @@ const AdminLayout = () => {
                             </NavLink>
                             <NavLink to="/admin/refunds" className={menuLinkClass}>
                                 {t.admin.refunds.title}
+                            </NavLink>
+                        </div>
+                        <div>
+                            <p className={groupTitleClass}>{t.admin.groups.support}</p>
+                            <NavLink to="/admin/support" className={menuLinkClass}>
+                                {t.admin.support.title}
                             </NavLink>
                         </div>
                         <div>

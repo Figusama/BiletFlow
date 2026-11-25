@@ -43,6 +43,10 @@ import AdminChangeRequestsPage from '../pages/AdminChangeRequestsPage'
 import AdminChangeRequestPage from '../pages/AdminChangeRequestPage'
 import AdminPaymentsPage from '../pages/AdminPaymentsPage'
 import AdminUsersPage from '../pages/AdminUsersPage'
+import AdminCancellationsPage from '../pages/AdminCancellationsPage'
+import AdminCancellationPage from '../pages/AdminCancellationPage'
+import AdminSupportPage from '../pages/AdminSupportPage'
+import AdminSupportCasePage from '../pages/AdminSupportCasePage'
 import AdminRefundsPage from '../pages/AdminRefundsPage'
 import AdminRefundPage from '../pages/AdminRefundPage'
 import AdminUserPage from '../pages/AdminUserPage'
@@ -73,6 +77,10 @@ export const router = createBrowserRouter([
                             { path: 'payments', element: <AdminPaymentsPage /> },
                             { path: 'refunds', element: <AdminRefundsPage /> },
                             { path: 'refunds/:requestId', element: <AdminRefundPage /> },
+                            { path: 'support', element: <AdminSupportPage /> },
+                            { path: 'support/:caseId', element: <AdminSupportCasePage /> },
+                            { path: 'cancellations', element: <AdminCancellationsPage /> },
+                            { path: 'cancellations/:requestId', element: <AdminCancellationPage /> },
                             { path: 'users', element: <AdminUsersPage /> },
                             { path: 'users/:publicId', element: <AdminUserPage /> },
                         ],
