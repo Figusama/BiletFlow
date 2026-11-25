@@ -2,7 +2,7 @@ import secrets
 import uuid
 from datetime import timedelta
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
@@ -10,11 +10,15 @@ from sqlmodel import Session, select
 from backend.core import crypto
 from backend.core.clock import as_aware, db_now
 from backend.core.config import ACTIVATION_FEE_MINOR, FRONTEND_URL, PAID_SALES_TERMS_VERSION, PAYMENT_SIMULATOR_ENABLED, PUBLIC_API_URL
-from backend.modules.activation.schemas import (ActivationPublic, ActivationRequestCreate, CurrentTerms, FeeDecision, FeeOutcome, FeePaymentCreate,
-                                                FeePaymentPublic, RejectRequest, RequestPublic, SuspendRequest)
+from backend.core.paging import like_pattern, page
+from backend.modules.activation import checks
+from backend.modules.activation.schemas import (ActivationPublic, ActivationRequestCreate, AdminActivation, AdminActivationDetail, CurrentTerms, FeeDecision, FeeOutcome,
+                                                FeePaymentCreate, FeePaymentPublic, RejectRequest, RequestPublic, SuspendRequest)
 from backend.modules.activation.service import UNFINISHED_FEE, lock_fee, notify_organizer, settle_fee, sync_fee
+from backend.modules.admin.refs import event_like, event_refs, people
 from backend.modules.admin.router import require_admin
 from backend.modules.audit import service as audit
+from backend.modules.audit.models import audit_logs
 from backend.modules.auth.dependencies import get_current_user
 from backend.modules.events.access import get_event_or_404, require_event_role, require_organizer
 from backend.modules.events.models import events
@@ -41,11 +45,19 @@ def ensure_event_open(event: events) -> None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Event is already finished or cancelled")
 
 
-def request_to_public(session: Session, request: paid_sales_activation_requests) -> RequestPublic:
-    activation = session.get(paid_sales_activations, request.activation_id)
-    event = session.get(events, activation.event_id)
-    return RequestPublic(id=request.id, event_id=event.id, event_title=event.title, status=request.status, verification_snapshot=request.verification_snapshot,
-                         terms_version=request.terms_version, submitted_at=request.submitted_at, reviewed_at=request.reviewed_at, rejection_reason=request.rejection_reason)
+def requests_to_public(session: Session, rows: list[paid_sales_activation_requests]) -> list[RequestPublic]:
+    owners = dict(session.exec(select(paid_sales_activations.id, paid_sales_activations.event_id)
+                               .where(paid_sales_activations.id.in_({r.activation_id for r in rows}))).all())
+    refs = event_refs(session, owners.values())
+    result = []
+    for request in rows:
+        event_id = owners[request.activation_id]
+        ref = refs[event_id]
+        snapshot = dict(request.verification_snapshot)
+        result.append(RequestPublic(id=request.id, event_id=event_id, event_title=ref.title, event_public_id=ref.public_id, organizer_name=ref.organizer_name,
+                                    status=request.status, checks=snapshot.pop("checks", None), verification_snapshot=snapshot, terms_version=request.terms_version,
+                                    submitted_at=request.submitted_at, reviewed_at=request.reviewed_at, rejection_reason=request.rejection_reason))
+    return result
 
 
 def fee_to_public(payment: activation_fee_payments) -> FeePaymentPublic:
@@ -68,7 +80,7 @@ def activation_to_public(session: Session, event_id: uuid.UUID) -> ActivationPub
                         .order_by(activation_fee_payments.created_at.desc())).all()
     return ActivationPublic(event_id=event_id, status=activation.status.value, fee_amount_minor=activation.fee_amount_minor or ACTIVATION_FEE_MINOR,
                             fee_currency=activation.fee_currency, paid_terms_version=activation.paid_terms_version, activated_at=activation.activated_at,
-                            suspended_at=activation.suspended_at, requests=[request_to_public(session, r) for r in requests], fee_payments=[fee_to_public(f) for f in fees])
+                            suspended_at=activation.suspended_at, requests=requests_to_public(session, requests), fee_payments=[fee_to_public(f) for f in fees])
 
 
 @router.get("/paid-sales/terms/current", response_model=CurrentTerms)
@@ -115,7 +127,8 @@ def submit_request(event_id: uuid.UUID, data: ActivationRequestCreate, backgroun
     session.flush()
     snapshot = {"owner_type": payout.owner_type.value, "owner_name": account.owner_name, "identifier_masked": mask(payout.identifier),
                 "iban_masked": mask(payout.iban), "bank_name": account.bank_name, "account_holder_name": account.account_holder_name,
-                "responsible_person_name": account.responsible_person_name, "contact_email": account.contact_email, "contact_phone": account.contact_phone}
+                "responsible_person_name": account.responsible_person_name, "contact_email": account.contact_email, "contact_phone": account.contact_phone,
+                "checks": checks.verify(payout.identifier, payout.iban)}
     request = paid_sales_activation_requests(activation_id=activation.id, submitted_by_user_id=current_user.id, payout_account_id=account.id, status="PENDING",
                                              verification_snapshot=snapshot, terms_version=PAID_SALES_TERMS_VERSION, terms_accepted_at=now, submitted_at=now)
     session.add(request)
@@ -123,7 +136,7 @@ def submit_request(event_id: uuid.UUID, data: ActivationRequestCreate, backgroun
     admin_ids = list(session.exec(select(users.id).where(users.personal_role == Role.PLATFORM_ADMIN, users.is_suspended.is_(False))).all())
     notify.publish(session, notify.Notice(key=f"PSA_REQUEST_SUBMITTED:{request.id}", event_type="PAID_SALES_REQUEST_SUBMITTED", aggregate_type="EVENT", aggregate_id=event.id,
                                           title="Paid sales verification request", body=f"Verification requested for \"{event.title}\".", inbox_user_ids=admin_ids))
-    audit.record(session, action="PAID_SALES_REQUESTED", entity_type="PAID_SALES_ACTIVATION", entity_id=activation.id, event_id=event.id, actor_user_id=current_user.id,
+    audit.record(session, action="PAID_SALES_APPLICATION_SUBMITTED", entity_type="PAID_SALES_ACTIVATION", entity_id=activation.id, event_id=event.id, actor_user_id=current_user.id,
                  details={"request_id": str(request.id)})
     session.commit()
     background.add_task(notify.deliver_due)
@@ -143,11 +156,64 @@ def lock_request_chain(session: Session, request_id: uuid.UUID) -> tuple[events,
 
 
 @router.get("/admin/paid-sales/requests", response_model=list[RequestPublic])
-def admin_requests(request_status: str = Query(default="PENDING", alias="status", pattern="^(PENDING|APPROVED|REJECTED)$"), session: Session = Depends(get_session),
+def admin_requests(response: Response, request_status: str = Query(default="PENDING", alias="status", pattern="^(ALL|PENDING|APPROVED|REJECTED)$"), q: str | None = None,
+                   limit: int = Query(default=200, ge=1, le=200), offset: int = Query(default=0, ge=0), session: Session = Depends(get_session),
                    admin: users = Depends(require_admin)):
-    rows = session.exec(select(paid_sales_activation_requests).where(paid_sales_activation_requests.status == request_status)
-                        .order_by(paid_sales_activation_requests.submitted_at)).all()
-    return [request_to_public(session, r) for r in rows]
+    query = select(paid_sales_activation_requests).join(paid_sales_activations, paid_sales_activations.id == paid_sales_activation_requests.activation_id)
+    if request_status != "ALL":
+        query = query.where(paid_sales_activation_requests.status == request_status)
+    if q and q.strip():
+        query = query.where(event_like(paid_sales_activations.event_id, like_pattern(q)))
+    rows = page(session, response, query.order_by(paid_sales_activation_requests.submitted_at, paid_sales_activation_requests.id), limit, offset)
+    return requests_to_public(session, rows)
+
+
+def admin_activations(session: Session, rows: list[tuple[paid_sales_activations | None, events]]) -> list[AdminActivation]:
+    ids = [activation.id for activation, _ in rows if activation is not None]
+    refs = event_refs(session, [event.id for _, event in rows])
+    paid = dict(session.exec(select(activation_fee_payments.activation_id, activation_fee_payments.finalized_at)
+                             .where(activation_fee_payments.activation_id.in_(ids), activation_fee_payments.status == "SUCCEEDED")).all())
+    pending = dict(session.exec(select(paid_sales_activation_requests.activation_id, paid_sales_activation_requests.id)
+                                .where(paid_sales_activation_requests.activation_id.in_(ids), paid_sales_activation_requests.status == "PENDING")).all())
+    stops = {log.entity_id: log for log in session.exec(select(audit_logs).where(audit_logs.entity_id.in_(ids), audit_logs.action_type == "PAID_SALES_SUSPENDED")
+                                                        .order_by(audit_logs.created_at, audit_logs.id)).all()}
+    names = people(session, [log.actor_user_id for log in stops.values()])
+    result = []
+    for activation, event in rows:
+        ref = refs[event.id]
+        stop = stops.get(activation.id) if activation is not None and activation.status == ActivationStatus.SUSPENDED else None
+        person = names.get(stop.actor_user_id) if stop else None
+        result.append(AdminActivation(
+            id=activation.id if activation else None, event_id=event.id, event_title=event.title, event_public_id=event.public_id, event_status=event.status.value,
+            organizer_id=ref.organizer_id, organizer_name=ref.organizer_name, organizer_email=ref.organizer_email,
+            status=activation.status.value if activation else ActivationStatus.NOT_REQUESTED.value, pending_request_id=pending.get(activation.id) if activation else None,
+            fee_amount_minor=activation.fee_amount_minor or ACTIVATION_FEE_MINOR if activation else ACTIVATION_FEE_MINOR,
+            fee_currency=activation.fee_currency if activation else "KZT", fee_paid_at=paid.get(activation.id) if activation else None,
+            activated_at=activation.activated_at if activation else None, suspended_at=activation.suspended_at if activation else None,
+            suspension_reason=stop.details.get("reason") if stop else None, suspended_by_name=(person[0] or person[1]) if person else None,
+            created_at=activation.created_at if activation else None))
+    return result
+
+
+@router.get("/admin/paid-sales/activations", response_model=list[AdminActivation])
+def list_activations(response: Response, activation_status: ActivationStatus | None = Query(default=None, alias="status"), q: str | None = None,
+                     limit: int = Query(default=50, ge=1, le=200), offset: int = Query(default=0, ge=0), session: Session = Depends(get_session),
+                     admin: users = Depends(require_admin)):
+    query = select(paid_sales_activations, events).join(events, events.id == paid_sales_activations.event_id)
+    if activation_status is not None:
+        query = query.where(paid_sales_activations.status == activation_status)
+    if q and q.strip():
+        query = query.where(event_like(events.id, like_pattern(q)))
+    rows = page(session, response, query.order_by(paid_sales_activations.updated_at.desc(), paid_sales_activations.id), limit, offset)
+    return admin_activations(session, rows)
+
+
+@router.get("/admin/events/{event_id}/paid-sales", response_model=AdminActivationDetail)
+def admin_activation(event_id: uuid.UUID, session: Session = Depends(get_session), admin: users = Depends(require_admin)):
+    event = get_event_or_404(session, event_id)
+    summary = admin_activations(session, [(get_activation(session, event.id), event)])[0]
+    full = activation_to_public(session, event.id)
+    return AdminActivationDetail(**summary.model_dump(), paid_terms_version=full.paid_terms_version, requests=full.requests, fee_payments=full.fee_payments)
 
 
 @router.post("/admin/paid-sales/requests/{request_id}/approve", response_model=ActivationPublic)
@@ -172,7 +238,7 @@ def approve_request(request_id: uuid.UUID, background: BackgroundTasks, session:
     session.add(activation)
     notify_organizer(session, event, f"PSA_APPROVED:{request.id}", "PAID_SALES_VERIFICATION_APPROVED", "Paid sales verification approved",
                      f"Verification for \"{event.title}\" was approved. Pay the activation fee to start paid sales.")
-    audit.record(session, action="PAID_SALES_VERIFICATION_APPROVED", entity_type="PAID_SALES_ACTIVATION", entity_id=activation.id, event_id=event.id,
+    audit.record(session, action="PAID_SALES_APPLICATION_APPROVED", entity_type="PAID_SALES_ACTIVATION", entity_id=activation.id, event_id=event.id,
                  actor_user_id=admin.id, details={"request_id": str(request.id), "fee_amount_minor": ACTIVATION_FEE_MINOR})
     session.commit()
     background.add_task(notify.deliver_due)
@@ -194,7 +260,7 @@ def reject_request(request_id: uuid.UUID, data: RejectRequest, background: Backg
     session.add(request)
     notify_organizer(session, event, f"PSA_REJECTED:{request.id}", "PAID_SALES_VERIFICATION_REJECTED", "Paid sales verification rejected",
                      f"Verification for \"{event.title}\" was rejected: {request.rejection_reason}")
-    audit.record(session, action="PAID_SALES_VERIFICATION_REJECTED", entity_type="PAID_SALES_ACTIVATION", entity_id=activation.id, event_id=event.id,
+    audit.record(session, action="PAID_SALES_APPLICATION_REJECTED", entity_type="PAID_SALES_ACTIVATION", entity_id=activation.id, event_id=event.id,
                  actor_user_id=admin.id, details={"request_id": str(request.id), "reason": request.rejection_reason})
     session.commit()
     background.add_task(notify.deliver_due)

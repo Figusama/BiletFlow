@@ -1,11 +1,14 @@
 import uuid
+from typing import Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
-from sqlalchemy import delete
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
+from sqlalchemy import delete, or_
 from sqlmodel import Session, select
 
 from backend.core.clock import as_aware, db_now
 from backend.core.config import FRONTEND_URL
+from backend.core.paging import like_pattern, page
+from backend.modules.admin.refs import event_like, event_refs
 from backend.modules.admin.router import require_admin
 from backend.modules.applications.service import generate_number
 from backend.modules.audit import service as audit
@@ -30,11 +33,19 @@ SPECIAL_REFUND_HOURS = 24
 CLOSED = (EventLifecycleStatus.CANCELLED, EventLifecycleStatus.COMPLETED)
 
 
+def to_public_list(session: Session, rows: list[event_change_requests]) -> list[ChangeRequestPublic]:
+    refs = event_refs(session, [r.event_id for r in rows])
+    items: dict[uuid.UUID, list[ChangeItemPublic]] = {}
+    for i in session.exec(select(event_change_request_items).where(event_change_request_items.change_request_id.in_([r.id for r in rows]))
+                          .order_by(event_change_request_items.created_at)).all():
+        items.setdefault(i.change_request_id, []).append(ChangeItemPublic(id=i.id, field=i.field, target_id=i.target_id, old_value=i.old_value, new_value=i.new_value))
+    return [ChangeRequestPublic(id=r.id, request_number=r.request_number, event_id=r.event_id, event_title=refs[r.event_id].title, event_public_id=refs[r.event_id].public_id,
+                                organizer_name=refs[r.event_id].organizer_name, status=r.status.value, comment=r.comment, submitted_at=r.submitted_at,
+                                reviewed_at=r.reviewed_at, review_comment=r.review_comment, created_at=r.created_at, items=items.get(r.id, [])) for r in rows]
+
+
 def to_public(session: Session, request: event_change_requests) -> ChangeRequestPublic:
-    items = session.exec(select(event_change_request_items).where(event_change_request_items.change_request_id == request.id).order_by(event_change_request_items.created_at)).all()
-    return ChangeRequestPublic(id=request.id, request_number=request.request_number, event_id=request.event_id, status=request.status.value, comment=request.comment,
-                               submitted_at=request.submitted_at, reviewed_at=request.reviewed_at, review_comment=request.review_comment, created_at=request.created_at,
-                               items=[ChangeItemPublic(id=i.id, field=i.field, target_id=i.target_id, old_value=i.old_value, new_value=i.new_value) for i in items])
+    return to_public_list(session, [request])[0]
 
 
 def lock_request(session: Session, request_id: uuid.UUID) -> tuple[events, event_change_requests]:
@@ -74,7 +85,7 @@ def create_change(event_id: uuid.UUID, data: ChangeRequestInput, session: Sessio
 def list_changes(event_id: uuid.UUID, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
     require_organizer(session, event_id, current_user)
     rows = session.exec(select(event_change_requests).where(event_change_requests.event_id == event_id).order_by(event_change_requests.created_at.desc())).all()
-    return [to_public(session, r) for r in rows]
+    return to_public_list(session, rows)
 
 
 @router.get("/change-requests/{request_id}", response_model=ChangeRequestPublic)
@@ -124,7 +135,7 @@ def submit_change(request_id: uuid.UUID, background: BackgroundTasks, session: S
     session.add(request)
     notify.publish(session, notify.Notice(key=f"CHANGE_SUBMITTED:{request.id}", event_type="EVENT_CHANGE_SUBMITTED", aggregate_type="EVENT", aggregate_id=event.id,
                                           title="Event change request", body=f"Changes to \"{event.title}\" await review.", inbox_user_ids=refund_service.admin_ids(session)))
-    audit.record(session, action="EVENT_CHANGE_SUBMITTED", entity_type="EVENT_CHANGE_REQUEST", entity_id=request.id, event_id=event.id, actor_user_id=current_user.id,
+    audit.record(session, action="EVENT_CHANGE_REQUEST_SUBMITTED", entity_type="EVENT_CHANGE_REQUEST", entity_id=request.id, event_id=event.id, actor_user_id=current_user.id,
                  details={"request_number": request.request_number})
     session.commit()
     session.refresh(request)
@@ -145,9 +156,25 @@ def withdraw_change(request_id: uuid.UUID, session: Session = Depends(get_sessio
 
 
 @router.get("/admin/change-requests", response_model=list[ChangeRequestPublic])
-def admin_changes(request_status: EventStatus = Query(default=EventStatus.PENDING, alias="status"), session: Session = Depends(get_session), admin: users = Depends(require_admin)):
-    rows = session.exec(select(event_change_requests).where(event_change_requests.status == request_status).order_by(event_change_requests.submitted_at)).all()
-    return [to_public(session, r) for r in rows]
+def admin_changes(response: Response, request_status: EventStatus | Literal["ALL"] = Query(default=EventStatus.PENDING, alias="status"), q: str | None = None,
+                  event_id: uuid.UUID | None = None, limit: int = Query(default=200, ge=1, le=200), offset: int = Query(default=0, ge=0),
+                  session: Session = Depends(get_session), admin: users = Depends(require_admin)):
+    query = select(event_change_requests)
+    query = query.where(event_change_requests.status != EventStatus.DRAFT if request_status == "ALL" else event_change_requests.status == request_status)
+    if event_id is not None:
+        query = query.where(event_change_requests.event_id == event_id)
+    if q and q.strip():
+        pattern = like_pattern(q)
+        query = query.where(or_(event_change_requests.request_number.ilike(pattern), event_like(event_change_requests.event_id, pattern)))
+    return to_public_list(session, page(session, response, query.order_by(event_change_requests.submitted_at, event_change_requests.id), limit, offset))
+
+
+@router.get("/admin/change-requests/{request_id}", response_model=ChangeRequestPublic)
+def admin_change(request_id: uuid.UUID, session: Session = Depends(get_session), admin: users = Depends(require_admin)):
+    request = session.get(event_change_requests, request_id)
+    if request is None or request.status == EventStatus.DRAFT:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Change request not found")
+    return to_public(session, request)
 
 
 @router.post("/admin/change-requests/{request_id}/approve", response_model=ChangeRequestPublic)
@@ -172,7 +199,7 @@ def approve_change(request_id: uuid.UUID, data: ChangeReview, background: Backgr
     request.reviewed_at = now
     request.review_comment = (data.review_comment or "").strip() or None
     session.add(request)
-    audit.record(session, action="EVENT_CHANGE_APPROVED", entity_type="EVENT_CHANGE_REQUEST", entity_id=request.id, event_id=event.id, actor_user_id=admin.id,
+    audit.record(session, action="EVENT_CHANGE_REQUEST_APPROVED", entity_type="EVENT_CHANGE_REQUEST", entity_id=request.id, event_id=event.id, actor_user_id=admin.id,
                  details={"request_number": request.request_number, "fields": sorted(f.value for f in fields)})
     material = sorted(f.value for f in fields if f not in service.TICKET_FIELDS)
     if material:
@@ -214,7 +241,7 @@ def reject_change(request_id: uuid.UUID, data: ChangeRejection, background: Back
     if owner:
         notify.publish(session, notify.Notice(key=f"CHANGE_REJECTED:{request.id}", event_type="EVENT_CHANGE_REJECTED", aggregate_type="EVENT", aggregate_id=event.id,
                                               title="Changes rejected", body=f"Changes to \"{event.title}\" were rejected: {request.review_comment}", inbox_user_ids=[owner]))
-    audit.record(session, action="EVENT_CHANGE_REJECTED", entity_type="EVENT_CHANGE_REQUEST", entity_id=request.id, event_id=event.id, actor_user_id=admin.id,
+    audit.record(session, action="EVENT_CHANGE_REQUEST_REJECTED", entity_type="EVENT_CHANGE_REQUEST", entity_id=request.id, event_id=event.id, actor_user_id=admin.id,
                  details={"comment": request.review_comment})
     session.commit()
     session.refresh(request)

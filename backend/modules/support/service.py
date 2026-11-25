@@ -7,6 +7,7 @@ from sqlmodel import Session, select
 
 from backend.core.clock import as_aware, db_now
 from backend.core.config import FRONTEND_URL
+from backend.modules.admin.refs import event_refs
 from backend.modules.audit import service as audit
 from backend.modules.notifications import service as notify
 from backend.modules.orders.models import orders
@@ -165,7 +166,11 @@ def full_names(session: Session, user_ids) -> dict[uuid.UUID, str]:
 def to_public_list(session: Session, cases: list[support_cases], viewer: users) -> list[CasePublic]:
     names = full_names(session, [i for c in cases for i in (c.requester_user_id, c.assigned_to_user_id)])
     numbers = dict(session.exec(select(orders.id, orders.order_number).where(orders.id.in_({c.order_id for c in cases if c.order_id is not None}))).all())
-    return [CasePublic(**case.model_dump(include=set(CasePublic.model_fields) - {"unread", "requester_name", "assignee_name", "order_number"}),
+    refs = event_refs(session, [c.event_id for c in cases])
+    computed = {"unread", "requester_name", "assignee_name", "order_number", "event_title", "event_public_id", "organizer_name"}
+    return [CasePublic(**case.model_dump(include=set(CasePublic.model_fields) - computed), event_title=refs[case.event_id].title if case.event_id else None,
+                       event_public_id=refs[case.event_id].public_id if case.event_id else None,
+                       organizer_name=refs[case.event_id].organizer_name if case.event_id and is_admin(viewer) else None,
                        unread=unread_count(session, case, viewer), requester_name=names.get(case.requester_user_id), assignee_name=names.get(case.assigned_to_user_id),
                        order_number=numbers.get(case.order_id)) for case in cases]
 
@@ -174,9 +179,13 @@ def to_public(session: Session, case: support_cases, viewer: users) -> CasePubli
     return to_public_list(session, [case], viewer)[0]
 
 
+def platform_staff(session: Session) -> list[users]:
+    return list(session.exec(select(users).where(users.personal_role == Role.PLATFORM_ADMIN, users.is_suspended.is_(False))).all())
+
+
 def assignees(session: Session, case: support_cases) -> list[CaseAssignee]:
     if platform_handles(case):
-        rows = [(u, "PLATFORM_ADMIN") for u in session.exec(select(users).where(users.personal_role == Role.PLATFORM_ADMIN, users.is_suspended.is_(False))).all()]
+        rows = [(u, "PLATFORM_ADMIN") for u in platform_staff(session)]
     else:
         rows = [(u, role.value) for u, role in session.exec(select(users, event_user_roles.event_role).join(event_user_roles, event_user_roles.user_id == users.id).where(
             event_user_roles.event_id == case.event_id, event_user_roles.event_role.in_(EVENT_HANDLER_ROLES), users.is_suspended.is_(False))).all()]

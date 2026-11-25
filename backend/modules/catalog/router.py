@@ -1,14 +1,18 @@
 import uuid
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import case, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
+from backend.core.paging import like_pattern, page
 from backend.modules.admin.router import require_admin
-from backend.modules.catalog.schemas import CategoryCreate, CategoryPublic, CategoryUpdate, LayoutCreate, LayoutPublic, VenueCreate, VenuePublic
-from backend.modules.events.models import categories
+from backend.modules.catalog.schemas import (
+    AdminVenue, CategoryCreate, CategoryPublic, CategoryUpdate, LayoutCreate, LayoutPublic, VenueCreate, VenuePublic, VenueUpdate,
+)
+from backend.modules.events.models import categories, events
+from backend.modules.events.schemas import EventLifecycleStatus
 from backend.modules.users.user_model import users
 from backend.modules.venues.models import venue_layouts, venue_rows, venue_seats, venue_sections, venues
 from database.database import get_session
@@ -97,6 +101,55 @@ def create_venue(data: VenueCreate, session: Session = Depends(get_session), adm
     session.commit()
     session.refresh(venue)
     return venue_to_public(session, venue)
+
+
+def admin_venues(session: Session, rows: list[venues]) -> list[AdminVenue]:
+    active = case((events.status == EventLifecycleStatus.PUBLISHED, 1))
+    counts = {venue_id: (total, published) for venue_id, total, published in session.exec(
+        select(events.venue_id, func.count(), func.count(active)).where(events.venue_id.in_([v.id for v in rows])).group_by(events.venue_id)).all()}
+    result = []
+    for venue in rows:
+        total, published = counts.get(venue.id, (0, 0))
+        result.append(AdminVenue(**venue_to_public(session, venue).model_dump(), events_count=total, active_events_count=published))
+    return result
+
+
+@router.get("/admin/venues", response_model=list[AdminVenue])
+def admin_list_venues(response: Response, q: str | None = None, city: str | None = None, limit: int = Query(default=50, ge=1, le=200), offset: int = Query(default=0, ge=0),
+                      session: Session = Depends(get_session), admin: users = Depends(require_admin)):
+    query = select(venues)
+    if q and q.strip():
+        pattern = like_pattern(q)
+        query = query.where(or_(venues.name.ilike(pattern), venues.address.ilike(pattern)))
+    if city and city.strip():
+        query = query.where(venues.city.ilike(like_pattern(city)))
+    return admin_venues(session, page(session, response, query.order_by(venues.city, venues.name, venues.id), limit, offset))
+
+
+@router.patch("/admin/venues/{venue_id}", response_model=AdminVenue)
+def update_venue(venue_id: uuid.UUID, data: VenueUpdate, session: Session = Depends(get_session), admin: users = Depends(require_admin)):
+    venue = session.exec(select(venues).where(venues.id == venue_id).with_for_update()).first()
+    if venue is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Venue not found")
+    changes = {key: value.strip() if isinstance(value, str) else value for key, value in data.model_dump(exclude_unset=True, exclude_none=True).items()}
+    if any(value == "" for value in changes.values()):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Value is required")
+    moved = any(key != "max_capacity" and getattr(venue, key) != value for key, value in changes.items())
+    open_events = select(events.id).where(events.venue_id == venue.id, events.status == EventLifecycleStatus.PUBLISHED).limit(1)
+    if moved and session.exec(open_events).first() is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "The venue has published events; change it through an event change request")
+    if "max_capacity" in changes:
+        used = session.exec(select(func.max(events.ga_capacity)).where(events.venue_id == venue.id, events.status.in_(
+            (EventLifecycleStatus.DRAFT, EventLifecycleStatus.PUBLISHED)))).one() or 0
+        seats = max((layout.seats for layout in venue_to_public(session, venue).layouts), default=0)
+        if changes["max_capacity"] < max(used, seats):
+            raise HTTPException(status.HTTP_409_CONFLICT, f"Capacity is already used by events or layouts: {max(used, seats)}")
+    for key, value in changes.items():
+        setattr(venue, key, value)
+    session.add(venue)
+    session.commit()
+    session.refresh(venue)
+    return admin_venues(session, [venue])[0]
 
 
 @router.post("/admin/venues/{venue_id}/layouts", response_model=VenuePublic, status_code=status.HTTP_201_CREATED)

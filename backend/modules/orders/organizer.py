@@ -1,4 +1,3 @@
-import re
 import uuid
 from dataclasses import dataclass
 
@@ -6,6 +5,7 @@ from sqlalchemy import Uuid, and_, exists, func, literal, null, or_, union_all
 from sqlmodel import Session, select
 
 from backend.core.clock import db_now
+from backend.core.paging import like_pattern
 from backend.modules.events.models import events
 from backend.modules.orders.models import order_items, orders, reservations
 from backend.modules.orders.schemas import (
@@ -29,10 +29,6 @@ class AttendeeFilter:
     ticket_type_id: uuid.UUID | None = None
     checked_in: bool | None = None
     has_promo: bool | None = None
-
-
-def like_pattern(text: str) -> str:
-    return "%" + re.sub(r"([\\%_])", r"\\\1", text.strip()) + "%"
 
 
 def pending_clause(now):

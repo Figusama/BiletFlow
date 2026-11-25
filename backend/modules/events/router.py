@@ -222,7 +222,7 @@ def remove_image(event_id: uuid.UUID, image_id: uuid.UUID, session: Session = De
     return to_public(session, event)
 
 
-def publish_problems(session: Session, event: events, now) -> list[tuple[str, str]]:
+def publish_problems(session: Session, event: events, now) -> list[tuple]:
     problems = []
     if as_aware(event.ends_at) <= now:
         problems.append(("EVENT_ENDED", "Event has already ended"))
@@ -235,7 +235,7 @@ def publish_problems(session: Session, event: events, now) -> list[tuple[str, st
         problems.append(("NO_TICKET_TYPE", "At least one active ticket type is required"))
     for ticket_type in types:
         if as_aware(ticket_type.sales_end_at) > as_aware(event.ends_at):
-            problems.append(("SALES_END_AFTER_EVENT", f"Sales of '{ticket_type.name}' must end no later than the event"))
+            problems.append(("SALES_END_AFTER_EVENT", f"Sales of '{ticket_type.name}' must end no later than the event", ticket_type))
     if event.seating_mode == SeatingMode.GENERAL_ADMISSION:
         venue = session.get(venues, event.venue_id)
         if not event.ga_capacity or venue is None or event.ga_capacity > venue.max_capacity:
@@ -249,7 +249,7 @@ def publish_problems(session: Session, event: events, now) -> list[tuple[str, st
         else:
             for ticket_type in types:
                 if ticket_type.is_active and ticket_type.id not in seated_types:
-                    problems.append(("TICKET_TYPE_WITHOUT_SEATS", f"'{ticket_type.name}' has no seats assigned"))
+                    problems.append(("TICKET_TYPE_WITHOUT_SEATS", f"'{ticket_type.name}' has no seats assigned", ticket_type))
     if session.exec(select(event_categories.category_id).where(event_categories.event_id == event.id).limit(1)).first() is None:
         problems.append(("NO_CATEGORY", "At least one category is required"))
     if session.exec(select(event_images.id).where(event_images.event_id == event.id).limit(1)).first() is None:
@@ -270,7 +270,10 @@ def publish_event(event_id: uuid.UUID, session: Session = Depends(get_session), 
     now = db_now(session)
     problems = publish_problems(session, event, now)
     if problems:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, {"code": "not_ready", "problems": [text for _, text in problems], "problem_codes": [code for code, _ in problems]})
+        items = [{"code": code, "text": text, "ticket_type_id": str(about[0].id) if about else None, "ticket_type_name": about[0].name if about else None}
+                 for code, text, *about in problems]
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, {"code": "not_ready", "problems": [i["text"] for i in items], "problem_codes": [i["code"] for i in items],
+                                                                   "problem_items": items})
     event.status = EventLifecycleStatus.PUBLISHED
     event.published_at = now
     session.add(event)
