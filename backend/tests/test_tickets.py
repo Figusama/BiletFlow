@@ -10,7 +10,7 @@ from sqlalchemy import text
 from backend.modules.events.schemas import EventLifecycleStatus, SeatingMode
 from database.database import engine
 
-from test_auth import USER, client, verified_user
+from test_auth import USER, client, verified_user, clean_user
 from test_events import (  
     OTHER, admin_user, bearer, clean_all, draft_event, make_event, other_user, published_event,
 )

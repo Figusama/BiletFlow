@@ -9,7 +9,7 @@ from sqlalchemy import text
 
 from database.database import engine
 
-from test_auth import USER, client, verified_user
+from test_auth import USER, client, verified_user, clean_user
 from test_events import ADMIN, OTHER, admin_user, bearer, clean_all, make_event, other_user, published_event
 from test_orders import buy_free_tickets, free_event, mail, reserve
 from test_payments import payment, payment_mail, pending_order, simulate, simulator_on

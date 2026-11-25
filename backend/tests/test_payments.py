@@ -6,7 +6,7 @@ from fastapi import status
 
 from backend.core.config import FRONTEND_URL
 
-from test_auth import USER, client, verified_user
+from test_auth import USER, client, verified_user, clean_user
 from test_events import ADMIN, OTHER, admin_user, bearer, clean_all, other_user
 from test_orders import buy_free_tickets, free_event, order_from, paid_event, reserve
 

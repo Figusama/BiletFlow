@@ -14,7 +14,7 @@ from backend.modules.users.user_model import EventRole, event_user_roles
 from backend.modules.venues.models import venues
 from database.database import engine
 
-from test_auth import SEND_PATH, USER, client, delete_user, login, token_from_email
+from test_auth import SEND_PATH, USER, client, delete_user, login, token_from_email, verified_user, clean_user
 
 OTHER = {"email": "ci-other@example.com", "password": "stringst12332", "full_name": "CI Other", "phone": "+77011234568"}
 ADMIN = {"email": "ci-admin@example.com", "password": "stringst12332", "full_name": "CI Admin", "phone": "+77011234569"}
