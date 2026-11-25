@@ -44,6 +44,9 @@ const AdminLayout = () => {
                             <NavLink to="/admin/payments" className={menuLinkClass}>
                                 {t.admin.payments.title}
                             </NavLink>
+                            <NavLink to="/admin/refunds" className={menuLinkClass}>
+                                {t.admin.refunds.title}
+                            </NavLink>
                         </div>
                         <div>
                             <p className={groupTitleClass}>{t.admin.groups.directory}</p>

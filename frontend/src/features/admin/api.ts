@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { api } from '../../shared/api/client'
 import type { Application, ApplicationStatus } from '../applications/api'
-import type { ChangeRequest } from '../organizer/api'
+import type { ChangeRequest, EventRefundRequest } from '../organizer/api'
 
 export type ReviewStatus = Exclude<ApplicationStatus, 'DRAFT'>
 
@@ -226,3 +226,67 @@ export const useAdminUserOrders = (email: string | undefined) =>
 
 export const setUserSuspended = (userId: string, suspended: boolean) =>
     api<void>(`/users/${userId}/${suspended ? 'suspend' : 'unsuspend'}`, { method: 'POST' })
+
+export type RefundAttemptStatus = 'PENDING' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'UNKNOWN'
+
+export interface AdminRefundAttempt {
+    id: string
+    amount_minor: number
+    status: RefundAttemptStatus
+    attempt_actor: 'SYSTEM' | 'ORGANIZER' | 'PLATFORM_ADMIN'
+    created_at: string
+    finalized_at: string | null
+}
+
+export interface AdminRefundRequest extends EventRefundRequest {
+    event_id: string
+    attempts: AdminRefundAttempt[]
+}
+
+export const MANDATORY_REFUND_SOURCES = ['EVENT_CANCELLATION', 'EVENT_CHANGED', 'SYSTEM_FAST_REFUND', 'EVENT_SUSPENSION']
+
+export const MAX_SYSTEM_ATTEMPTS = 5
+
+export type RefundTab = 'DECISION' | 'ATTENTION' | 'IN_PROGRESS' | 'FINISHED' | 'REJECTED'
+
+export const refundTabs: RefundTab[] = ['DECISION', 'ATTENTION', 'IN_PROGRESS', 'FINISHED', 'REJECTED']
+
+const refundTabStatus: Record<RefundTab, 'PENDING_ADMIN' | 'APPROVED' | 'REJECTED'> = {
+    DECISION: 'PENDING_ADMIN',
+    ATTENTION: 'APPROVED',
+    IN_PROGRESS: 'APPROVED',
+    FINISHED: 'APPROVED',
+    REJECTED: 'REJECTED',
+}
+
+export const lastAttempt = (request: AdminRefundRequest) => request.attempts[request.attempts.length - 1]
+
+export const needsAttention = (request: AdminRefundRequest) => {
+    if (request.status !== 'APPROVED' || request.execution_status !== 'IN_PROGRESS') return false
+    const status = lastAttempt(request)?.status
+    return status === 'UNKNOWN' || status === 'FAILED'
+}
+
+const matchesRefundTab = (request: AdminRefundRequest, tab: RefundTab) => {
+    const isOpen = request.execution_status === 'NOT_STARTED' || request.execution_status === 'IN_PROGRESS'
+    if (tab === 'ATTENTION') return needsAttention(request)
+    if (tab === 'IN_PROGRESS') return isOpen && !needsAttention(request)
+    if (tab === 'FINISHED') return !isOpen
+    return true
+}
+
+export const adminRefundsKey = ['admin', 'refunds']
+
+export const useAdminRefunds = (tab: RefundTab) =>
+    useQuery({
+        queryKey: [...adminRefundsKey, refundTabStatus[tab]],
+        queryFn: () => api<AdminRefundRequest[]>(`/admin/refund-requests?status=${refundTabStatus[tab]}&limit=200`),
+        select: (requests) => requests.filter((request) => matchesRefundTab(request, tab)),
+    })
+
+export const approveAdminRefund = (requestId: string) => api<AdminRefundRequest>(`/refund-requests/${requestId}/approve`, { method: 'POST', json: {} })
+
+export const rejectAdminRefund = (requestId: string, comment: string) =>
+    api<AdminRefundRequest>(`/refund-requests/${requestId}/reject`, { method: 'POST', json: { comment } })
+
+export const retryAdminRefund = (requestId: string) => api<AdminRefundRequest>(`/admin/refund-requests/${requestId}/retry`, { method: 'POST' })
