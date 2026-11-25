@@ -16,6 +16,8 @@ import CheckoutPage from '../pages/CheckoutPage'
 import OrderPage from '../pages/OrderPage'
 import ApplicationPage from '../pages/ApplicationPage'
 import MyApplicationsPage from '../pages/MyApplicationsPage'
+import OrganizerGuestsPage from '../pages/OrganizerGuestsPage'
+import OrganizerHistoryPage from '../pages/OrganizerHistoryPage'
 import OrganizerEventPage from '../pages/OrganizerEventPage'
 import OrganizerTicketTypesPage from '../pages/OrganizerTicketTypesPage'
 import OrganizerSeatingPage from '../pages/OrganizerSeatingPage'
@@ -179,6 +181,14 @@ export const router = createBrowserRouter([
                                     {
                                         path: 'team',
                                         element: <OrganizerTeamPage />,
+                                    },
+                                    {
+                                        path: 'history',
+                                        element: <OrganizerHistoryPage />,
+                                    },
+                                    {
+                                        path: 'guests',
+                                        element: <OrganizerGuestsPage />,
                                     },
                                     {
                                         path: 'support',

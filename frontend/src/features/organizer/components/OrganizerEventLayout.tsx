@@ -11,6 +11,8 @@ const menuLinkClass = ({ isActive }: { isActive: boolean }) =>
         isActive ? 'bg-accent-soft font-semibold text-accent' : 'text-foreground hover:bg-surface-sunk'
     }`
 
+const groupTitleClass = 'mb-1 px-3 text-xs font-bold tracking-widest text-muted uppercase'
+
 const OrganizerEventLayout = () => {
     const { t } = useLanguage()
     const { eventId = '' } = useParams()
@@ -47,48 +49,75 @@ const OrganizerEventLayout = () => {
                     </div>
                 )}
 
-                <nav aria-label={t.organizerEvent.menu} className="mt-5 border-t border-border pt-3">
-                    <NavLink to={`/organizer/events/${eventId}`} end className={menuLinkClass}>
-                        {t.organizerEvent.overview}
-                    </NavLink>
-                    <NavLink to={`/organizer/events/${eventId}/ticket-types`} className={menuLinkClass}>
-                        {t.organizerTickets.title}
-                    </NavLink>
-                    {event?.seating_mode === 'ASSIGNED_SEATING' && (
-                        <NavLink to={`/organizer/events/${eventId}/seating`} className={menuLinkClass}>
-                            {t.organizerSeats.title}
+                <nav aria-label={t.organizerEvent.menu} className="mt-5 flex flex-col gap-4 border-t border-border pt-4">
+                    <div>
+                        <p className={groupTitleClass}>{t.organizerEvent.groups.event}</p>
+                        <NavLink to={`/organizer/events/${eventId}`} end className={menuLinkClass}>
+                            {t.organizerEvent.overview}
                         </NavLink>
-                    )}
-                    <NavLink to={`/organizer/events/${eventId}/paid-sales`} className={menuLinkClass}>
-                        {t.organizerPaidSales.title}
-                    </NavLink>
-                    <NavLink to={`/organizer/events/${eventId}/promo-codes`} className={menuLinkClass}>
-                        {t.organizerPromo.title}
-                    </NavLink>
-                    <NavLink to={`/organizer/events/${eventId}/change-requests`} className={menuLinkClass}>
-                        {t.organizerChanges.title}
-                    </NavLink>
-                    <NavLink to={`/organizer/events/${eventId}/orders`} className={menuLinkClass}>
-                        {t.organizerOrders.title}
-                    </NavLink>
-                    <NavLink to={`/organizer/events/${eventId}/refunds`} className={({ isActive }) => `${menuLinkClass({ isActive })} justify-between`}>
-                        {t.organizerRefunds.title}
-                        {pendingRefunds.length > 0 && (
-                            <span className="rounded-full bg-badge-warning-bg px-2 py-0.5 text-xs font-semibold text-badge-warning-fg">{pendingRefunds.length}</span>
+                        <NavLink to={`/organizer/events/${eventId}/ticket-types`} className={menuLinkClass}>
+                            {t.organizerTickets.title}
+                        </NavLink>
+                        {event?.seating_mode === 'ASSIGNED_SEATING' && (
+                            <NavLink to={`/organizer/events/${eventId}/seating`} className={menuLinkClass}>
+                                {t.organizerSeats.title}
+                            </NavLink>
                         )}
-                    </NavLink>
-                    <NavLink to={`/organizer/events/${eventId}/support`} className={({ isActive }) => `${menuLinkClass({ isActive })} justify-between`}>
-                        {t.organizerSupport.title}
-                        {queuedCases.length > 0 && (
-                            <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold text-accent ring-1 ring-border">{queuedCases.length}</span>
+                        <NavLink to={`/organizer/events/${eventId}/paid-sales`} className={menuLinkClass}>
+                            {t.organizerPaidSales.title}
+                        </NavLink>
+                        <NavLink to={`/organizer/events/${eventId}/promo-codes`} className={menuLinkClass}>
+                            {t.organizerPromo.title}
+                        </NavLink>
+                    </div>
+
+                    <div>
+                        <p className={groupTitleClass}>{t.organizerEvent.groups.people}</p>
+                        <NavLink to={`/organizer/events/${eventId}/orders`} className={menuLinkClass}>
+                            {t.organizerOrders.title}
+                        </NavLink>
+                        <NavLink to={`/organizer/events/${eventId}/refunds`} className={({ isActive }) => `${menuLinkClass({ isActive })} justify-between`}>
+                            {t.organizerRefunds.title}
+                            {pendingRefunds.length > 0 && (
+                                <span className="rounded-full bg-badge-warning-bg px-2 py-0.5 text-xs font-semibold text-badge-warning-fg">{pendingRefunds.length}</span>
+                            )}
+                        </NavLink>
+                        <NavLink to={`/organizer/events/${eventId}/team`} className={menuLinkClass}>
+                            {t.organizerTeam.title}
+                        </NavLink>
+                        {event?.visibility === 'PRIVATE' && (
+                            <NavLink to={`/organizer/events/${eventId}/guests`} className={menuLinkClass}>
+                                {t.organizerGuests.title}
+                            </NavLink>
                         )}
-                    </NavLink>
-                    <NavLink to={`/organizer/events/${eventId}/analytics`} className={menuLinkClass}>
-                        {t.organizerAnalytics.title}
-                    </NavLink>
-                    <NavLink to={`/organizer/events/${eventId}/team`} className={menuLinkClass}>
-                        {t.organizerTeam.title}
-                    </NavLink>
+                    </div>
+
+                    <div>
+                        <p className={groupTitleClass}>{t.organizerEvent.groups.support}</p>
+                        <NavLink to={`/organizer/events/${eventId}/support`} className={({ isActive }) => `${menuLinkClass({ isActive })} justify-between`}>
+                            {t.organizerSupport.title}
+                            {queuedCases.length > 0 && (
+                                <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold text-accent ring-1 ring-border">{queuedCases.length}</span>
+                            )}
+                        </NavLink>
+                    </div>
+
+                    <div>
+                        <p className={groupTitleClass}>{t.organizerEvent.groups.moderation}</p>
+                        <NavLink to={`/organizer/events/${eventId}/change-requests`} className={menuLinkClass}>
+                            {t.organizerChanges.title}
+                        </NavLink>
+                    </div>
+
+                    <div>
+                        <p className={groupTitleClass}>{t.organizerEvent.groups.reports}</p>
+                        <NavLink to={`/organizer/events/${eventId}/analytics`} className={menuLinkClass}>
+                            {t.organizerAnalytics.title}
+                        </NavLink>
+                        <NavLink to={`/organizer/events/${eventId}/history`} className={menuLinkClass}>
+                            {t.organizerHistory.title}
+                        </NavLink>
+                    </div>
                 </nav>
             </aside>
 

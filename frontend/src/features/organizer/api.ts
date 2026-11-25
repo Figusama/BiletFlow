@@ -715,3 +715,57 @@ export const useEventOrderDetail = (eventId: string | undefined, orderId: string
         queryFn: () => api<EventOrderDetail>(`/events/${eventId}/orders/${orderId}`),
         enabled: Boolean(eventId && orderId),
     })
+
+export interface PrivateInvitation {
+    id: string
+    invited_email: string
+    created_at: string
+    expires_at: string
+    is_active: boolean
+}
+
+export const privateInvitationsKey = (eventId: string | undefined) => ['organizer-events', eventId, 'private-invitations']
+
+export const usePrivateInvitations = (eventId: string | undefined) =>
+    useQuery({
+        queryKey: privateInvitationsKey(eventId),
+        queryFn: () => api<PrivateInvitation[]>(`/events/${eventId}/private-invitations`),
+        enabled: Boolean(eventId),
+    })
+
+export const sendPrivateInvitations = (eventId: string, emails: string[]) =>
+    api<PrivateInvitation[]>(`/events/${eventId}/private-invitations`, { method: 'POST', json: { emails } })
+
+export interface HistoryEntry {
+    id: string
+    created_at: string
+    action_type: string
+    category: string
+    description: string
+    result: string
+    actor: { kind: string; user_id: string | null; display_name: string }
+}
+
+export interface HistoryPage {
+    total: number
+    limit: number
+    offset: number
+    items: HistoryEntry[]
+}
+
+export const eventHistoryKey = (eventId: string | undefined) => ['organizer-events', eventId, 'history']
+
+export const useEventHistory = (eventId: string | undefined, filters: { from: string | null; category: string; limit: number; offset: number }) => {
+    const params = new URLSearchParams({ limit: String(filters.limit), offset: String(filters.offset) })
+    if (filters.from) params.set('from', filters.from)
+    if (filters.category) params.append('category', filters.category)
+    return useQuery({
+        queryKey: [...eventHistoryKey(eventId), filters],
+        queryFn: () => api<HistoryPage>(`/events/${eventId}/history?${params.toString()}`),
+        enabled: Boolean(eventId),
+        placeholderData: keepPreviousData,
+    })
+}
+
+export const useHistoryCategories = () =>
+    useQuery({ queryKey: ['history-categories'], queryFn: () => api<string[]>('/history/categories'), staleTime: Infinity })
