@@ -385,6 +385,8 @@ export const setUserSuspended = (userId: string, suspended: boolean) =>
 
 export type RefundAttemptStatus = 'PENDING' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'UNKNOWN'
 
+export type RefundFailureReason = 'BANK_REFUSED' | 'BANK_NOT_CONFIRMED' | 'NOT_SENT'
+
 export interface AdminRefundAttempt {
     id: string
     amount_minor: number
@@ -392,10 +394,27 @@ export interface AdminRefundAttempt {
     attempt_actor: 'SYSTEM' | 'ORGANIZER' | 'PLATFORM_ADMIN'
     created_at: string
     finalized_at: string | null
+    provider_ref: string | null
+    failure_reason: RefundFailureReason | null
+    next_check_at: string | null
+    next_retry_at: string | null
 }
 
 export interface AdminRefundRequest extends EventRefundRequest {
     event_id: string
+    request_number: string
+    event_title: string
+    event_public_id: string
+    organizer_name: string | null
+    buyer_name: string | null
+    buyer_email: string
+    refund_policy: Record<string, unknown>
+    refund_deadline: string | null
+    tickets_total: number
+    tickets_checked_in: number
+    reminder_at: string | null
+    escalation_at: string | null
+    escalated_at: string | null
     attempts: AdminRefundAttempt[]
 }
 
@@ -403,16 +422,17 @@ export const MANDATORY_REFUND_SOURCES = ['EVENT_CANCELLATION', 'EVENT_CHANGED', 
 
 export const MAX_SYSTEM_ATTEMPTS = 5
 
-export type RefundTab = 'DECISION' | 'ATTENTION' | 'IN_PROGRESS' | 'FINISHED' | 'REJECTED'
+export type RefundTab = 'DECISION' | 'ATTENTION' | 'IN_PROGRESS' | 'FINISHED' | 'REJECTED' | 'ALL'
 
-export const refundTabs: RefundTab[] = ['DECISION', 'ATTENTION', 'IN_PROGRESS', 'FINISHED', 'REJECTED']
+export const refundTabs: RefundTab[] = ['DECISION', 'ATTENTION', 'IN_PROGRESS', 'FINISHED', 'REJECTED', 'ALL']
 
-const refundTabStatus: Record<RefundTab, 'PENDING_ADMIN' | 'APPROVED' | 'REJECTED'> = {
+const refundTabStatus: Record<RefundTab, 'PENDING_ADMIN' | 'APPROVED' | 'REJECTED' | 'ALL'> = {
     DECISION: 'PENDING_ADMIN',
     ATTENTION: 'APPROVED',
     IN_PROGRESS: 'APPROVED',
     FINISHED: 'APPROVED',
     REJECTED: 'REJECTED',
+    ALL: 'ALL',
 }
 
 export const lastAttempt = (request: AdminRefundRequest) => request.attempts[request.attempts.length - 1]
@@ -433,12 +453,22 @@ const matchesRefundTab = (request: AdminRefundRequest, tab: RefundTab) => {
 
 export const adminRefundsKey = ['admin', 'refunds']
 
-export const useAdminRefunds = (tab: RefundTab) =>
+export const useAdminRefunds = (tab: RefundTab, search = '') =>
     useQuery({
-        queryKey: [...adminRefundsKey, refundTabStatus[tab]],
-        queryFn: () => api<AdminRefundRequest[]>(`/admin/refund-requests?status=${refundTabStatus[tab]}&limit=200`),
+        queryKey: [...adminRefundsKey, 'list', refundTabStatus[tab], search],
+        queryFn: () =>
+            api<AdminRefundRequest[]>(`/admin/refund-requests?status=${refundTabStatus[tab]}&limit=200${search ? `&q=${encodeURIComponent(search)}` : ''}`),
         select: (requests) => requests.filter((request) => matchesRefundTab(request, tab)),
     })
+
+export const useAdminRefundDetail = (requestId: string | undefined) =>
+    useQuery({
+        queryKey: [...adminRefundsKey, 'detail', requestId],
+        queryFn: () => api<AdminRefundRequest>(`/admin/refund-requests/${requestId}`),
+        enabled: Boolean(requestId),
+    })
+
+export const checkRefundStatus = (requestId: string) => api<AdminRefundRequest>(`/admin/refund-requests/${requestId}/check-status`, { method: 'POST' })
 
 export const approveAdminRefund = (requestId: string) => api<AdminRefundRequest>(`/refund-requests/${requestId}/approve`, { method: 'POST', json: {} })
 

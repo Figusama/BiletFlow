@@ -7,7 +7,6 @@ import {
     MAX_SYSTEM_ATTEMPTS,
     needsAttention,
     refundTabs,
-    useAdminEvents,
     useAdminRefunds,
     waitingTime,
     type AdminRefundRequest,
@@ -24,15 +23,11 @@ const AdminRefundsPage = () => {
     const { t } = useLanguage()
     const texts = t.admin.refunds
     const [tab, setTab] = useState<RefundTab>('DECISION')
+    const [searchInput, setSearchInput] = useState('')
     const [search, setSearch] = useState('')
-    const { data, isPending, isError } = useAdminRefunds(tab)
-    const { data: events = [] } = useAdminEvents()
+    const { data, isPending, isError } = useAdminRefunds(tab, search)
 
-    const eventTitle = (eventId: string) => events.find((event) => event.id === eventId)?.title
-    const query = search.trim().toLowerCase()
-    const requests = (data ?? []).filter(
-        (request) => !query || [request.order_number, eventTitle(request.event_id)].some((value) => value?.toLowerCase().includes(query)),
-    )
+    const requests = data ?? []
 
     const note = (request: AdminRefundRequest) => {
         if (request.status === 'PENDING_ADMIN') {
@@ -71,12 +66,18 @@ const AdminRefundsPage = () => {
                         </button>
                     ))}
                 </div>
-                <div className="w-full max-w-xs">
+                <form
+                    className="w-full max-w-xs"
+                    onSubmit={(submitEvent) => {
+                        submitEvent.preventDefault()
+                        setSearch(searchInput.trim())
+                    }}
+                >
                     <label htmlFor="refund-search" className="sr-only">
                         {texts.searchPlaceholder}
                     </label>
-                    <Input id="refund-search" type="search" value={search} placeholder={texts.searchPlaceholder} onChange={(changeEvent) => setSearch(changeEvent.target.value)} />
-                </div>
+                    <Input id="refund-search" type="search" value={searchInput} placeholder={texts.searchPlaceholder} onChange={(changeEvent) => setSearchInput(changeEvent.target.value)} />
+                </form>
             </div>
 
             {isPending ? (
@@ -110,9 +111,10 @@ const AdminRefundsPage = () => {
                                                 to={`${request.id}?tab=${tab}`}
                                                 className="font-mono text-xs font-semibold text-foreground hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
                                             >
-                                                {request.order_number}
+                                                {request.request_number}
                                             </Link>
-                                            <p className="mt-0.5 text-xs text-muted">{eventTitle(request.event_id) ?? '—'}</p>
+                                            <p className="mt-0.5 text-xs text-foreground">{request.event_title}</p>
+                                            <p className="text-xs text-muted">{`${request.order_number}, ${request.buyer_name ?? request.buyer_email}`}</p>
                                         </td>
                                         <td className="px-5 py-3 text-foreground">{texts.sources[request.source]}</td>
                                         <td className="px-5 py-3">
