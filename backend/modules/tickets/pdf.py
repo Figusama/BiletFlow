@@ -142,6 +142,10 @@ def _wrap(text: str, font: str, size: int, max_width: float) -> list[str]:
         else:
             if current:
                 lines.append(current)
+            while len(word) > 1 and pdfmetrics.stringWidth(word, font, size) > max_width:
+                cut = next(n for n in range(len(word) - 1, 0, -1) if n == 1 or pdfmetrics.stringWidth(word[:n], font, size) <= max_width)
+                lines.append(word[:cut])
+                word = word[cut:]
             current = word
     if current:
         lines.append(current)

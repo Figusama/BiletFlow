@@ -84,7 +84,8 @@ def issue_for_order(session: Session, order: orders) -> list[tickets]:
     issued = []
     items = session.exec(select(order_items).where(order_items.order_id == order.id).order_by(order_items.created_at, order_items.id)).all()
     for item in items:
-        for _ in range(item.quantity):
+        names = item.attendee_names or []
+        for index in range(item.quantity):
             ticket = tickets(
                 public_id=generate_public_id(),
                 order_item_id=item.id,
@@ -92,7 +93,7 @@ def issue_for_order(session: Session, order: orders) -> list[tickets]:
                 event_id=order.event_id,
                 ticket_type_id=item.ticket_type_id,
                 event_seat_id=item.event_seat_id,
-                attendee_name=attendee_name,
+                attendee_name=(names[index] if index < len(names) else None) or attendee_name,
                 section_snapshot=item.section_snapshot,
                 row_snapshot=item.row_snapshot,
                 seat_snapshot=item.seat_snapshot,
