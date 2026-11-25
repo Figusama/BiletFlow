@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import Input from '../components/ui/Input'
 import StatusBadge from '../components/ui/StatusBadge'
-import { cancellationStatuses, useAdminCancellations, useAdminEvents, type CancellationReviewStatus } from '../features/admin/api'
+import { cancellationFilters, useAdminCancellations, useAdminEvents, type CancellationFilter } from '../features/admin/api'
 import { applicationBadge } from '../features/applications/status'
 import { formatDateTime } from '../features/organizer/changes'
 import { useLanguage } from '../shared/i18n/language'
@@ -11,8 +12,10 @@ const TIME_ZONE = 'Asia/Almaty'
 const AdminCancellationsPage = () => {
     const { t } = useLanguage()
     const texts = t.admin.cancellations
-    const [status, setStatus] = useState<CancellationReviewStatus>('PENDING')
-    const { data, isPending, isError } = useAdminCancellations(status)
+    const [status, setStatus] = useState<CancellationFilter>('PENDING')
+    const [searchInput, setSearchInput] = useState('')
+    const [search, setSearch] = useState('')
+    const { data, isPending, isError } = useAdminCancellations(status, search)
     const { data: events = [] } = useAdminEvents()
 
     const requests = data ?? []
@@ -26,7 +29,7 @@ const AdminCancellationsPage = () => {
                     <p className="mt-1 text-sm text-muted">{texts.intro}</p>
                 </div>
                 <div role="tablist" aria-label={texts.title} className="flex flex-wrap gap-1 rounded-full border border-border bg-surface p-1">
-                    {cancellationStatuses.map((value) => (
+                    {cancellationFilters.map((value) => (
                         <button
                             key={value}
                             type="button"
@@ -37,11 +40,24 @@ const AdminCancellationsPage = () => {
                                 status === value ? 'bg-night text-on-night' : 'text-foreground hover:bg-surface-sunk'
                             }`}
                         >
-                            {t.admin.applications.tabs[value]}
+                            {value === 'ALL' ? texts.all : t.admin.applications.tabs[value]}
                         </button>
                     ))}
                 </div>
             </header>
+
+            <form
+                className="max-w-md"
+                onSubmit={(submitEvent) => {
+                    submitEvent.preventDefault()
+                    setSearch(searchInput.trim())
+                }}
+            >
+                <label htmlFor="cancellation-search" className="sr-only">
+                    {texts.searchPlaceholder}
+                </label>
+                <Input id="cancellation-search" type="search" value={searchInput} placeholder={texts.searchPlaceholder} onChange={(changeEvent) => setSearchInput(changeEvent.target.value)} />
+            </form>
 
             {isPending ? (
                 <div className="h-64 animate-pulse rounded-2xl bg-surface-sunk" />
@@ -71,8 +87,9 @@ const AdminCancellationsPage = () => {
                                             <Link to={`${request.id}?status=${status}`} className="font-semibold text-foreground hover:text-accent focus-visible:outline-2 focus-visible:outline-accent">
                                                 {request.event_title}
                                             </Link>
+                                            <p className="mt-0.5 font-mono text-xs text-muted">{request.event_public_id}</p>
                                         </td>
-                                        <td className="px-5 py-3 text-foreground">{event?.organizer_email ?? '—'}</td>
+                                        <td className="px-5 py-3 text-foreground">{request.organizer_name ?? event?.organizer_email ?? '—'}</td>
                                         <td className="px-5 py-3 text-right text-foreground">{event?.tickets_issued ?? '—'}</td>
                                         <td className="px-5 py-3 whitespace-nowrap text-foreground">{formatDateTime(request.created_at, TIME_ZONE, t)}</td>
                                         <td className="px-5 py-3">

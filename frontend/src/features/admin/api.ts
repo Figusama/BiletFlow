@@ -469,7 +469,9 @@ export const useAdminOrderPayments = (orderNumber: string | null) =>
 
 export type CancellationReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN'
 
-export const cancellationStatuses: CancellationReviewStatus[] = ['PENDING', 'APPROVED', 'REJECTED', 'WITHDRAWN']
+export type CancellationFilter = CancellationReviewStatus | 'ALL'
+
+export const cancellationFilters: CancellationFilter[] = ['PENDING', 'APPROVED', 'REJECTED', 'WITHDRAWN', 'ALL']
 
 export type RefundHandlingMode = 'AUTOMATIC_FULL' | 'ADMIN_REVIEW'
 
@@ -477,6 +479,8 @@ export interface AdminCancellation {
     id: string
     event_id: string
     event_title: string
+    event_public_id: string
+    organizer_name: string | null
     status: CancellationReviewStatus
     reason: string
     refund_handling_mode: RefundHandlingMode | null
@@ -485,12 +489,38 @@ export interface AdminCancellation {
     created_at: string
 }
 
+export interface CancellationImpact {
+    tickets_issued: number
+    tickets_valid: number
+    tickets_checked_in: number
+    free_tickets: number
+    paid_orders: number
+    paid_amount_minor: number
+    free_orders: number
+    refunded_orders: number
+    payments_in_progress: number
+    pending_change_request_id: string | null
+    pending_change_request_number: string | null
+    default_refund_handling_mode: RefundHandlingMode
+}
+
+export interface AdminCancellationDetail extends AdminCancellation {
+    impact: CancellationImpact
+}
+
 export const adminCancellationsKey = ['admin', 'cancellations']
 
-export const useAdminCancellations = (status: CancellationReviewStatus) =>
+export const useAdminCancellations = (status: CancellationFilter, search = '') =>
     useQuery({
-        queryKey: [...adminCancellationsKey, status],
-        queryFn: () => api<AdminCancellation[]>(`/admin/cancellation-requests?status=${status}`),
+        queryKey: [...adminCancellationsKey, 'list', status, search],
+        queryFn: () => api<AdminCancellation[]>(`/admin/cancellation-requests?status=${status}${search ? `&q=${encodeURIComponent(search)}` : ''}`),
+    })
+
+export const useAdminCancellationDetail = (requestId: string | undefined) =>
+    useQuery({
+        queryKey: [...adminCancellationsKey, 'detail', requestId],
+        queryFn: () => api<AdminCancellationDetail>(`/admin/cancellation-requests/${requestId}`),
+        enabled: Boolean(requestId),
     })
 
 export const approveCancellation = (requestId: string, mode: RefundHandlingMode) =>

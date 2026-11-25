@@ -8,18 +8,20 @@ import Textarea from '../components/ui/Textarea'
 import {
     adminCancellationsKey,
     approveCancellation,
-    cancellationStatuses,
+    cancellationFilters,
     rejectCancellation,
+    useAdminCancellationDetail,
     useAdminCancellations,
     useAdminEvents,
-    type AdminCancellation,
-    type CancellationReviewStatus,
+    type AdminCancellationDetail,
+    type CancellationFilter,
     type RefundHandlingMode,
 } from '../features/admin/api'
 import { applicationBadge } from '../features/applications/status'
 import { formatDateTime } from '../features/organizer/changes'
 import { ApiError } from '../shared/api/client'
 import { useLanguage } from '../shared/i18n/language'
+import { formatKzt } from '../shared/lib/money'
 
 const TIME_ZONE = 'Asia/Almaty'
 const MIN_REJECT_COMMENT = 3
@@ -29,7 +31,7 @@ const pagerButton =
     'flex size-8 items-center justify-center rounded-full border border-border text-foreground transition-colors hover:bg-surface-sunk focus-visible:outline-2 focus-visible:outline-accent'
 
 const Row = ({ label, children }: { label: string; children: ReactNode }) => (
-    <div className="grid gap-1 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-4">
+    <div className="grid gap-1 sm:grid-cols-[190px_minmax(0,1fr)] sm:gap-4">
         <dt className="text-sm text-muted">{label}</dt>
         <dd className="text-sm font-medium text-foreground">{children}</dd>
     </div>
@@ -40,33 +42,31 @@ const AdminCancellationPage = () => {
     const { requestId } = useParams()
     const [searchParams] = useSearchParams()
     const rawStatus = searchParams.get('status')
-    const status: CancellationReviewStatus = cancellationStatuses.find((value) => value === rawStatus) ?? 'PENDING'
-    const { data: requests, isPending, isError } = useAdminCancellations(status)
+    const filter: CancellationFilter = cancellationFilters.find((value) => value === rawStatus) ?? 'PENDING'
+    const { data: request, isPending, isError } = useAdminCancellationDetail(requestId)
+    const { data: list = [] } = useAdminCancellations(filter)
 
     if (isPending) return <div className="h-64 animate-pulse rounded-2xl bg-surface-sunk" />
-    const index = requests?.findIndex((request) => request.id === requestId) ?? -1
-    if (isError || !requests || index < 0) return <p className="text-muted">{t.admin.cancellations.notFound}</p>
+    if (isError || !request) return <p className="text-muted">{t.admin.cancellations.notFound}</p>
 
-    return <Review key={requests[index].id} request={requests[index]} index={index} all={requests} status={status} />
+    return <Review key={request.id} request={request} ids={list.map((item) => item.id)} filter={filter} />
 }
 
 interface ReviewProps {
-    request: AdminCancellation
-    index: number
-    all: AdminCancellation[]
-    status: CancellationReviewStatus
+    request: AdminCancellationDetail
+    ids: string[]
+    filter: CancellationFilter
 }
 
-const Review = ({ request, index, all, status }: ReviewProps) => {
+const Review = ({ request, ids, filter }: ReviewProps) => {
     const { t } = useLanguage()
     const texts = t.admin.cancellations
     const queryClient = useQueryClient()
     const { data: events = [] } = useAdminEvents()
     const event = events.find((item) => item.id === request.event_id)
-    const [now] = useState(() => Date.now())
-    const hasStarted = event ? new Date(event.starts_at).getTime() <= now : false
+    const impact = request.impact
     const [chosenMode, setChosenMode] = useState<RefundHandlingMode | null>(null)
-    const mode = chosenMode ?? (hasStarted ? 'ADMIN_REVIEW' : 'AUTOMATIC_FULL')
+    const mode = chosenMode ?? impact.default_refund_handling_mode
     const [comment, setComment] = useState('')
     const [isConfirming, setIsConfirming] = useState(false)
     const [isBusy, setIsBusy] = useState(false)
@@ -74,10 +74,11 @@ const Review = ({ request, index, all, status }: ReviewProps) => {
 
     const isPending = request.status === 'PENDING'
     const badge = applicationBadge[request.status]
+    const index = ids.indexOf(request.id)
 
     const neighbour = (offset: number) => {
-        const target = all[index + offset]
-        return target ? `/admin/cancellations/${target.id}?status=${status}` : null
+        const target = ids[index + offset]
+        return index >= 0 && target ? `/admin/cancellations/${target}?status=${filter}` : null
     }
     const previous = neighbour(-1)
     const next = neighbour(1)
@@ -118,36 +119,40 @@ const Review = ({ request, index, all, status }: ReviewProps) => {
                     <Icon name="chevron-left" className="size-4" />
                     {texts.allRequests}
                 </Link>
-                <div className="flex items-center gap-2 text-sm text-muted">
-                    <span>{texts.position(index + 1, all.length)}</span>
-                    {previous ? (
-                        <Link to={previous} aria-label={texts.previous} className={pagerButton}>
-                            <Icon name="chevron-left" className="size-4" />
-                        </Link>
-                    ) : (
-                        <span aria-hidden className={`${pagerButton} opacity-40`}>
-                            <Icon name="chevron-left" className="size-4" />
-                        </span>
-                    )}
-                    {next ? (
-                        <Link to={next} aria-label={texts.next} className={pagerButton}>
-                            <Icon name="chevron-left" className="size-4 rotate-180" />
-                        </Link>
-                    ) : (
-                        <span aria-hidden className={`${pagerButton} opacity-40`}>
-                            <Icon name="chevron-left" className="size-4 rotate-180" />
-                        </span>
-                    )}
-                </div>
+                {index >= 0 && (
+                    <div className="flex items-center gap-2 text-sm text-muted">
+                        <span>{texts.position(index + 1, ids.length)}</span>
+                        {previous ? (
+                            <Link to={previous} aria-label={texts.previous} className={pagerButton}>
+                                <Icon name="chevron-left" className="size-4" />
+                            </Link>
+                        ) : (
+                            <span aria-hidden className={`${pagerButton} opacity-40`}>
+                                <Icon name="chevron-left" className="size-4" />
+                            </span>
+                        )}
+                        {next ? (
+                            <Link to={next} aria-label={texts.next} className={pagerButton}>
+                                <Icon name="chevron-left" className="size-4 rotate-180" />
+                            </Link>
+                        ) : (
+                            <span aria-hidden className={`${pagerButton} opacity-40`}>
+                                <Icon name="chevron-left" className="size-4 rotate-180" />
+                            </span>
+                        )}
+                    </div>
+                )}
             </div>
 
             <header className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                     <p className="text-xs font-bold tracking-widest text-accent uppercase">{texts.kicker}</p>
-                    <h1 className="mt-2 text-2xl font-bold tracking-tight text-foreground">{request.event_title}</h1>
+                    <h1 className="mt-2 text-2xl font-bold tracking-tight text-foreground">
+                        {request.event_title} <span className="font-mono text-base font-normal text-muted">{request.event_public_id}</span>
+                    </h1>
                     <p className="mt-1 text-sm text-muted">
                         {[
-                            event?.organizer_email,
+                            request.organizer_name,
                             texts.requestedAt(formatDateTime(request.created_at, TIME_ZONE, t)),
                             event && texts.startsAt(formatDateTime(event.starts_at, TIME_ZONE, t)),
                         ]
@@ -169,8 +174,17 @@ const Review = ({ request, index, all, status }: ReviewProps) => {
                     <section className="rounded-2xl border border-border bg-surface p-6">
                         <h2 className="text-lg font-bold text-foreground">{texts.affects}</h2>
                         <dl className="mt-4 flex flex-col gap-3">
-                            <Row label={texts.fields.tickets}>{event?.tickets_issued ?? '—'}</Row>
-                            <Row label={texts.fields.eventStatus}>{event ? (hasStarted ? texts.started : texts.notStarted) : '—'}</Row>
+                            <Row label={texts.fields.tickets}>{texts.ticketsValue(impact.tickets_issued, impact.tickets_valid)}</Row>
+                            <Row label={texts.fields.paidOrders}>{texts.paidOrdersValue(impact.paid_orders, formatKzt(impact.paid_amount_minor))}</Row>
+                            <Row label={texts.fields.freeTickets}>{impact.free_tickets}</Row>
+                            <Row label={texts.fields.refundedOrders}>{impact.refunded_orders}</Row>
+                            <Row label={texts.fields.payments}>
+                                {impact.payments_in_progress > 0 ? texts.paymentsValue(impact.payments_in_progress) : '0'}
+                            </Row>
+                            <Row label={texts.fields.changeRequest}>
+                                {impact.pending_change_request_number ? texts.changeValue(impact.pending_change_request_number) : '—'}
+                            </Row>
+                            <Row label={texts.fields.checkIns}>{impact.tickets_checked_in}</Row>
                         </dl>
                         <p className="mt-4 text-xs text-muted">{texts.affectsNote}</p>
                     </section>
