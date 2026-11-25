@@ -511,6 +511,7 @@ export const kk: Dictionary = {
             refundPolicy: 'Қайтару',
             contact: 'Байланыс',
             links: 'Сілтемелер',
+            responsible: 'Жауапты тұлға',
         },
         seating: {
             GENERAL_ADMISSION: 'Еркін отырғызу',
@@ -540,6 +541,8 @@ export const kk: Dictionary = {
             capacityHint: 'Іс-шара жарияланғанға дейін өзгертуге болады.',
             refundPolicy: 'Өз бетінше қайтару',
             refundHint: 'Алғашқы билет сатылғанға дейін өзгертуге болады.',
+            visibility: 'Көрінуі',
+            visibilityHint: 'Іс-шараны кім таба алады: барлығы, тек сілтеме бойынша немесе шақыру бойынша.',
             save: 'Сақтау',
             saving: 'Сақталуда…',
             cancel: 'Бас тарту',

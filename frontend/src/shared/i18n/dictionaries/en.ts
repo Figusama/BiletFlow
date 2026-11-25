@@ -506,6 +506,7 @@ export const en = {
             refundPolicy: 'Refunds',
             contact: 'Public contact',
             links: 'Links',
+            responsible: 'Responsible person',
         },
         seating: {
             GENERAL_ADMISSION: 'General admission',
@@ -535,6 +536,8 @@ export const en = {
             capacityHint: 'Can be changed until the event is published.',
             refundPolicy: 'Self-service refunds',
             refundHint: 'Can be changed until the first ticket is sold.',
+            visibility: 'Visibility',
+            visibilityHint: 'Who can find the event: everyone, only by link, or by invitation.',
             save: 'Save',
             saving: 'Saving…',
             cancel: 'Cancel',

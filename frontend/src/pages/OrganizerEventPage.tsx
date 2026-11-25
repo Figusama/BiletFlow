@@ -48,7 +48,7 @@ const EventOverview = ({ event }: { event: ManagedEvent }) => {
     const [problems, setProblems] = useState<string[]>([])
 
     const store = (saved: ManagedEvent) => {
-        queryClient.setQueryData(managedEventKey(saved.id), saved)
+        queryClient.setQueryData<ManagedEvent>(managedEventKey(saved.id), (current) => ({ ...current, ...saved }))
         queryClient.invalidateQueries({ queryKey: ['events'] })
     }
 
@@ -89,11 +89,11 @@ const EventOverview = ({ event }: { event: ManagedEvent }) => {
                     </Button>
                 </StatusPanel>
             ) : event.status === 'PUBLISHED' ? (
-                <StatusPanel tone="success" title={texts.liveTitle} text={texts.liveText} note={texts.unpublishText}>
+                <StatusPanel tone="success" title={texts.liveTitle} text={texts.liveText} note={event.tickets_issued ? texts.unpublishBlocked : texts.unpublishText}>
                     <Button
                         variant="secondary"
                         shape="pill"
-                        disabled={busy !== null}
+                        disabled={busy !== null || event.tickets_issued === true}
                         onClick={() => run('unpublish', () => unpublishEvent(event.id))}
                     >
                         {busy === 'unpublish' ? texts.unpublishing : texts.unpublish}

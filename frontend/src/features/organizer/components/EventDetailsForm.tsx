@@ -7,7 +7,7 @@ import Select from '../../../components/ui/Select'
 import Textarea from '../../../components/ui/Textarea'
 import { useLanguage } from '../../../shared/i18n/language'
 import { validateKzMobilePhone } from '../../../shared/lib/phone'
-import { updateEvent, type EventUpdate, type ManagedEvent } from '../api'
+import { updateEvent, type EventUpdate, type EventVisibility, type ManagedEvent } from '../api'
 
 const REFUND_HOURS = [24, 72, 168]
 const NO_REFUND = 'none'
@@ -31,6 +31,7 @@ interface DetailsForm {
     website: string
     capacity: string
     refund: string
+    visibility: EventVisibility
 }
 
 const toRefundValue = (hours: number | null | undefined) => (typeof hours === 'number' ? String(hours) : NO_REFUND)
@@ -45,7 +46,10 @@ const formFromEvent = (event: ManagedEvent): DetailsForm => ({
     website: event.public_website_url ?? '',
     capacity: event.ga_capacity ? String(event.ga_capacity) : '',
     refund: toRefundValue(event.refund_policy.self_service_refund_until_hours_before_start),
+    visibility: event.visibility,
 })
+
+const VISIBILITIES: EventVisibility[] = ['PUBLIC', 'UNLISTED', 'PRIVATE']
 
 const orNull = (value: string) => value.trim() || null
 
@@ -66,7 +70,7 @@ const EventDetailsForm = ({ event, onSaved, onCancel }: EventDetailsFormProps) =
 
     const canEditCapacity = event.status === 'DRAFT' && event.seating_mode === 'GENERAL_ADMISSION'
 
-    const update = (key: keyof DetailsForm, value: string) => setForm((current) => ({ ...current, [key]: value }))
+    const update = <K extends keyof DetailsForm>(key: K, value: DetailsForm[K]) => setForm((current) => ({ ...current, [key]: value }))
 
     const errors: Partial<Record<keyof DetailsForm, string>> = {}
     if (!form.description.trim()) errors.description = texts.required
@@ -93,6 +97,7 @@ const EventDetailsForm = ({ event, onSaved, onCancel }: EventDetailsFormProps) =
         if (canEditCapacity && form.capacity !== initial.capacity) {
             input.ga_capacity = form.capacity ? Number(form.capacity) : null
         }
+        if (form.visibility !== initial.visibility) input.visibility = form.visibility
         if (form.refund !== initial.refund) {
             input.refund_policy = { self_service_refund_until_hours_before_start: form.refund === NO_REFUND ? null : Number(form.refund) }
         }
@@ -194,6 +199,19 @@ const EventDetailsForm = ({ event, onSaved, onCancel }: EventDetailsFormProps) =
                         />
                     </FormField>
                 )}
+                <div>
+                    <p className="text-sm font-medium text-foreground">{texts.visibility}</p>
+                    <div className="mt-2">
+                        <Select
+                            value={form.visibility}
+                            ariaLabel={texts.visibility}
+                            fullWidth
+                            options={VISIBILITIES.map((value) => ({ value, label: t.organizerEvent.visibility[value] }))}
+                            onValueChange={(value) => update('visibility', value as EventVisibility)}
+                        />
+                    </div>
+                    <p className="mt-2 text-sm text-muted">{texts.visibilityHint}</p>
+                </div>
                 <div>
                     <p className="text-sm font-medium text-foreground">{texts.refundPolicy}</p>
                     <div className="mt-2">

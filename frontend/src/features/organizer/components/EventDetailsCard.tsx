@@ -77,6 +77,7 @@ const EventDetailsCard = ({ event, onEdit }: EventDetailsCardProps) => {
                         <span className="font-normal text-muted">{texts.notSet}</span>
                     )}
                 </DetailRow>
+                <DetailRow label={texts.fields.visibility}>{texts.visibility[event.visibility]}</DetailRow>
                 <DetailRow label={texts.fields.refundPolicy}>
                     {typeof refundHours === 'number' ? texts.refundUntil(refundHours) : texts.refundNone}
                 </DetailRow>
@@ -90,7 +91,14 @@ const EventDetailsCard = ({ event, onEdit }: EventDetailsCardProps) => {
                     <Lines values={[event.venue_name, event.venue_address]} empty={texts.notSet} />
                 </DetailRow>
                 <DetailRow label={texts.fields.seating}>{texts.seating[event.seating_mode]}</DetailRow>
-                <DetailRow label={texts.fields.visibility}>{texts.visibility[event.visibility]}</DetailRow>
+                {event.responsible_name !== undefined && (
+                    <DetailRow label={texts.fields.responsible}>
+                        <Lines
+                            values={[event.responsible_name ?? null, event.responsible_email ?? null, event.responsible_phone ?? null]}
+                            empty={texts.notSet}
+                        />
+                    </DetailRow>
+                )}
             </dl>
         </section>
     )

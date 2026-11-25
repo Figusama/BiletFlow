@@ -518,6 +518,7 @@ export const ru: Dictionary = {
             refundPolicy: 'Возвраты',
             contact: 'Контакты',
             links: 'Ссылки',
+            responsible: 'Ответственное лицо',
         },
         seating: {
             GENERAL_ADMISSION: 'Свободная рассадка',
@@ -551,6 +552,8 @@ export const ru: Dictionary = {
             capacityHint: 'Можно менять, пока событие не опубликовано.',
             refundPolicy: 'Самостоятельный возврат',
             refundHint: 'Можно менять, пока не продан первый билет.',
+            visibility: 'Видимость',
+            visibilityHint: 'Кто может найти событие: все, только по ссылке или по приглашению.',
             save: 'Сохранить',
             saving: 'Сохраняем…',
             cancel: 'Отмена',

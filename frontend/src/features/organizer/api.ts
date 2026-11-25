@@ -26,6 +26,10 @@ export interface ManagedEvent {
     ends_at: string
     timezone: string
     visibility: EventVisibility
+    responsible_name?: string | null
+    responsible_email?: string | null
+    responsible_phone?: string | null
+    tickets_issued?: boolean
     seating_mode: EventSeatingMode
     ga_capacity: number | null
     status: EventStatus
@@ -131,6 +135,7 @@ export interface EventUpdate {
     public_website_url?: string | null
     ga_capacity?: number | null
     refund_policy?: RefundPolicy
+    visibility?: EventVisibility
 }
 
 export const managedEventKey = (eventId: string) => ['organizer-events', eventId]
