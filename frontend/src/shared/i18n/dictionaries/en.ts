@@ -1028,6 +1028,14 @@ export const en = {
             refundNote: 'Changing the start time or the venue gives earlier buyers 24 hours to get a full refund.',
         },
     },
+    organizerDuplicate: {
+        title: 'Run this event again',
+        text: 'Creates a new draft application from this event: title, description, venue, categories, photos and the responsible person. You review and edit it, then send it for approval like any new event.',
+        notCopied: 'Dates, ticket types, seats, promo codes, team, orders and paid sales activation are not copied.',
+        button: 'Duplicate event',
+        creating: 'Creating…',
+        failed: 'Could not create the draft. Try again.',
+    },
     organizerCancel: {
         title: 'Cancel event',
         text: 'If no ticket has been issued yet, the event is cancelled right away. Otherwise BiletFlow reviews the cancellation and handles refunds for buyers.',

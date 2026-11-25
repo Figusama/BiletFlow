@@ -184,6 +184,8 @@ export const publishEvent = (eventId: string) => api<ManagedEvent>(`/events/${ev
 
 export const unpublishEvent = (eventId: string) => api<ManagedEvent>(`/events/${eventId}/unpublish`, { method: 'POST' })
 
+export const duplicateEvent = (eventId: string) => api<{ id: string }>(`/events/${eventId}/duplicate`, { method: 'POST' })
+
 export const createTicketType = (eventId: string, input: TicketTypeInput) =>
     api<ManagedTicketType>(`/events/${eventId}/ticket-types`, { method: 'POST', json: input })
 

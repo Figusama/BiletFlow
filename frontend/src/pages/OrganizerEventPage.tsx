@@ -14,6 +14,7 @@ import {
     type ManagedEvent,
 } from '../features/organizer/api'
 import CancelEventCard from '../features/organizer/components/CancelEventCard'
+import DuplicateEventCard from '../features/organizer/components/DuplicateEventCard'
 import EventDetailsCard from '../features/organizer/components/EventDetailsCard'
 import EventDetailsForm from '../features/organizer/components/EventDetailsForm'
 import ReadinessChecklist from '../features/organizer/components/ReadinessChecklist'
@@ -142,6 +143,8 @@ const EventOverview = ({ event }: { event: ManagedEvent }) => {
                     <EventDetailsCard event={event} onEdit={() => setIsEditing(true)} />
                 )}
             </div>
+
+            <DuplicateEventCard event={event} />
 
             {(isDraft || event.status === 'PUBLISHED') && <CancelEventCard event={event} />}
         </div>
