@@ -7,7 +7,8 @@ import StatusBadge, { type BadgeIcon, type BadgeTone } from '../components/ui/St
 import {
     promoCodesKey,
     setPromoCodeActive,
-    useCampaignStats,
+    usePromoCodeStats,
+    usePromoQr,
     useManagedEvent,
     useManagedTicketTypes,
     usePromoCodes,
@@ -191,7 +192,8 @@ const PromoDetails = ({ event, promo, isClosed }: PromoDetailsProps) => {
     const { t } = useLanguage()
     const texts = t.organizerPromo.details
     const queryClient = useQueryClient()
-    const { data: stats } = useCampaignStats(event.id, promo.campaign_id)
+    const { data: stats } = usePromoCodeStats(event.id, promo.id)
+    const { data: qr } = usePromoQr(event.id, promo.id, Boolean(promo.campaign_link))
     const [isBusy, setIsBusy] = useState(false)
     const [error, setError] = useState('')
     const [isCopied, setIsCopied] = useState(false)
@@ -226,6 +228,7 @@ const PromoDetails = ({ event, promo, isClosed }: PromoDetailsProps) => {
                             {isCopied ? texts.copied : texts.copy}
                         </Button>
                     </div>
+                    {qr && <img src={qr.data_url} alt={texts.qrAlt} className="mt-3 size-40 rounded-xl border border-border" />}
                 </div>
             )}
 

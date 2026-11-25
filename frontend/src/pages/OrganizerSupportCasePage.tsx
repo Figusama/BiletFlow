@@ -23,7 +23,7 @@ import {
     sendCaseMessage,
     supportCaseKey,
     supportCasesKey,
-    useCaseHandlers,
+    useCaseAssignees,
     useEventSupportCases,
     useCaseOrder,
     useSupportCase,
@@ -74,7 +74,6 @@ const SupportCaseView = ({ event, supportCase }: { event: ManagedEvent; supportC
     const myUserId = useSelector((state: RootState) => state.auth.user?.id)
     const { data: cases = [] } = useEventSupportCases(event.id)
     const { data: refundRequests = [] } = useEventRefundRequests(event.id)
-    const handlers = useCaseHandlers(event.id)
     const order = useCaseOrder(event.id, supportCase)
     const [reply, setReply] = useState('')
     const [clientMessageId, setClientMessageId] = useState(() => crypto.randomUUID())
@@ -86,6 +85,7 @@ const SupportCaseView = ({ event, supportCase }: { event: ManagedEvent; supportC
     const isMine = supportCase.assigned_to_user_id !== null && supportCase.assigned_to_user_id === myUserId
     const canReply = isMine && !isResolved && !supportCase.escalated_to_platform
     const canManage = !isResolved && !supportCase.escalated_to_platform
+    const { data: assignees = [] } = useCaseAssignees(supportCase.id, canManage)
 
     const { id: caseId, unread, last_message_seq: lastSeq } = supportCase
     useEffect(() => {
@@ -167,9 +167,9 @@ const SupportCaseView = ({ event, supportCase }: { event: ManagedEvent; supportC
         }
     }
 
-    const assigneeOptions = handlers.map((member) => ({
+    const assigneeOptions = assignees.map((member) => ({
         value: member.user_id,
-        label: member.user_id === myUserId ? `${member.full_name ?? member.public_id} (${texts.you})` : member.full_name ?? member.public_id,
+        label: member.user_id === myUserId ? `${member.full_name ?? texts.platformAgent} (${texts.you})` : member.full_name ?? texts.platformAgent,
     }))
 
     const assigneeLabel = isWithPlatform

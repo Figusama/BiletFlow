@@ -6,6 +6,7 @@ import {
     getPublishProblems,
     managedEventKey,
     publishEvent,
+    type PublishProblem,
     unpublishEvent,
     useManagedEvent,
     useManagedTicketTypes,
@@ -45,7 +46,7 @@ const EventOverview = ({ event }: { event: ManagedEvent }) => {
     const [isEditing, setIsEditing] = useState(false)
     const [busy, setBusy] = useState<BusyAction>(null)
     const [error, setError] = useState('')
-    const [problems, setProblems] = useState<string[]>([])
+    const [problems, setProblems] = useState<PublishProblem[]>([])
 
     const store = (saved: ManagedEvent) => {
         queryClient.setQueryData<ManagedEvent>(managedEventKey(saved.id), (current) => ({ ...current, ...saved }))
@@ -111,7 +112,7 @@ const EventOverview = ({ event }: { event: ManagedEvent }) => {
                     {problems.length > 0 && (
                         <ul className="mt-2 list-disc pl-5 text-muted">
                             {problems.map((problem) => (
-                                <li key={problem}>{problem}</li>
+                                <li key={problem.text}>{(problem.code && texts.problems[problem.code]) || problem.text}</li>
                             ))}
                         </ul>
                     )}

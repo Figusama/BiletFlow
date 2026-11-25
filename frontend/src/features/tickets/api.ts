@@ -57,6 +57,7 @@ export interface Seat {
     seat_number: string
     is_accessible: boolean
     ticket_type_id: string | null
+    is_enabled: boolean
     state: SeatState
 }
 

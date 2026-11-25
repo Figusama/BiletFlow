@@ -148,6 +148,7 @@ const Guests = ({ event }: { event: ManagedEvent }) => {
                                         <th className="px-5 py-3 font-semibold">{texts.columns.sent}</th>
                                         <th className="px-5 py-3 font-semibold">{texts.columns.validUntil}</th>
                                         <th className="px-5 py-3 font-semibold">{texts.columns.status}</th>
+                                        <th className="px-5 py-3 font-semibold">{texts.columns.tickets}</th>
                                         <th className="px-5 py-3" />
                                     </tr>
                                 </thead>
@@ -165,6 +166,7 @@ const Guests = ({ event }: { event: ManagedEvent }) => {
                                                     {invitation.is_active ? texts.status.active : texts.status.expired}
                                                 </StatusBadge>
                                             </td>
+                                            <td className="px-5 py-3 text-foreground">{invitation.tickets_count > 0 ? invitation.tickets_count : '—'}</td>
                                             <td className="px-5 py-3 text-right">
                                                 {!invitation.is_active && !isClosed && (
                                                     <button

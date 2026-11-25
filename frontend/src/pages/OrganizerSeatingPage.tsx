@@ -80,7 +80,7 @@ const Seating = ({ event }: { event: ManagedEvent }) => {
 
     const capacity = seats.filter((seat) => seat.state !== 'UNAVAILABLE').length
     const withoutType = seats.filter((seat) => !seat.ticket_type_id).length
-    const turnedOff = seats.filter((seat) => seat.ticket_type_id && seat.state === 'UNAVAILABLE').length
+    const turnedOff = seats.filter((seat) => !seat.is_enabled).length
 
     return (
         <div className="flex flex-col gap-6">

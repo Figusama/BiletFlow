@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../shared/api/client'
-import { useEventOrderDetail, useStaff } from './api'
+import { useEventOrderDetail } from './api'
 
 export type SupportCaseStatus = 'OPEN' | 'IN_PROGRESS' | 'WAITING_FOR_CUSTOMER' | 'RESOLVED'
 
@@ -127,10 +127,19 @@ export const sendCaseMessage = (caseId: string, body: string, clientMessageId: s
 export const markCaseRead = (caseId: string, upToSeq: number) =>
     api<SupportCase>(`/support/cases/${caseId}/read`, { method: 'POST', json: { up_to_seq: upToSeq } })
 
-export const useCaseHandlers = (eventId: string | undefined) => {
-    const { data } = useStaff(eventId)
-    return (data?.members ?? []).filter((member) => member.roles.includes('ORGANIZER') || member.roles.includes('EVENT_SUPPORT'))
+export interface CaseAssignee {
+    user_id: string
+    full_name: string | null
+    roles: string[]
+    is_current: boolean
 }
+
+export const useCaseAssignees = (caseId: string, enabled: boolean) =>
+    useQuery({
+        queryKey: ['support-cases', caseId, 'assignees'],
+        queryFn: () => api<CaseAssignee[]>(`/support/cases/${caseId}/assignees`),
+        enabled,
+    })
 
 export const useCaseOrder = (eventId: string | undefined, supportCase: Pick<SupportCase, 'order_id'>) =>
     useEventOrderDetail(eventId, supportCase.order_id ?? undefined).data

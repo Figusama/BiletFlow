@@ -298,10 +298,19 @@ export const requestCancellation = (eventId: string, reason: string) =>
 export const withdrawCancellation = (eventId: string, requestId: string) =>
     api<CancellationRequest>(`/events/${eventId}/cancellation-requests/${requestId}/withdraw`, { method: 'POST' })
 
-export const getPublishProblems = (error: unknown): string[] => {
+export interface PublishProblem {
+    code: string | null
+    text: string
+}
+
+export const getPublishProblems = (error: unknown): PublishProblem[] => {
     if (!(error instanceof ApiError) || error.status !== 422) return []
-    const detail = (error.body as { detail?: { problems?: unknown } } | null)?.detail
-    return Array.isArray(detail?.problems) ? detail.problems.filter((problem): problem is string => typeof problem === 'string') : []
+    const detail = (error.body as { detail?: { problems?: unknown; problem_codes?: unknown } } | null)?.detail
+    if (!Array.isArray(detail?.problems)) return []
+    const codes = Array.isArray(detail.problem_codes) ? detail.problem_codes : []
+    return detail.problems
+        .map((text, index) => ({ code: typeof codes[index] === 'string' ? (codes[index] as string) : null, text }))
+        .filter((problem): problem is PublishProblem => typeof problem.text === 'string')
 }
 
 export type StaffRole = 'EVENT_ADMIN' | 'EVENT_SUPPORT'
@@ -417,6 +426,26 @@ export const useCampaignStats = (eventId: string, campaignId: string | null) =>
         queryKey: ['organizer-events', eventId, 'campaigns', campaignId, 'stats'],
         queryFn: () => api<CampaignStats>(`/events/${eventId}/campaigns/${campaignId}/stats`),
         enabled: Boolean(campaignId),
+    })
+
+export interface PromoCodeStats extends CampaignStats {
+    promo_code_id: string
+    code: string
+    max_redemptions: number | null
+}
+
+export const usePromoCodeStats = (eventId: string, promoId: string) =>
+    useQuery({
+        queryKey: ['organizer-events', eventId, 'promo-codes', promoId, 'stats'],
+        queryFn: () => api<PromoCodeStats>(`/events/${eventId}/promo-codes/${promoId}/stats`),
+    })
+
+export const usePromoQr = (eventId: string, promoId: string, enabled: boolean) =>
+    useQuery({
+        queryKey: ['organizer-events', eventId, 'promo-codes', promoId, 'qr'],
+        queryFn: () => api<{ link: string; data_url: string }>(`/events/${eventId}/promo-codes/${promoId}/qr`),
+        enabled,
+        staleTime: Infinity,
     })
 
 export const createCampaign = (eventId: string, name: string) =>
@@ -722,6 +751,7 @@ export interface PrivateInvitation {
     created_at: string
     expires_at: string
     is_active: boolean
+    tickets_count: number
 }
 
 export const privateInvitationsKey = (eventId: string | undefined) => ['organizer-events', eventId, 'private-invitations']
@@ -744,6 +774,9 @@ export interface HistoryEntry {
     description: string
     result: string
     actor: { kind: string; user_id: string | null; display_name: string }
+    entity_type: string
+    entity_label: string | null
+    details: Record<string, unknown>
 }
 
 export interface HistoryPage {
