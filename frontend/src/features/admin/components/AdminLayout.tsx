@@ -81,13 +81,13 @@ const AdminLayout = () => {
                     </nav>
 
                     {user && (
-                        <div className="mt-5 flex items-center gap-3 border-t border-border px-2 pt-4">
+                        <Link to="/account" className="mt-5 flex items-center gap-3 border-t border-border px-2 pt-4 hover:opacity-80 focus-visible:outline-2 focus-visible:outline-accent">
                             <span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent-soft text-xs font-bold text-accent">{getInitials(user.fullName)}</span>
                             <div className="min-w-0">
                                 <p className="truncate text-sm font-semibold text-foreground">{user.fullName}</p>
                                 <p className="font-mono text-xs text-muted">{user.publicId}</p>
                             </div>
-                        </div>
+                        </Link>
                     )}
                 </aside>
 

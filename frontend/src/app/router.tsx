@@ -3,6 +3,7 @@ import AppLayout from '../components/layout/AppLayout'
 import EventsPage from '../pages/EventsPage'
 import NotFoundPage from '../pages/NotFoundPage'
 import InvitationPage from '../pages/InvitationPage'
+import AccountPage from '../pages/AccountPage'
 import StaffInvitationsPage from '../pages/StaffInvitationsPage'
 import BuyerSupportPage from '../pages/BuyerSupportPage'
 import BuyerSupportNewPage from '../pages/BuyerSupportNewPage'
@@ -196,6 +197,10 @@ export const router = createBrowserRouter([
                             {
                                 path: 'orders/:orderId',
                                 element: <OrderPage />,
+                            },
+                            {
+                                path: 'account',
+                                element: <AccountPage />,
                             },
                             {
                                 path: 'staff-invitations',

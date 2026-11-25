@@ -61,7 +61,10 @@ const ProfileMenu = ({ fullName, isAdmin = false, onLogout }: ProfileMenuProps) 
                 <p className="truncate border-b border-border px-3 pt-2 pb-3 text-sm font-semibold text-foreground">
                     {fullName}
                 </p>
-                <Link to="/tickets" onClick={() => setIsOpen(false)} className={`mt-1.5 ${itemClass}`}>
+                <Link to="/account" onClick={() => setIsOpen(false)} className={`mt-1.5 ${itemClass}`}>
+                    {t.account.nav.profile}
+                </Link>
+                <Link to="/tickets" onClick={() => setIsOpen(false)} className={itemClass}>
                     {t.nav.myTickets}
                 </Link>
                 <Link to="/support" onClick={() => setIsOpen(false)} className={itemClass}>
