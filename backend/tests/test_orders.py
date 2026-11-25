@@ -8,8 +8,8 @@ from sqlalchemy import text
 
 from database.database import engine
 
-from .test_auth import USER, client, verified_user
-from .test_events import OTHER, admin_user, bearer, clean_all, make_event, other_user, ADMIN
+from test_auth import USER, client, verified_user
+from test_events import OTHER, admin_user, bearer, clean_all, make_event, other_user, ADMIN
 
 QUEUE_EMAIL = "backend.modules.orders.router.queue_ticket_email"
 CAPACITY = 10
