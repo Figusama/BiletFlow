@@ -338,30 +338,61 @@ export const approveActivation = (requestId: string) => api<unknown>(`/admin/pai
 export const rejectActivation = (requestId: string, reason: string) =>
     api<unknown>(`/admin/paid-sales/requests/${requestId}/reject`, { method: 'POST', json: { reason } })
 
+export type EventRoleName = 'ORGANIZER' | 'EVENT_ADMIN' | 'EVENT_SUPPORT'
+
+export interface AdminUserEventRole {
+    event_id: string
+    event_public_id: string
+    event_title: string
+    role: EventRoleName
+}
+
 export interface AdminUser {
     id: string
     public_id: string
     email: string
     full_name: string | null
+    phone: string | null
     personal_role: 'USER' | 'PLATFORM_ADMIN'
     is_suspended: boolean
     created_at: string
+    event_roles: AdminUserEventRole[]
 }
 
 export type UserStatusFilter = 'ALL' | 'ACTIVE' | 'SUSPENDED'
 
 export const userStatusFilters: UserStatusFilter[] = ['ALL', 'ACTIVE', 'SUSPENDED']
 
+export type UserRoleFilter = 'ALL' | 'USER' | 'PLATFORM_ADMIN' | EventRoleName
+
+export const userRoleFilters: UserRoleFilter[] = ['ALL', 'USER', 'PLATFORM_ADMIN', 'ORGANIZER', 'EVENT_ADMIN', 'EVENT_SUPPORT']
+
+export type UserJoinedFilter = 'ALL' | '7' | '30' | '90'
+
+export const userJoinedFilters: UserJoinedFilter[] = ['ALL', '7', '30', '90']
+
 export const adminUsersKey = ['admin', 'users']
 
-export const useAdminUsers = (status: UserStatusFilter, search: string, page: number, pageSize: number) =>
+export interface AdminUsersQuery {
+    status: UserStatusFilter
+    role: UserRoleFilter
+    joined: UserJoinedFilter
+    search: string
+    page: number
+    pageSize: number
+}
+
+export const useAdminUsers = ({ status, role, joined, search, page, pageSize }: AdminUsersQuery) =>
     useQuery({
-        queryKey: [...adminUsersKey, 'list', status, search, page],
+        queryKey: [...adminUsersKey, 'list', status, role, joined, search, page],
         queryFn: () => {
-            const params = new URLSearchParams({ limit: String(pageSize + 1), offset: String(page * pageSize) })
+            const params = new URLSearchParams({ limit: String(pageSize), offset: String(page * pageSize) })
             if (status !== 'ALL') params.set('suspended', String(status === 'SUSPENDED'))
+            if (role === 'USER' || role === 'PLATFORM_ADMIN') params.set('role', role)
+            else if (role !== 'ALL') params.set('event_role', role)
+            if (joined !== 'ALL') params.set('from', new Date(Date.now() - Number(joined) * 86_400_000).toISOString())
             if (search) params.set('q', search)
-            return api<AdminUser[]>(`/admin/users?${params}`)
+            return apiPage<AdminUser>(`/admin/users?${params}`)
         },
         placeholderData: keepPreviousData,
     })
@@ -370,8 +401,8 @@ export const useAdminUser = (publicId: string | undefined) =>
     useQuery({
         queryKey: [...adminUsersKey, 'detail', publicId],
         queryFn: async () => {
-            const rows = await api<AdminUser[]>(`/admin/users?q=${encodeURIComponent(publicId ?? '')}&limit=5`)
-            return rows.find((user) => user.public_id === publicId) ?? null
+            const { items } = await apiPage<AdminUser>(`/admin/users?q=${encodeURIComponent(publicId ?? '')}&limit=5`)
+            return items.find((user) => user.public_id === publicId) ?? null
         },
         enabled: Boolean(publicId),
     })
@@ -385,11 +416,11 @@ export interface AdminOrder {
     created_at: string
 }
 
-export const useAdminUserOrders = (email: string | undefined) =>
+export const useAdminUserOrders = (publicId: string | undefined) =>
     useQuery({
-        queryKey: ['admin', 'orders', 'by-buyer', email],
-        queryFn: () => api<AdminOrder[]>(`/admin/orders?q=${encodeURIComponent(email ?? '')}&limit=5`),
-        enabled: Boolean(email),
+        queryKey: ['admin', 'orders', 'by-buyer', publicId],
+        queryFn: () => api<AdminOrder[]>(`/admin/orders?q=${encodeURIComponent(publicId ?? '')}&limit=5`),
+        enabled: Boolean(publicId),
     })
 
 export const setUserSuspended = (userId: string, suspended: boolean) =>
