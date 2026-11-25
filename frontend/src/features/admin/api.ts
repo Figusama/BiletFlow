@@ -54,15 +54,28 @@ export const waitingTime = (submittedAt: string) => {
 
 export type AdminEventStatus = 'DRAFT' | 'PUBLISHED' | 'COMPLETED' | 'CANCELLED'
 
+export type EventVisibility = 'PUBLIC' | 'UNLISTED' | 'PRIVATE'
+
 export interface AdminEvent {
     id: string
     public_id: string
     title: string
     status: AdminEventStatus
     is_suspended: boolean
+    suspended_at: string | null
+    suspension_reason: string | null
+    suspended_by_name: string | null
     starts_at: string
+    visibility: EventVisibility
+    venue_name: string
+    city: string
+    capacity: number
+    organizer_id: string | null
+    organizer_name: string | null
     organizer_email: string | null
     tickets_issued: number
+    tickets_sold: number
+    paid_sales_status: ActivationStatus | 'NOT_REQUESTED'
 }
 
 export const useAdminEvents = () =>
@@ -522,13 +535,14 @@ export const retryAdminRefund = (requestId: string) => api<AdminRefundRequest>(`
 
 export const adminSupportKey = ['admin', 'support-cases']
 
-export const useAdminSupportCases = (search: string, category: SupportCategory | 'ALL') =>
+export const useAdminSupportCases = (search: string, category: SupportCategory | 'ALL', eventId?: string) =>
     useQuery({
-        queryKey: [...adminSupportKey, search, category],
+        queryKey: [...adminSupportKey, search, category, eventId],
         queryFn: () => {
             const params = new URLSearchParams({ limit: '200' })
             if (search) params.set('q', search)
             if (category !== 'ALL') params.set('category', category)
+            if (eventId) params.set('event_id', eventId)
             return api<SupportCase[]>(`/admin/support/cases?${params}`)
         },
         placeholderData: keepPreviousData,
@@ -626,22 +640,39 @@ export const eventSuspendedFilters: EventSuspendedFilter[] = ['ALL', 'ACTIVE', '
 
 export const eventStatusFilters: ('ALL' | AdminEventStatus)[] = ['ALL', 'DRAFT', 'PUBLISHED', 'COMPLETED', 'CANCELLED']
 
-export interface AdminEventDetails extends AdminEvent {
-    suspended_at: string | null
-    suspension_reason: string | null
-}
+export type EventVisibilityFilter = 'ALL' | EventVisibility
+
+export const eventVisibilityFilters: EventVisibilityFilter[] = ['ALL', 'PUBLIC', 'UNLISTED', 'PRIVATE']
+
+export type EventPaidSalesFilter = 'ALL' | 'NOT_REQUESTED' | ActivationStatus
+
+export const eventPaidSalesFilters: EventPaidSalesFilter[] = ['ALL', 'NOT_REQUESTED', 'PENDING_VERIFICATION', 'FEE_PENDING', 'ACTIVE', 'SUSPENDED']
 
 export const adminEventsKey = ['admin', 'events']
 
-export const useAdminEventList = (status: 'ALL' | AdminEventStatus, suspended: EventSuspendedFilter, search: string, page: number, pageSize: number) =>
+export interface AdminEventListQuery {
+    status: 'ALL' | AdminEventStatus
+    suspended: EventSuspendedFilter
+    visibility: EventVisibilityFilter
+    paidSales: EventPaidSalesFilter
+    city: string
+    search: string
+    page: number
+    pageSize: number
+}
+
+export const useAdminEventList = ({ status, suspended, visibility, paidSales, city, search, page, pageSize }: AdminEventListQuery) =>
     useQuery({
-        queryKey: [...adminEventsKey, 'list', status, suspended, search, page],
+        queryKey: [...adminEventsKey, 'list', status, suspended, visibility, paidSales, city, search, page],
         queryFn: () => {
-            const params = new URLSearchParams({ limit: String(pageSize + 1), offset: String(page * pageSize) })
+            const params = new URLSearchParams({ limit: String(pageSize), offset: String(page * pageSize) })
             if (status !== 'ALL') params.set('status', status)
             if (suspended !== 'ALL') params.set('suspended', String(suspended === 'SUSPENDED'))
+            if (visibility !== 'ALL') params.set('visibility', visibility)
+            if (paidSales !== 'ALL') params.set('paid_sales', paidSales)
+            if (city) params.set('city', city)
             if (search) params.set('q', search)
-            return api<AdminEventDetails[]>(`/admin/events?${params}`)
+            return apiPage<AdminEvent>(`/admin/events?${params}`)
         },
         placeholderData: keepPreviousData,
     })
@@ -650,16 +681,15 @@ export const useAdminEventDetails = (publicId: string | undefined) =>
     useQuery({
         queryKey: [...adminEventsKey, 'detail', publicId],
         queryFn: async () => {
-            const rows = await api<AdminEventDetails[]>(`/admin/events?q=${encodeURIComponent(publicId ?? '')}&limit=5`)
-            return rows.find((event) => event.public_id === publicId) ?? null
+            const { items } = await apiPage<AdminEvent>(`/admin/events?q=${encodeURIComponent(publicId ?? '')}&limit=5`)
+            return items.find((event) => event.public_id === publicId) ?? null
         },
         enabled: Boolean(publicId),
     })
 
-export const suspendEvent = (eventId: string, reason: string) =>
-    api<AdminEventDetails>(`/admin/events/${eventId}/suspend`, { method: 'POST', json: { reason } })
+export const suspendEvent = (eventId: string, reason: string) => api<AdminEvent>(`/admin/events/${eventId}/suspend`, { method: 'POST', json: { reason } })
 
-export const restoreEvent = (eventId: string) => api<AdminEventDetails>(`/admin/events/${eventId}/restore`, { method: 'POST' })
+export const restoreEvent = (eventId: string) => api<AdminEvent>(`/admin/events/${eventId}/restore`, { method: 'POST' })
 
 export interface AuditEntry extends HistoryEntry {
     entity_id: string | null

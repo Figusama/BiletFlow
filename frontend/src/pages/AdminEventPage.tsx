@@ -5,7 +5,8 @@ import Button from '../components/ui/Button'
 import Icon from '../components/ui/Icon'
 import StatusBadge from '../components/ui/StatusBadge'
 import Textarea from '../components/ui/Textarea'
-import { adminEventsKey, restoreEvent, suspendEvent, useAdminEventDetails, useAdminSupportCases, type AdminEventDetails } from '../features/admin/api'
+import { adminEventsKey, restoreEvent, suspendEvent, useAdminEventDetails, useAdminSupportCases, type AdminEvent } from '../features/admin/api'
+import { activationBadge } from '../features/admin/activationBadges'
 import { eventStatusBadge } from '../features/admin/eventBadges'
 import { formatDateTime } from '../features/organizer/changes'
 import { ApiError } from '../shared/api/client'
@@ -25,18 +26,19 @@ const AdminEventPage = () => {
     return <Details key={event.id} event={event} />
 }
 
-const Details = ({ event }: { event: AdminEventDetails }) => {
+const Details = ({ event }: { event: AdminEvent }) => {
     const { t } = useLanguage()
     const texts = t.admin.events
     const queryClient = useQueryClient()
-    const { data: supportCases = [] } = useAdminSupportCases('', 'ALL')
+    const { data: supportCases = [] } = useAdminSupportCases('', 'ALL', event.id)
     const [reason, setReason] = useState('')
     const [isBusy, setIsBusy] = useState(false)
     const [error, setError] = useState('')
 
     const badge = eventStatusBadge[event.status]
     const isClosed = event.status === 'CANCELLED' || event.status === 'COMPLETED'
-    const eventCases = supportCases.filter((item) => item.event_id === event.id && item.status !== 'RESOLVED')
+    const paidSalesBadge = activationBadge[event.paid_sales_status]
+    const eventCases = supportCases.filter((item) => item.status !== 'RESOLVED')
     const escalated = eventCases.filter((item) => item.escalated_to_platform).length
 
     const run = async (action: () => Promise<unknown>) => {
@@ -97,8 +99,32 @@ const Details = ({ event }: { event: AdminEventDetails }) => {
                     <h2 className="text-lg font-bold text-foreground">{texts.glance}</h2>
                     <dl className="mt-4 flex flex-col gap-3 text-sm">
                         <div className="grid gap-1 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-4">
+                            <dt className="text-muted">{texts.fields.venue}</dt>
+                            <dd className="font-medium text-foreground">
+                                {event.venue_name}, {event.city}
+                            </dd>
+                        </div>
+                        <div className="grid gap-1 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-4">
+                            <dt className="text-muted">{texts.fields.visibility}</dt>
+                            <dd className="font-medium text-foreground">{t.organizerEvent.visibility[event.visibility]}</dd>
+                        </div>
+                        <div className="grid gap-1 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-4">
+                            <dt className="text-muted">{texts.fields.sold}</dt>
+                            <dd className="font-medium text-foreground">{texts.soldValue(event.tickets_sold, event.capacity)}</dd>
+                        </div>
+                        <div className="grid gap-1 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-4">
                             <dt className="text-muted">{texts.fields.tickets}</dt>
                             <dd className="font-medium text-foreground">{event.tickets_issued}</dd>
+                        </div>
+                        <div className="grid gap-1 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-4">
+                            <dt className="text-muted">{texts.fields.paidSales}</dt>
+                            <dd>
+                                <Link to={`/admin/paid-sales/events/${event.id}`} className="inline-flex focus-visible:outline-2 focus-visible:outline-accent">
+                                    <StatusBadge tone={paidSalesBadge.tone} icon={paidSalesBadge.icon}>
+                                        {t.admin.activations.activationStatus[event.paid_sales_status]}
+                                    </StatusBadge>
+                                </Link>
+                            </dd>
                         </div>
                         <div className="grid gap-1 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-4">
                             <dt className="text-muted">{texts.fields.support}</dt>
@@ -106,7 +132,10 @@ const Details = ({ event }: { event: AdminEventDetails }) => {
                         </div>
                         <div className="grid gap-1 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-4">
                             <dt className="text-muted">{texts.fields.organizer}</dt>
-                            <dd className="font-medium text-foreground">{event.organizer_email ?? '—'}</dd>
+                            <dd className="font-medium text-foreground">
+                                {event.organizer_name ?? event.organizer_email ?? '—'}
+                                {event.organizer_name && event.organizer_email && <span className="block text-xs font-normal text-muted">{event.organizer_email}</span>}
+                            </dd>
                         </div>
                     </dl>
                     <div className="mt-5 flex flex-wrap gap-4 text-sm">
@@ -126,7 +155,12 @@ const Details = ({ event }: { event: AdminEventDetails }) => {
                     {event.is_suspended ? (
                         <>
                             <div className="mt-4 rounded-2xl bg-badge-danger-bg p-4 text-sm text-badge-danger-fg">
-                                {event.suspended_at && <p className="font-semibold">{texts.suspendedAt(formatDateTime(event.suspended_at, TIME_ZONE, t))}</p>}
+                                {event.suspended_at && (
+                                    <p className="font-semibold">
+                                        {texts.suspendedAt(formatDateTime(event.suspended_at, TIME_ZONE, t))}
+                                        {event.suspended_by_name && `, ${texts.suspendedBy(event.suspended_by_name)}`}
+                                    </p>
+                                )}
                                 {event.suspension_reason && <p className="mt-1 whitespace-pre-line">{event.suspension_reason}</p>}
                             </div>
                             <p className="mt-3 text-sm text-muted">{texts.restoreHint}</p>
@@ -141,7 +175,14 @@ const Details = ({ event }: { event: AdminEventDetails }) => {
                             <label htmlFor="suspend-reason" className="mt-4 block text-sm font-semibold text-foreground">
                                 {texts.reasonLabel}
                             </label>
-                            <Textarea id="suspend-reason" rows={3} value={reason} maxLength={500} onChange={(changeEvent) => setReason(changeEvent.target.value)} className="mt-2 min-h-24" />
+                            <Textarea
+                                id="suspend-reason"
+                                rows={3}
+                                value={reason}
+                                maxLength={500}
+                                onChange={(changeEvent) => setReason(changeEvent.target.value)}
+                                className="mt-2 min-h-24"
+                            />
                             <ul className="mt-4 flex flex-col gap-2 text-sm text-foreground">
                                 {texts.effects.map((effect) => (
                                     <li key={effect} className="flex items-start gap-2">
