@@ -14,11 +14,12 @@ from backend.modules.auth.dependencies import get_current_user, get_optional_use
 from backend.modules.events.access import get_event_or_404, event_roles, require_organizer, can_view_event
 
 from backend.modules.events.calendar import build_ics, google_calendar_url
-from backend.modules.events.models import categories, event_applications, event_categories, event_images, events
+from backend.modules.events.models import categories, event_applications, event_categories, event_images, events, event_seats
 from backend.modules.orders.models import orders
 from backend.modules.orders.schemas import OrderStatus
 from backend.modules.events.schemas import ( EventCategory, EventImage, EventLifecycleStatus, EventPublic, EventUpdate,
-                                            SeatingMode, Visibility)
+                                            SeatingMode, Visibility, EventManage)
+
 from backend.modules.payments.activation import paid_sales_active
 from backend.modules.tickets.models import ticket_types, tickets
 from backend.modules.tickets.schemas import TicketKind
@@ -67,23 +68,6 @@ def find_event(session: Session, ref: str) -> events:
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
     return event
-
-def generate_application_number(prefix : str = "APP"):
-    year = datetime.now(timezone.utc).year
-    random_part = secrets.token_hex(3).upper()
-    return f"{prefix}-{year}-{random_part}"
-
-def locked_owned_application(session: Session, application_number: str, user_id: uuid.UUID):
-    application = session.exec(
-        select(event_applications)
-        .where(event_applications.application_number == application_number,
-               event_applications.applicant_user_id == user_id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    ).first()
-    if application is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Application not found")
-    return application
 
 
 def current_organizer_document_versions() -> dict[str, str]:
@@ -140,9 +124,22 @@ def read_event(event_ref: str, session: Session = Depends(get_session), viewer: 
 @router.get("/{event_id}/manage", response_model=EventPublic)
 def read_event_for_staff(event_id: uuid.UUID, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
     event = get_event_or_404(session, event_id)
-    if current_user.personal_role != Role.PLATFORM_ADMIN and not event_roles(session, event_id, current_user):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "You do not manage this event")
-    return to_public(session, event)
+    roles = event_roles(session, event_id, current_user)
+    is_admin = current_user.personal_role == Role.PLATFORM_ADMIN
+    if not is_admin and not roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not manage this event"
+        )
+
+    sees_responsible = is_admin or EventRole.ORGANIZER in roles
+    return EventManage(
+        **to_public(session, event).model_dump(),
+        responsible_name=event.responsible_name if sees_responsible else None,
+        responsible_email=event.responsible_email if sees_responsible else None,
+        responsible_phone=event.responsible_phone if sees_responsible else None,
+        tickets_issued=ever_issued(session, event.id)
+    )
 
 
 @router.patch("/{event_id}", response_model=EventPublic)
@@ -160,6 +157,10 @@ def update_event(event_id: uuid.UUID, data: EventUpdate, session: Session = Depe
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Capacity must be between 1 and {venue.max_capacity}")
     if "description" in changes and changes["description"] is None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Description cannot be empty")
+    if "visibility" in changes and changes["visibility"] is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Visibility cannot be empty"
+                            )
     if "refund_policy" in changes:
         policy = changes["refund_policy"] or {}
         hours = policy.get("self_service_refund_until_hours_before_start")

@@ -44,6 +44,8 @@ class EventUpdate(BaseModel):
     public_telegram_url: str | None = Field(default=None, max_length=300, pattern=r"^https://t\.me/\S+$")
     public_website_url: str | None = Field(default=None, max_length=300, pattern=r"^https://\S+$")
     refund_policy: dict | None = None
+    visibility : Visibility | None = None
+
 
 class EventCategory(SQLModel):
     id: uuid.UUID
@@ -115,6 +117,13 @@ class EventPublic(SQLModel):
     categories: list[EventCategory] = []
     images: list[EventImage] = []
     cover_image_url: str | None = None
+
+class EventManage(EventPublic):
+    responsible_name : str | None = None
+    responsible_email : str | None = None
+    responsible_phone : str | None = None
+    tickets_issued : bool = False
+
 
 class ApplicationReject(SQLModel):
     review_comment: str
