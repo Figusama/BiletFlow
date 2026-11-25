@@ -734,3 +734,24 @@ export interface VenueInput {
 }
 
 export const createVenue = (input: VenueInput) => api<Venue>('/admin/venues', { method: 'POST', json: input })
+
+export interface AdminVenue extends Venue {
+    events_count: number
+    active_events_count: number
+}
+
+export const useAdminVenues = (search: string, city: string) =>
+    useQuery({
+        queryKey: ['venues', 'admin', search, city],
+        queryFn: () => {
+            const params = new URLSearchParams({ limit: '200' })
+            if (search) params.set('q', search)
+            if (city) params.set('city', city)
+            return api<AdminVenue[]>(`/admin/venues?${params}`)
+        },
+        placeholderData: keepPreviousData,
+    })
+
+export type VenueChanges = Pick<VenueInput, 'name' | 'address' | 'city' | 'max_capacity'>
+
+export const updateVenue = (venueId: string, changes: VenueChanges) => api<AdminVenue>(`/admin/venues/${venueId}`, { method: 'PATCH', json: changes })
