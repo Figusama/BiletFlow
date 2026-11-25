@@ -1,5 +1,6 @@
 import io
 import uuid
+from collections import Counter
 from urllib.parse import urlencode
 
 import qrcode
@@ -14,7 +15,8 @@ from backend.core.clock import db_now
 from backend.core.config import FRONTEND_URL, PUBLIC_API_URL
 from backend.modules.audit import service as audit
 from backend.modules.auth.dependencies import get_current_user
-from backend.modules.events.access import get_event_or_404, require_organizer
+from backend.modules.events.access import can_view_event, get_event_or_404, require_organizer
+from backend.modules.events.models import event_seats
 from backend.modules.orders.models import orders, order_items
 from backend.modules.orders.schemas import OrderStatus
 from backend.modules.orders.service import get_own_reservation, priced_lines
@@ -24,6 +26,7 @@ from backend.modules.promotions.schemas import (
     ApplicationScope, CampaignCreate, CampaignPublic, CampaignStats, PromoCodeCreate, PromoCodePublic, PromoCodeToggle,
     PromoRejection, PromoValidateRequest, PromoValidateResponse,
 )
+from backend.modules.refunds.models import refunds
 from backend.modules.tickets.models import ticket_types
 from backend.modules.users.user_model import users
 from database.database import get_session
@@ -123,10 +126,33 @@ def toggle_promo_code(event_id: uuid.UUID, promo_id: uuid.UUID, data: PromoCodeT
     return promo_to_public(session, promo)
 
 
+def selection_lines(session: Session, data: PromoValidateRequest, user: users) -> list[service.PricedLine]:
+    event = get_event_or_404(session, data.event_id)
+    if not can_view_event(session, event, user):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+    if data.items:
+        quantities = {line.ticket_type_id: line.quantity for line in data.items}
+    else:
+        chosen = session.exec(select(event_seats.ticket_type_id).where(event_seats.id.in_(data.event_seat_ids), event_seats.event_id == event.id,
+                                                                       event_seats.is_enabled.is_(True), event_seats.ticket_type_id.is_not(None))).all()
+        if len(chosen) != len(data.event_seat_ids):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Seat not found")
+        quantities = Counter(chosen)
+    types = session.exec(select(ticket_types).where(ticket_types.id.in_(list(quantities)), ticket_types.event_id == event.id, ticket_types.is_active.is_(True))).all()
+    if len(types) != len(quantities):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ticket type not found")
+    return [service.PricedLine(str(t.id), t.id, t.price_minor, quantities[t.id]) for t in types]
+
+
 @router.post("/promo-codes/validate", response_model=PromoValidateResponse)
 def validate_promo(data: PromoValidateRequest, session: Session = Depends(get_session), current_user: users = Depends(get_current_user)):
-    reservation = get_own_reservation(session, data.reservation_id, current_user)
-    lines, _ = priced_lines(session, reservation)
+    if data.reservation_id is not None:
+        reservation = get_own_reservation(session, data.reservation_id, current_user)
+        event_id = reservation.event_id
+        lines, _ = priced_lines(session, reservation)
+    else:
+        event_id = data.event_id
+        lines = selection_lines(session, data, current_user)
     subtotal = sum(line.subtotal for line in lines)
     now = db_now(session)
     promo = service.find_promo(session, data.code)
@@ -136,7 +162,7 @@ def validate_promo(data: PromoValidateRequest, session: Session = Depends(get_se
 
     if promo is None:
         return rejected(data.code, PromoRejection.NOT_FOUND)
-    quote = service.quote(session, promo, reservation.event_id, lines, now)
+    quote = service.quote(session, promo, event_id, lines, now)
     if quote.rejection:
         return rejected(promo.code, quote.rejection)
     if not service.has_capacity(session, promo, now):
@@ -215,7 +241,10 @@ def campaign_stats(event_id: uuid.UUID, campaign_id: uuid.UUID, session: Session
         select(func.count(), func.coalesce(func.sum(orders.subtotal_minor), 0), func.coalesce(func.sum(orders.discount_minor), 0)).where(orders.id.in_(redeemed_orders))
     ).one()
     tickets_sold = session.exec(select(func.coalesce(func.sum(order_items.quantity), 0)).where(order_items.order_id.in_(redeemed_orders))).one()
-    return CampaignStats(campaign_id=campaign.id, redemptions=redemptions, tickets_sold=int(tickets_sold), gross_minor=int(gross), discount_minor=int(discount), net_minor=int(gross) - int(discount))
+    refunded = session.exec(select(func.coalesce(func.sum(refunds.amount_minor), 0)).where(refunds.order_id.in_(redeemed_orders), refunds.status == "SUCCEEDED")).one()
+    net = int(gross) - int(discount)
+    return CampaignStats(campaign_id=campaign.id, redemptions=redemptions, tickets_sold=int(tickets_sold), gross_minor=int(gross), discount_minor=int(discount), net_minor=net,
+                         refunded_minor=int(refunded), net_after_refunds_minor=net - int(refunded))
 
 
 @router.get("/c/{token}")

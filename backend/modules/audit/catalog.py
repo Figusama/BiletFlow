@@ -23,6 +23,8 @@ ACTIONS = {
     "ORDER_CONFIRMED": ("orders", "Order confirmed"),
     "REGISTRATION_CANCELLED": ("orders", "Free registration cancelled"),
     "PAYMENT_SUCCEEDED": ("orders", "Payment succeeded"),
+    "TICKET_INVALIDATED": ("tickets", "Ticket invalidated"),
+    "ACTIVATION_FEE_PAID": ("paid_sales", "Activation fee paid"),
     "PAYMENT_INCIDENT": ("orders", "Payment needs manual review"),
     "PAYMENT_FAILED_FINAL": ("orders", "Payment failed"),
     "REFUND_REQUESTED": ("refunds", "Refund requested"),

@@ -52,6 +52,7 @@ def settle_fee(session: Session, event: events, activation: paid_sales_activatio
     session.add(payment)
     if outcome != "SUCCEEDED":
         return
+    audit.record(session, action="ACTIVATION_FEE_PAID", entity_type="ACTIVATION_FEE", entity_id=payment.id, event_id=event.id, actor_user_id=actor_user_id)
     if activation.status != ActivationStatus.FEE_PENDING or not bank.event_open(event):
         bank.incident(session, event_id=event.id, entity_type="ACTIVATION_FEE", entity_id=payment.id, code="FEE_AFTER_CLOSE",
                       message=f"Activation fee for \"{event.title}\" was paid, but paid sales could not be activated.")

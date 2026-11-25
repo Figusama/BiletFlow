@@ -1,3 +1,4 @@
+import re
 import secrets
 import uuid
 from datetime import datetime, timedelta
@@ -13,16 +14,17 @@ from backend.modules.events.access import ensure_on_sale, ensure_purchase_access
 from backend.modules.events.models import events, event_seats
 from backend.modules.events.schemas import SeatingMode
 from backend.modules.orders.models import reservations, reservation_items, orders, order_items
-from backend.modules.orders.schemas import ReservationCreate, ReservationStatus, OrderStatus
+from backend.modules.orders.schemas import EventOrder, ReservationCreate, ReservationStatus, OrderStatus
 from backend.modules.payments.activation import paid_sales_active
 from backend.modules.promotions import service as promo_service
 from backend.modules.promotions.schemas import PromoRejection
 from backend.modules.promotions.service import PricedLine, PROMO_MESSAGES
+from backend.modules.refunds.models import refund_requests
 from backend.modules.tickets import service as ticket_service
 from backend.modules.tickets.models import ticket_types, tickets
 from backend.modules.tickets.schemas import TicketKind, SalesStatus, TicketStatus
 from backend.modules.tickets.notify import publish_order_confirmed
-from backend.modules.users.user_model import users
+from backend.modules.users.user_model import profiles, users
 
 
 OCCUPYING_TICKET_STATUSES = (TicketStatus.VALID, TicketStatus.CHECKED_IN)
@@ -178,6 +180,33 @@ def create_reservation(session: Session, event_id: uuid.UUID, user: users, data:
     session.commit()
     session.refresh(reservation)
     return reservation
+
+
+def list_event_orders(session: Session, event_id: uuid.UUID, q: str | None, order_status: OrderStatus | None, limit: int, offset: int) -> list[EventOrder]:
+    quantity = select(order_items.order_id, func.sum(order_items.quantity).label("quantity")).group_by(order_items.order_id).subquery()
+    query = (select(orders, users.email, profiles.full_name, quantity.c.quantity).join(users, users.id == orders.buyer_user_id)
+             .outerjoin(profiles, profiles.user_id == users.id).outerjoin(quantity, quantity.c.order_id == orders.id).where(orders.event_id == event_id))
+    if order_status is not None:
+        query = query.where(orders.status == order_status)
+    if q and q.strip():
+        pattern = "%" + re.sub(r"([\\%_])", r"\\\1", q.strip()) + "%"
+        query = query.where(or_(orders.order_number.ilike(pattern), users.email.ilike(pattern), profiles.full_name.ilike(pattern)))
+    rows = session.exec(query.order_by(orders.created_at.desc(), orders.id).limit(limit).offset(offset)).all()
+    latest = {}
+    for request in session.exec(select(refund_requests).where(refund_requests.order_id.in_([order.id for order, *_ in rows])).order_by(refund_requests.created_at)).all():
+        latest[request.order_id] = request
+    now = db_now(session)
+    expired = set(session.exec(select(reservations.id).where(reservations.id.in_([order.reservation_id for order, *_ in rows]), reservations.status == ReservationStatus.ACTIVE,
+                                                             reservations.expires_at <= now)).all())
+    result = []
+    for order, email, name, count in rows:
+        request = latest.get(order.id)
+        shown = OrderStatus.EXPIRED if order.status == OrderStatus.PENDING and order.reservation_id in expired else order.status
+        result.append(EventOrder(id=order.id, order_number=order.order_number, status=shown, buyer_name=name, buyer_email=email, tickets=int(count or 0),
+                                 subtotal_minor=order.subtotal_minor, discount_minor=order.discount_minor, total_minor=order.total_minor,
+                                 refund_status=request.status if request else None, refund_execution_status=request.execution_status if request else None,
+                                 created_at=order.created_at, confirmed_at=order.confirmed_at))
+    return result
 
 
 def get_own_reservation(session: Session, reservation_id: uuid.UUID, user: users, for_update: bool = False) -> reservations:

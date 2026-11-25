@@ -42,6 +42,11 @@ class TicketTypeMetrics(BaseModel):
     ticket_type_id: uuid.UUID
     name: str
     sold: int
+    available: int
+    reserved: int
+    refunded: int
+    cancelled: int
+    checked_in: int
     confirmed_tickets: int
     gross_sales_minor: int
     discounts_minor: int
@@ -58,6 +63,8 @@ class PromoMetrics(BaseModel):
     gross_sales_minor: int
     discounts_minor: int
     net_sales_minor: int
+    refunded_minor: int | None
+    net_after_refunds_minor: int | None
 
 
 class AttendanceMetrics(BaseModel):
