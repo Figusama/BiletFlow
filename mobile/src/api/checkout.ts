@@ -1,4 +1,5 @@
 import { request, BASE_URL } from './client';
+import { WEB_BASE_URL } from '../env';
 import { TicketTypeItem } from '../types';
 
 // ---- корзина ----
@@ -179,12 +180,45 @@ export async function decideSimulated(paymentId: string, outcome: SimOutcome): P
   );
 }
 
-// Адрес страницы оплаты: бэкенд может вернуть localhost или относительный путь,
-// а телефон ходит на бэкенд по адресу ноутбука. Берём путь и подставляем наш BASE_URL.
-export function resolvePaymentUrl(url?: string | null, base: string = BASE_URL): string | undefined {
+// Адрес страницы оплаты. Бэкенд может вернуть localhost/относительный путь (локальный запуск): тогда
+// подставляем адрес, по которому телефон реально достаёт бэкенд (или сайт, если порт сайта).
+// Внешний адрес платёжной системы (Halyk и т.п.) оставляем как есть: его подменять нельзя.
+const LOCAL_HOST = /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:(\d+))?$/i;
+
+const portOf = (base: string) => /:(\d+)(?:\/|$)/.exec(base)?.[1];
+
+export function resolvePaymentUrl(
+  url?: string | null,
+  base: string = BASE_URL,
+  webBase: string = WEB_BASE_URL,
+): string | undefined {
   if (!url) return undefined;
-  const m = /^https?:\/\/[^/]+(\/.*)?$/i.exec(url);
-  if (m) return base + (m[1] || '/');
+  const m = /^https?:\/\/([^/?#]+)(.*)$/i.exec(url);
+  if (m) {
+    const local = LOCAL_HOST.exec(m[1]);
+    if (!local) return url;
+    const rest = m[2] || '/';
+    const path = rest.startsWith('/') ? rest : '/' + rest;
+    const port = local[3];
+    return (port && port === portOf(webBase) ? webBase : base) + path;
+  }
   if (url.startsWith('/')) return base + url;
   return undefined;
+}
+
+// Вернулся ли пользователь со страницы оплаты на наш сайт/бэкенд (тогда WebView можно закрыть).
+export function isPaymentReturn(
+  url: string,
+  webBase: string = WEB_BASE_URL,
+  base: string = BASE_URL,
+): boolean {
+  const m = /^(https?:\/\/[^/?#]+)(\/[^?#]*)?/i.exec(url);
+  if (!m) return false;
+  const origin = m[1].toLowerCase();
+  const path = m[2] || '/';
+  const wm = /^(https?:\/\/[^/?#]+)/i.exec(webBase);
+  const bm = /^(https?:\/\/[^/?#]+)/i.exec(base);
+  if (wm && origin === wm[1].toLowerCase()) return /^\/(orders|tickets|checkout)(\/|$)/i.test(path);
+  if (bm && origin === bm[1].toLowerCase()) return /\/payments?\/.*(return|success|fail|cancel|callback)/i.test(path);
+  return false;
 }

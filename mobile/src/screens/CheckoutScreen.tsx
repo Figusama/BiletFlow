@@ -28,6 +28,7 @@ export default function CheckoutScreen({ route, navigation }: any) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [canRetry, setCanRetry] = useState(false);
+  const [payUrl, setPayUrl] = useState<string | undefined>();
   const [names, setNames] = useState<Record<string, string[]>>({});
   const [myName, setMyName] = useState('');
   const key = useRef(`bf-${reservationId}-${Date.now()}`);
@@ -83,7 +84,11 @@ export default function CheckoutScreen({ route, navigation }: any) {
     const final = await waitForOrder(o.id);
     setOrder(final);
     if (final.status === 'CONFIRMED') setStep('done');
-    else {
+    else if (final.status === 'PENDING' && payUrl) {
+      // оплата на внешней странице ещё не подтверждена: остаёмся на экране ожидания
+      setMessage('We have not received the payment confirmation yet. If you paid, wait a few seconds and check again.');
+      setStep('waiting');
+    } else {
       setMessage(
         final.status === 'PENDING'
           ? 'We have not received the payment confirmation yet. Check Tickets in a minute.'
@@ -102,8 +107,10 @@ export default function CheckoutScreen({ route, navigation }: any) {
     }
     const url = resolvePaymentUrl(p.paymentUrl);
     if (!url) throw new Error('The payment page is not available. Try again later.');
-    navigation.navigate('Web', { title: 'Payment', url });
+    setPayUrl(url);
+    setMessage('');
     setStep('waiting');
+    navigation.navigate('Web', { title: 'Payment', url, closeOnReturn: true });
   };
 
   const placeOrder = async () => {
@@ -157,6 +164,15 @@ export default function CheckoutScreen({ route, navigation }: any) {
     if (order) await cancelOrder(order.id).catch(() => {});
     navigation.goBack();
   };
+
+  // вернулись со страницы оплаты (WebView закрылся): проверяем заказ сами
+  useEffect(() => {
+    if (step !== 'waiting' || !order) return;
+    return navigation.addListener('focus', () => {
+      finish(order);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, order]);
 
   const goTickets = () => navigation.navigate('Home', { tab: 'tickets', at: Date.now() });
 
@@ -253,8 +269,15 @@ export default function CheckoutScreen({ route, navigation }: any) {
 
         {step === 'waiting' && (
           <>
-            <Text style={styles.note}>Finish the payment on the opened page, then come back here.</Text>
+            <Text style={styles.note}>{message || 'Finish the payment on the opened page, then come back here.'}</Text>
             <Button title="I have paid, check status" onPress={() => order && finish(order)} />
+            {!!payUrl && (
+              <Button
+                title="Open the payment page again"
+                variant="ghost"
+                onPress={() => navigation.navigate('Web', { title: 'Payment', url: payUrl, closeOnReturn: true })}
+              />
+            )}
             <Button title="Cancel the order" variant="dark" onPress={cancel} />
           </>
         )}
@@ -262,7 +285,7 @@ export default function CheckoutScreen({ route, navigation }: any) {
         {step === 'done' && (
           <>
             <View style={styles.card}>
-              <Text style={styles.big}>You’re in! 🎉</Text>
+              <Text style={styles.big}>You’re in!</Text>
               {!!order && <Text style={styles.note}>Order {order.number} is confirmed. Your tickets with QR codes are in the Tickets tab.</Text>}
             </View>
             <Button title="View my tickets" onPress={goTickets} />

@@ -12,7 +12,7 @@ Tabs depend on the account role:
 | Discover | everyone | Public events, ticket types, buying tickets |
 | Tickets | everyone | Own tickets with QR codes |
 | Inbox | everyone | Notifications and event team invitations (accept / decline) |
-| Check-in | users with an event role | Assigned events, QR scan, undo with reason, attendee search, counters |
+| My events | users with an event role | Events you organize or staff with status, QR scan, undo with reason, attendee search, counters; event screen with sales, ticket types, publish / unpublish |
 | Admin | `PLATFORM_ADMIN` only | Review queues, users, events (see below) |
 | More | everyone | Website pages in a WebView, sign out |
 
