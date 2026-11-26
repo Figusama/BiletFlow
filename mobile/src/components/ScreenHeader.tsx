@@ -2,13 +2,14 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { colors } from '../theme';
 import { useOnline } from '../session';
+import Icon from './Icon';
 
 export default function ScreenHeader({ title, onBack }: { title: string; onBack: () => void }) {
   const online = useOnline();
   return (
     <View style={styles.row}>
       <Pressable onPress={onBack} hitSlop={12} accessibilityLabel="Back">
-        <Text style={styles.back}>←</Text>
+        <Icon name="chevronLeft" size={28} color={colors.text} />
       </Pressable>
       <Text style={styles.title} numberOfLines={1}>{title}</Text>
       <View style={[styles.pill, !online && styles.pillOff]}>
@@ -20,7 +21,6 @@ export default function ScreenHeader({ title, onBack }: { title: string; onBack:
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10, gap: 12 },
-  back: { color: colors.text, fontSize: 24 },
   title: { flex: 1, color: colors.text, fontSize: 16, fontWeight: '800', textAlign: 'center' },
   pill: { backgroundColor: colors.greenBg, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   pillOff: { backgroundColor: colors.redBg },

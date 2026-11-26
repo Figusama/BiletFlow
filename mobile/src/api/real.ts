@@ -49,8 +49,15 @@ async function toItem(e: any): Promise<EventItem> {
   } catch {}
   const when = new Date(e.starts_at).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   const st = String(e.status || '').toUpperCase();
-  const note = st && st !== 'PUBLISHED' ? ` · ${st}` : '';
-  return { id: e.id, title: e.title, subtitle: `${when}${e.venue_name ? ' · ' + e.venue_name : ''}${note}`, checkedIn, total };
+  return {
+    id: e.id,
+    title: e.title,
+    subtitle: `${when}${e.venue_name ? ' · ' + e.venue_name : ''}`,
+    checkedIn,
+    total,
+    status: st,
+    suspended: !!e.is_suspended,
+  };
 }
 
 const toPublic = (e: any): PublicEvent => ({

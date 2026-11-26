@@ -12,6 +12,7 @@ import EventDetailsScreen from './src/screens/EventDetailsScreen';
 import TicketDetailScreen from './src/screens/TicketDetailScreen';
 import WebScreen from './src/screens/WebScreen';
 import CheckoutScreen from './src/screens/CheckoutScreen';
+import MyEventScreen from './src/screens/MyEventScreen';
 import AdminQueueScreen from './src/screens/AdminQueueScreen';
 import AdminUsersScreen from './src/screens/AdminUsersScreen';
 import AdminEventsScreen from './src/screens/AdminEventsScreen';
@@ -57,6 +58,7 @@ export default function App() {
               <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />
               <Stack.Screen name="Web" component={WebScreen} />
               <Stack.Screen name="Checkout" component={CheckoutScreen} />
+              <Stack.Screen name="MyEvent" component={MyEventScreen} />
               <Stack.Screen name="AdminQueue" component={AdminQueueScreen} />
               <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />
               <Stack.Screen name="AdminEvents" component={AdminEventsScreen} />

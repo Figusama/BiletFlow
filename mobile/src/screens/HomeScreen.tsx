@@ -54,7 +54,7 @@ export default function HomeScreen({ navigation, route, onLogout }: any) {
         {tab === 'discover' && <DiscoverScreen navigation={navigation} />}
         {tab === 'tickets' && <TicketsScreen navigation={navigation} />}
         {tab === 'inbox' && <InboxScreen navigation={navigation} onUnreadChange={onUnreadChange} />}
-        {tab === 'checkin' && <EventsScreen navigation={navigation} onLogout={onLogout} embedded />}
+        {tab === 'events' && <EventsScreen navigation={navigation} onLogout={onLogout} embedded />}
         {tab === 'admin' && isAdmin && <AdminScreen navigation={navigation} />}
         {tab === 'more' && <MoreScreen navigation={navigation} onLogout={onLogout} />}
       </View>

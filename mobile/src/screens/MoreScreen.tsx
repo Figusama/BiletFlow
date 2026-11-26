@@ -5,6 +5,7 @@ import Button from '../components/Button';
 import { colors, radius } from '../theme';
 import { WEB_ROUTES } from '../config';
 import { BASE_URL } from '../api/client';
+import Icon from '../components/Icon';
 
 export default function MoreScreen({ navigation, onLogout }: any) {
   return (
@@ -20,9 +21,9 @@ export default function MoreScreen({ navigation, onLogout }: any) {
             style={styles.link}
             onPress={() => navigation.navigate('Web', { title: r.title, path: r.path })}
           >
-            <Text style={styles.linkIcon}>{r.icon}</Text>
+            <Icon name={r.icon} size={22} color={colors.accentLight} />
             <Text style={styles.linkText}>{r.title}</Text>
-            <Text style={styles.linkArrow}>›</Text>
+            <Icon name="chevronRight" size={20} color={colors.muted} />
           </Pressable>
         ))}
 
@@ -40,8 +41,6 @@ const styles = StyleSheet.create({
   logo: { color: colors.text, fontSize: 26, fontWeight: '900' },
   kicker: { color: colors.text, fontSize: 12, fontWeight: '800', letterSpacing: 1.5 },
   link: { flexDirection: 'row', alignItems: 'center', minHeight: 56, backgroundColor: colors.card, borderRadius: radius.field, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 16, gap: 12 },
-  linkIcon: { fontSize: 22 },
   linkText: { flex: 1, color: colors.text, fontSize: 16, fontWeight: '700' },
-  linkArrow: { color: colors.muted, fontSize: 24 },
   server: { color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: 6 },
 });

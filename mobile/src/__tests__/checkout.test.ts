@@ -1,12 +1,12 @@
 jest.mock('../api/client', () => ({
-  BASE_URL: 'http://api.test:8000',
+  BASE_URL: 'http://backend.test:8000',
   request: jest.fn(),
 }));
 
 import { request } from '../api/client';
 import {
   buildAttendees, cancelOrder, cartCount, cartTotal, clampQty, createOrder, createReservation, decideSimulated, fmtCountdown,
-  maxQty, purchasable, releaseReservation, resolvePaymentUrl, secondsLeft, startPayment, validatePromo, waitForOrder,
+  isPaymentReturn, maxQty, purchasable, releaseReservation, resolvePaymentUrl, secondsLeft, startPayment, validatePromo, waitForOrder,
 } from '../api/checkout';
 
 const req = request as jest.Mock;
@@ -135,12 +135,27 @@ describe('оплата', () => {
     expect(body()).toEqual({ outcome: 'decline' });
     expect(p.status).toBe('FAILED');
   });
-  it('resolvePaymentUrl подставляет адрес бэкенда с телефона', () => {
-    expect(resolvePaymentUrl('http://localhost:8000/payments/halyk/p1?x=1')).toBe('http://api.test:8000/payments/halyk/p1?x=1');
-    expect(resolvePaymentUrl('/payments/simulator/p1')).toBe('http://api.test:8000/payments/simulator/p1');
-    expect(resolvePaymentUrl('https://example.kz')).toBe('http://api.test:8000/');
-    expect(resolvePaymentUrl(null)).toBeUndefined();
-    expect(resolvePaymentUrl('garbage')).toBeUndefined();
+  it('resolvePaymentUrl: локальные адреса заменяются, внешняя оплата остаётся как есть', () => {
+    const base = 'http://backend.test:8000';
+    const web = 'http://site.test:5173';
+    expect(resolvePaymentUrl('http://localhost:8000/payments/halyk/p1?x=1', base, web)).toBe('http://backend.test:8000/payments/halyk/p1?x=1');
+    expect(resolvePaymentUrl('http://127.0.0.1:8000/pay', base, web)).toBe('http://backend.test:8000/pay');
+    expect(resolvePaymentUrl('http://localhost:5173/orders/o1', base, web)).toBe('http://site.test:5173/orders/o1');
+    expect(resolvePaymentUrl('/payments/simulator/p1', base, web)).toBe('http://backend.test:8000/payments/simulator/p1');
+    // реальная оплата (Halyk): адрес менять нельзя
+    expect(resolvePaymentUrl('https://epay.example-bank.kz/pay?id=7', base, web)).toBe('https://epay.example-bank.kz/pay?id=7');
+    expect(resolvePaymentUrl(null, base, web)).toBeUndefined();
+    expect(resolvePaymentUrl('garbage', base, web)).toBeUndefined();
+  });
+  it('isPaymentReturn: закрываем WebView только при возврате на наш сайт или бэкенд', () => {
+    const base = 'http://backend.test:8000';
+    const web = 'http://site.test:5173';
+    expect(isPaymentReturn('http://site.test:5173/orders/o1?paid=1', web, base)).toBe(true);
+    expect(isPaymentReturn('http://site.test:5173/tickets', web, base)).toBe(true);
+    expect(isPaymentReturn('http://site.test:5173/events/e1', web, base)).toBe(false);
+    expect(isPaymentReturn('http://backend.test:8000/payments/halyk/p1/return', web, base)).toBe(true);
+    expect(isPaymentReturn('https://epay.example-bank.kz/orders/1', web, base)).toBe(false);
+    expect(isPaymentReturn('not a url', web, base)).toBe(false);
   });
 });
 
