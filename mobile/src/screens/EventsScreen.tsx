@@ -1,18 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Badge from '../components/Badge';
 import Button from '../components/Button';
+import Icon from '../components/Icon';
 import { colors, radius } from '../theme';
 import { api } from '../api';
 import { sessionInitials } from '../session';
+import { statusInfo } from '../api/myEvents';
 import { EventItem } from '../types';
 
-const fmt = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+const fmt = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 
+// Вкладка «My events»: события, где вы организатор или сотрудник. Отсюда сканирование и управление событием.
 export default function EventsScreen({ navigation, onLogout, embedded }: any) {
   const [events, setEvents] = useState<EventItem[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = async () => {
     try {
@@ -21,7 +26,7 @@ export default function EventsScreen({ navigation, onLogout, embedded }: any) {
       setEvents(list);
       setSelected((prev) => (prev && list.some((e) => e.id === prev) ? prev : list[0]?.id ?? null));
     } catch (e: any) {
-      setError(e.message || 'Не удалось загрузить события');
+      setError(e.message || 'Could not load your events');
     }
   };
 
@@ -31,28 +36,40 @@ export default function EventsScreen({ navigation, onLogout, embedded }: any) {
     return unsub;
   }, []);
 
+  const refresh = async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={embedded ? ['top'] : undefined}>
       <View style={styles.header}>
-        <Text style={styles.logo}>BiletFlow <Text style={styles.logoSub}>Check-in</Text></Text>
+        <Text style={styles.logo}>My events</Text>
         <Pressable onPress={onLogout} style={styles.avatar} accessibilityLabel="Sign out">
           <Text style={styles.avatarText}>{sessionInitials()}</Text>
         </Pressable>
       </View>
 
       <View style={styles.body}>
-        <ScrollView contentContainerStyle={{ gap: 14 }}>
-          <Text style={styles.kicker}>YOUR ASSIGNED EVENTS</Text>
+        <ScrollView
+          contentContainerStyle={{ gap: 14 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#fff" />}
+        >
+          <Text style={styles.kicker}>EVENTS YOU ORGANIZE OR STAFF</Text>
 
           {!events && !error && <ActivityIndicator color="#fff" style={{ marginTop: 20 }} />}
           {!!error && <Text style={styles.error}>{error}</Text>}
           {events && events.length === 0 && (
-            <Text style={styles.empty}>No assigned events yet. Accept the Event Admin invitation on the website.</Text>
+            <Text style={styles.empty}>
+              No events yet. Create one on the website (More → Organizer), or accept an Event Admin invitation in Inbox.
+            </Text>
           )}
 
           {events?.map((e) => {
             const pct = e.total ? Math.min(100, (e.checkedIn / e.total) * 100) : 0;
             const on = e.id === selected;
+            const st = statusInfo(e.status ?? '', e.suspended);
             return (
               <Pressable
                 key={e.id}
@@ -66,12 +83,23 @@ export default function EventsScreen({ navigation, onLogout, embedded }: any) {
                     <Text style={styles.title} numberOfLines={1}>{e.title}</Text>
                     <Text style={styles.sub} numberOfLines={2}>{e.subtitle}</Text>
                   </View>
+                  <Badge label={st.label} tone={st.tone} />
                 </View>
                 <View style={styles.rowBetween}>
                   <Text style={styles.sub}>Checked in</Text>
                   <Text style={styles.count}>{fmt(e.checkedIn)} / {fmt(e.total)}</Text>
                 </View>
                 <View style={styles.bar}><View style={[styles.fill, { width: `${pct}%` }]} /></View>
+                {on && (
+                  <Pressable
+                    style={styles.manage}
+                    onPress={() => navigation.navigate('MyEvent', { eventId: e.id })}
+                    accessibilityLabel={`Manage ${e.title}`}
+                  >
+                    <Text style={styles.manageText}>Manage event</Text>
+                    <Icon name="chevronRight" size={18} color={colors.accentLight} />
+                  </Pressable>
+                )}
               </Pressable>
             );
           })}
@@ -90,8 +118,7 @@ export default function EventsScreen({ navigation, onLogout, embedded }: any) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10 },
-  logo: { color: colors.accentLight, fontSize: 20, fontWeight: '900' },
-  logoSub: { color: colors.text, fontSize: 15, fontWeight: '700' },
+  logo: { color: colors.text, fontSize: 26, fontWeight: '900' },
   avatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#EBE3FA', alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: colors.ink, fontWeight: '800', fontSize: 12 },
   body: { flex: 1, paddingHorizontal: 20, paddingBottom: 16, gap: 12 },
@@ -107,6 +134,8 @@ const styles = StyleSheet.create({
   count: { color: colors.text, fontSize: 15, fontWeight: '800' },
   bar: { height: 8, borderRadius: 4, backgroundColor: colors.barBg, overflow: 'hidden' },
   fill: { height: 8, backgroundColor: colors.barFill },
+  manage: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: colors.cardBorder, paddingTop: 12 },
+  manageText: { color: colors.accentLight, fontSize: 15, fontWeight: '800' },
   error: { color: '#FF9B94', fontSize: 16 },
-  empty: { color: colors.muted, fontSize: 16 },
+  empty: { color: colors.muted, fontSize: 16, lineHeight: 22 },
 });

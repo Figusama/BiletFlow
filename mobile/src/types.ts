@@ -5,6 +5,8 @@ export type EventItem = {
   gate?: string;
   checkedIn: number;
   total: number;
+  status?: string;
+  suspended?: boolean;
 };
 
 export type ScanStatus =

@@ -12,8 +12,8 @@ describe('TabBar', () => {
     await render(<TabBar active="discover" onChange={onChange} />);
     await fireEvent.press(screen.getByText('Tickets'));
     expect(onChange).toHaveBeenCalledWith('tickets');
-    await fireEvent.press(screen.getByText('Check-in'));
-    expect(onChange).toHaveBeenCalledWith('checkin');
+    await fireEvent.press(screen.getByText('My events'));
+    expect(onChange).toHaveBeenCalledWith('events');
     await fireEvent.press(screen.getByText('Inbox'));
     expect(onChange).toHaveBeenCalledWith('inbox');
   });
@@ -22,7 +22,7 @@ describe('TabBar', () => {
     expect(screen.queryByText('Admin')).toBeNull();
   });
   it('PLATFORM_ADMIN видит Admin перед More', async () => {
-    expect(tabsFor(true).map((t) => t.key)).toEqual(['discover', 'tickets', 'inbox', 'checkin', 'admin', 'more']);
+    expect(tabsFor(true).map((t) => t.key)).toEqual(['discover', 'tickets', 'inbox', 'events', 'admin', 'more']);
     const onChange = jest.fn();
     await render(<TabBar active="discover" onChange={onChange} isAdmin />);
     await fireEvent.press(screen.getByText('Admin'));

@@ -1,5 +1,6 @@
 import { request } from './client';
 import { fmtDateTime, fmtPrice } from '../format';
+import type { IconName } from '../components/Icon';
 
 // ---- очереди заявок, которые разбирает Platform Admin ----
 export type QueueKind = 'applications' | 'changes' | 'paidSales' | 'cancellations' | 'refunds';
@@ -16,12 +17,12 @@ export type QueueItem = {
   decidable: boolean;
 };
 
-export const QUEUES: { kind: QueueKind; title: string; icon: string; hint: string }[] = [
-  { kind: 'applications', title: 'Event applications', icon: '📝', hint: 'New events waiting for approval' },
-  { kind: 'changes', title: 'Change requests', icon: '✏️', hint: 'Changes to published events' },
-  { kind: 'paidSales', title: 'Paid sales', icon: '💳', hint: 'Organizers asking to sell tickets' },
-  { kind: 'cancellations', title: 'Event cancellations', icon: '🚫', hint: 'Organizers cancelling events' },
-  { kind: 'refunds', title: 'Refunds', icon: '↩️', hint: 'Refund requests for admin review' },
+export const QUEUES: { kind: QueueKind; title: string; icon: IconName; hint: string }[] = [
+  { kind: 'applications', title: 'Event applications', icon: 'fileText', hint: 'New events waiting for approval' },
+  { kind: 'changes', title: 'Change requests', icon: 'edit', hint: 'Changes to published events' },
+  { kind: 'paidSales', title: 'Paid sales', icon: 'creditCard', hint: 'Organizers asking to sell tickets' },
+  { kind: 'cancellations', title: 'Event cancellations', icon: 'ban', hint: 'Organizers cancelling events' },
+  { kind: 'refunds', title: 'Refunds', icon: 'undo', hint: 'Refund requests for admin review' },
 ];
 
 const when = (iso?: string | null) => (iso ? fmtDateTime(iso) : '—');

@@ -76,7 +76,7 @@ export default function AdminQueueScreen({ navigation, route }: any) {
       >
         {!items && !error && <ActivityIndicator color="#fff" style={{ marginTop: 20 }} />}
         {!!error && <Text style={styles.error}>{error}</Text>}
-        {items && items.length === 0 && <Text style={styles.empty}>Nothing is waiting here. 🎉</Text>}
+        {items && items.length === 0 && <Text style={styles.empty}>Nothing is waiting here.</Text>}
 
         {items?.map((it) => (
           <View key={it.id} style={styles.card}>

@@ -5,12 +5,15 @@ import { WebView as RNWebView } from 'react-native-webview';
 import Button from '../components/Button';
 import { colors } from '../theme';
 import { WEB_URL } from '../config';
+import Icon from '../components/Icon';
+import { isPaymentReturn } from '../api/checkout';
 
 // Приведение типа: у react-native-webview бывают конфликты типов с @types/react
 const WebView = RNWebView as unknown as React.ComponentType<any>;
 
 export default function WebScreen({ route, navigation }: any) {
-  const { title, path, url } = route.params;
+  const { title, path, url, closeOnReturn } = route.params;
+  const closed = useRef(false);
   const ref = useRef<any>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -35,9 +38,9 @@ export default function WebScreen({ route, navigation }: any) {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.top}>
-        <Pressable onPress={goBack} hitSlop={12} accessibilityLabel="Back"><Text style={styles.icon}>←</Text></Pressable>
+        <Pressable onPress={goBack} hitSlop={12} accessibilityLabel="Back"><Icon name="arrowLeft" size={24} color={colors.text} /></Pressable>
         <Text style={styles.title} numberOfLines={1}>{title}</Text>
-        <Pressable onPress={reload} hitSlop={12} accessibilityLabel="Reload"><Text style={styles.icon}>⟳</Text></Pressable>
+        <Pressable onPress={reload} hitSlop={12} accessibilityLabel="Reload"><Icon name="refresh" size={22} color={colors.text} /></Pressable>
       </View>
 
       {error ? (
@@ -57,7 +60,14 @@ export default function WebScreen({ route, navigation }: any) {
           sharedCookiesEnabled
           thirdPartyCookiesEnabled
           allowsBackForwardNavigationGestures
-          onNavigationStateChange={(s: any) => setCanGoBack(s.canGoBack)}
+          onNavigationStateChange={(s: any) => {
+            setCanGoBack(s.canGoBack);
+            // страница оплаты вернула пользователя на сайт: закрываем WebView, экран оплаты сам проверит заказ
+            if (closeOnReturn && !closed.current && s.url && isPaymentReturn(s.url)) {
+              closed.current = true;
+              navigation.goBack();
+            }
+          }}
           onLoadStart={() => setLoading(true)}
           onLoadEnd={() => setLoading(false)}
           onError={() => setError(true)}
@@ -78,7 +88,6 @@ export default function WebScreen({ route, navigation }: any) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   top: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 10 },
-  icon: { color: colors.text, fontSize: 26 },
   title: { flex: 1, color: colors.text, fontSize: 17, fontWeight: '800', textAlign: 'center' },
   center: { flex: 1, padding: 24, justifyContent: 'center' },
   errTitle: { color: colors.text, fontSize: 22, fontWeight: '800' },
