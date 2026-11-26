@@ -9,7 +9,7 @@ export default function ScreenHeader({ title, onBack }: { title: string; onBack:
   return (
     <View style={styles.row}>
       <Pressable onPress={onBack} hitSlop={12} accessibilityLabel="Back">
-        <Icon name="arrowLeft" size={24} color={colors.text} />
+        <Icon name="chevronLeft" size={28} color={colors.text} />
       </Pressable>
       <Text style={styles.title} numberOfLines={1}>{title}</Text>
       <View style={[styles.pill, !online && styles.pillOff]}>

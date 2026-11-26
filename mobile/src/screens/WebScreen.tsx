@@ -38,7 +38,7 @@ export default function WebScreen({ route, navigation }: any) {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.top}>
-        <Pressable onPress={goBack} hitSlop={12} accessibilityLabel="Back"><Icon name="arrowLeft" size={24} color={colors.text} /></Pressable>
+        <Pressable onPress={goBack} hitSlop={12} accessibilityLabel="Back"><Icon name="chevronLeft" size={28} color={colors.text} /></Pressable>
         <Text style={styles.title} numberOfLines={1}>{title}</Text>
         <Pressable onPress={reload} hitSlop={12} accessibilityLabel="Reload"><Icon name="refresh" size={22} color={colors.text} /></Pressable>
       </View>

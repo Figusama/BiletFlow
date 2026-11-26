@@ -15,7 +15,7 @@ describe('Icon', () => {
     const used = [...TABS.map((t) => t.icon), ADMIN_TAB.icon, ...QUEUES.map((q) => q.icon), ...WEB_ROUTES.map((r) => r.icon)];
     used.forEach((n) => {
       expect(ICONS[n]).toBeDefined();
-      expect(ICONS[n].length).toBeGreaterThan(0);
+      expect(ICONS[n].paths.length).toBeGreaterThan(0);
     });
   });
 });

@@ -42,7 +42,7 @@ export default function TabBar({ active, onChange, bottomInset = 0, isAdmin = fa
             accessibilityState={{ selected: on }}
           >
             <View>
-              <Icon name={t.icon} size={22} color={on ? colors.accentLight : colors.muted} strokeWidth={on ? 2.2 : 1.8} />
+              <Icon name={t.icon} size={22} color={on ? colors.accentLight : colors.muted} strokeWidth={on ? 2.4 : 2} />
               {n > 0 && (
                 <View style={styles.badge} accessibilityLabel={`${n} unread`}>
                   <Text style={styles.badgeText}>{n > 9 ? '9+' : n}</Text>
