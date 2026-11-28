@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 
-type ButtonVariant = 'primary' | 'secondary'
+type ButtonVariant = 'primary' | 'secondary' | 'night'
 type ButtonSize = 'sm' | 'md'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -8,6 +8,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 	variant?: ButtonVariant
 	size?: ButtonSize
 	fullWidth?: boolean
+	shape?: 'default' | 'pill'
 }
 
 const Button = ({
@@ -16,11 +17,12 @@ const Button = ({
 	size = 'md',
 	fullWidth = false,
 	className = '',
+	shape = 'default',
 	...props
 }: ButtonProps) => {
 	const baseStyles = `
 		inline-flex items-center justify-center
-		rounded-lg font-semibold
+		${shape === 'pill' ? 'rounded-full' : 'rounded-lg'} font-semibold
 		transition
 		disabled:cursor-not-allowed
 		disabled:opacity-40
@@ -34,12 +36,16 @@ const Button = ({
 	const variantStyles = {
 		primary: `
 			bg-accent text-accent-foreground
+			hover:bg-accent-hover
+		`,
+		night: `
+			bg-night text-on-night
 			hover:opacity-90
 		`,
 		secondary: `
 			border border-border
 			bg-surface text-foreground
-			hover:bg-surface-raised
+			hover:bg-surface-sunk
 		`,
 	}
 

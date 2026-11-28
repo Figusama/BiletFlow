@@ -1,103 +1,189 @@
-import EventArenaPlaceholder from '../features/events/components/EventArenaPlaceholder'
+import { useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import Select from '../components/ui/Select'
+import { useCity } from '../features/events/city'
+import { usePricedEvents } from '../features/events/usePricedEvents'
+import DayPicker from '../features/events/components/DayPicker'
+import EventFiltersBar from '../features/events/components/EventFiltersBar'
+import EventHero from '../features/events/components/EventHero'
+import EventListItem from '../features/events/components/EventListItem'
+import {
+    EMPTY_FILTERS,
+    filterEvents,
+    getCategories,
+    getEventDayKey,
+    sortEvents,
+    type EventFilters,
+    type SortOrder,
+} from '../features/events/filters'
+import { useLanguage } from '../shared/i18n/language'
+import { getNextDays } from '../shared/lib/date'
+import Icon from '../components/ui/Icon'
+
+const PAGE_SIZE = 4
+const HERO_EVENTS = 3
+const DAYS_TO_SHOW = 21
 
 const EventsPage = () => {
-	return (
-		<div className="min-h-screen bg-background text-foreground">
-			<section className="relative min-h-[470px] overflow-hidden">
-				<EventArenaPlaceholder />
+    const { t } = useLanguage()
+    const { city } = useCity()
+    const [searchParams, setSearchParams] = useSearchParams()
+    const search = searchParams.get('search') ?? ''
 
-				<div className="relative z-10 mx-auto max-w-6xl px-6 py-20">
-					<div className="max-w-xl">
-						<p className="text-sm font-medium text-accent">
-							Events across Kazakhstan
-						</p>
+    const { data: events, isPending, isError, refetch } = usePricedEvents()
+    const [filters, setFilters] = useState<EventFilters>(EMPTY_FILTERS)
+    const [sortOrder, setSortOrder] = useState<SortOrder>('date')
+    const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+    const [days] = useState(() => getNextDays(DAYS_TO_SHOW))
 
-						<h1 className="mt-4 text-5xl font-semibold leading-[1.08] tracking-[-0.035em] text-foreground">
-							Find something
-							<br />
-							worth going to.
-						</h1>
+    const updateFilters = (changes: Partial<EventFilters>) => {
+        setFilters((current) => ({ ...current, ...changes }))
+        setVisibleCount(PAGE_SIZE)
+    }
 
-						<p className="mt-5 max-w-lg text-base leading-7 text-muted">
-							Discover concerts, festivals, comedy, community events and more
-							happening around you.
-						</p>
+    const resetFilters = () => {
+        setFilters(EMPTY_FILTERS)
+        setVisibleCount(PAGE_SIZE)
+    }
 
-						<div className="mt-8 flex gap-3">
-							<input
-								type="search"
-								placeholder="Search events, venues or cities"
-								className="
-									min-w-0 flex-1 rounded-[10px]
-									border border-border bg-surface
-									px-4 py-3 text-sm text-foreground
-									outline-none
-									placeholder:text-muted
-									focus:border-accent
-									focus:ring-2 focus:ring-accent/20
-								"
-							/>
+    const cityEvents = city ? events.filter((event) => event.venue_city === city) : events
+    const heroEvents = sortEvents(cityEvents, 'date').slice(0, HERO_EVENTS)
+    const daysWithEvents = new Set(cityEvents.map(getEventDayKey))
+    const results = sortEvents(filterEvents(events, filters, search, city), sortOrder)
+    const title = (city && t.city.titles[city]) || t.discover.title
+    const visibleEvents = results.slice(0, visibleCount)
 
-							<button
-								type="button"
-								className="
-									rounded-[10px] bg-accent px-6 py-3
-									text-sm font-semibold text-accent-foreground
-									transition-opacity hover:opacity-90
-									focus-visible:outline-none
-									focus-visible:ring-2
-									focus-visible:ring-accent
-									focus-visible:ring-offset-2
-									focus-visible:ring-offset-background
-								"
-							>
-								Search
-							</button>
-						</div>
+    const sortOptions = [
+        { value: 'date', label: t.discover.sortByDate },
+        { value: 'price', label: t.discover.sortByPrice },
+    ] as const
 
-						<div className="mt-3 flex flex-wrap gap-2">
-							{['Astana', 'Category', 'Date', 'Free / Paid'].map((filter) => (
-								<button
-									key={filter}
-									type="button"
-									className="
-										rounded-[9px] border border-border
-										bg-surface px-4 py-2
-										text-sm text-muted
-										transition-colors
-										hover:bg-surface-raised
-										hover:text-foreground
-										focus-visible:outline-none
-										focus-visible:ring-2
-										focus-visible:ring-accent
-									"
-								>
-									{filter}
+    return (
+        <div className="mx-auto max-w-[1224px] px-4 pt-8 pb-16 sm:px-6 md:pt-10">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">{title}</h1>
 
-									<span
-										aria-hidden="true"
-										className="ml-3 text-muted"
-									>
-										⌄
-									</span>
-								</button>
-							))}
-						</div>
-					</div>
-				</div>
-			</section>
+            <div className="mt-5">
+                {isPending ? (
+                    <div className="h-[260px] animate-pulse rounded-3xl bg-surface-sunk md:h-[340px]" />
+                ) : (
+                    <EventHero events={heroEvents} />
+                )}
+            </div>
 
-			<section className="mx-auto max-w-6xl px-6 py-10">
-				<p className="text-xs font-medium uppercase tracking-[0.16em] text-muted">
-					Explore
-				</p>
+            <section aria-labelledby="pick-day-title" className="mt-10">
+                <h2 id="pick-day-title" className="text-xl font-bold text-foreground">
+                    {t.discover.pickDay}
+                </h2>
+                <div className="mt-4">
+                    <DayPicker
+                        days={days}
+                        selectedDay={filters.day}
+                        daysWithEvents={daysWithEvents}
+                        onSelect={(day) => updateFilters({ day })}
+                    />
+                </div>
+            </section>
 
-				<h2 className="mt-2 text-2xl font-semibold text-foreground">
-					Featured events
-				</h2>
-			</section>
-		</div>
-	)
+            <div className="mt-6">
+                <EventFiltersBar categories={getCategories(events)} filters={filters} onChange={updateFilters} />
+            </div>
+
+            <section aria-labelledby="upcoming-title" className="mt-10">
+                <div className="flex items-center justify-between gap-4">
+                    <h2 id="upcoming-title" className="text-xl font-bold text-foreground">
+                        {t.discover.upcoming}
+                    </h2>
+                    <Select<SortOrder>
+                        value={sortOrder}
+                        options={sortOptions}
+                        onValueChange={setSortOrder}
+                        ariaLabel={t.discover.sortLabel}
+                    />
+                </div>
+
+                {search && (
+                    <p className="mt-3 text-sm text-muted">
+                        {t.discover.searchResults(search)}{' '}
+                        <button
+                            type="button"
+                            onClick={() => setSearchParams({})}
+                            className="font-semibold text-accent hover:underline"
+                        >
+                            {t.discover.clearSearch}
+                        </button>
+                    </p>
+                )}
+
+                <div className="mt-6">
+                    {isPending && (
+                        <p role="status" className="py-10 text-center text-muted">
+                            {t.discover.loading}
+                        </p>
+                    )}
+
+                    {isError && events.length === 0 && (
+                        <div role="alert" className="py-10 text-center">
+                            <p className="text-muted">{t.discover.loadError}</p>
+                            <button
+                                type="button"
+                                onClick={() => refetch()}
+                                className="mt-3 font-semibold text-accent hover:underline"
+                            >
+                                {t.discover.retry}
+                            </button>
+                        </div>
+                    )}
+
+                    {!isPending && !isError && results.length === 0 && (
+                        <div className="rounded-2xl border border-dashed border-border py-12 text-center">
+                            <p className="text-muted">{t.discover.empty}</p>
+                            <button
+                                type="button"
+                                onClick={resetFilters}
+                                className="mt-3 font-semibold text-accent hover:underline"
+                            >
+                                {t.discover.resetFilters}
+                            </button>
+                        </div>
+                    )}
+
+                    {visibleEvents.length > 0 && (
+                        <ul className="flex flex-col gap-4">
+                            {visibleEvents.map((event) => (
+                                <li key={event.id}>
+                                    <EventListItem event={event} />
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+
+                {results.length > visibleCount && (
+                    <div className="mt-8 text-center">
+                        <button
+                            type="button"
+                            onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
+                            className="inline-flex items-center gap-2 font-semibold text-accent hover:underline"
+                        >
+                            {t.discover.seeMore}
+                            <Icon name="chevron-left" className="size-4 -rotate-90" />
+                        </button>
+                    </div>
+                )}
+            </section>
+
+            <div className="mt-14 flex flex-wrap items-center justify-between gap-4">
+                <h2 className="text-lg font-bold text-foreground">{t.discover.hosting}</h2>
+                <Link
+                    to="/organizer/events/new"
+                    className="inline-flex items-center gap-2 font-semibold text-accent hover:underline"
+                >
+                    {t.organizer.createEvent}
+                    <Icon name="arrow-up" className="size-4 rotate-90" />
+                </Link>
+            </div>
+        </div>
+    )
 }
 
 export default EventsPage

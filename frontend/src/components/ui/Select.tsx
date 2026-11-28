@@ -1,4 +1,5 @@
 import * as RadixSelect from '@radix-ui/react-select'
+import Icon from './Icon'
 
 interface SelectOption<T extends string> {
 	value: T
@@ -11,6 +12,7 @@ interface SelectProps<T extends string> {
 	onValueChange: (value: T) => void
 	placeholder?: string
 	ariaLabel?: string
+	fullWidth?: boolean
 }
 
 const Select = <T extends string>({
@@ -19,6 +21,7 @@ const Select = <T extends string>({
 	onValueChange,
 	placeholder,
 	ariaLabel,
+	fullWidth = false,
 }: SelectProps<T>) => {
     const handleValueChange = (value: string) => {
 		const selectedOption = options.find(
@@ -37,25 +40,23 @@ const Select = <T extends string>({
 		>
 			<RadixSelect.Trigger
 				aria-label={ariaLabel}
-				className="
-					inline-flex h-9 items-center justify-between gap-2
-					rounded-lg border border-border
-					bg-surface px-3
-					text-sm text-foreground
+				className={`
+					inline-flex items-center justify-between gap-3
+					${fullWidth ? 'h-12 w-full rounded-[14px] border-border data-[placeholder]:text-muted' : 'h-9 min-w-40 rounded-xl border-border-strong'}
+					border bg-surface px-4
+					text-sm font-medium text-foreground
 					outline-none
 					transition-colors
-					hover:bg-surface-raised
+					hover:bg-surface-sunk
 					focus-visible:ring-2
 					focus-visible:ring-accent
-				"
+					disabled:cursor-default disabled:hover:bg-surface
+				`}
 			>
 				<RadixSelect.Value placeholder={placeholder} />
 
-				<RadixSelect.Icon
-					className="text-muted"
-					aria-hidden="true"
-				>
-					⌄
+				<RadixSelect.Icon className="text-muted">
+					<Icon name="chevron-left" className="size-4 -rotate-90" />
 				</RadixSelect.Icon>
 			</RadixSelect.Trigger>
 
@@ -65,9 +66,9 @@ const Select = <T extends string>({
 					sideOffset={6}
 					className="
 						z-50 min-w-[var(--radix-select-trigger-width)]
-						overflow-hidden rounded-lg
+						overflow-hidden rounded-xl
 						border border-border
-						bg-surface-raised p-1
+						bg-surface p-1
 						shadow-lg
 					"
 				>
@@ -82,7 +83,7 @@ const Select = <T extends string>({
 									px-3 py-2 pr-8
 									text-sm text-foreground
 									outline-none
-									data-[highlighted]:bg-surface
+									data-[highlighted]:bg-accent-soft
 									data-[highlighted]:text-foreground
 									data-[state=checked]:text-accent
 								"

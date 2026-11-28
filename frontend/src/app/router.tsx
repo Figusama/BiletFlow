@@ -1,56 +1,325 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { createBrowserRouter, redirect } from 'react-router-dom'
 import AppLayout from '../components/layout/AppLayout'
 import EventsPage from '../pages/EventsPage'
 import NotFoundPage from '../pages/NotFoundPage'
+import InvitationPage from '../pages/InvitationPage'
+import AccountPage from '../pages/AccountPage'
+import StaffInvitationsPage from '../pages/StaffInvitationsPage'
+import BuyerSupportPage from '../pages/BuyerSupportPage'
+import BuyerSupportNewPage from '../pages/BuyerSupportNewPage'
+import BuyerSupportCasePage from '../pages/BuyerSupportCasePage'
+import ErrorPage from '../pages/ErrorPage'
+import ComingSoonPage from '../pages/ComingSoonPage'
 import EventDetailsPage from '../pages/EventDetailsPage'
 import TicketSelectionPage from '../pages/TicketSelectionPage'
 import LoginPage from '../pages/LoginPage'
 import RegisterPage from '../pages/RegisterPage'
+import VerifyEmailPage from '../pages/VerifyEmailPage'
 import ForgotPasswordPage from '../pages/ForgotPasswordPage'
 import ResetPasswordPage from '../pages/ResetPasswordPage'
 import MyTicketsPage from '../pages/MyTicketsPage'
+import CheckoutPage from '../pages/CheckoutPage'
+import OrderPage from '../pages/OrderPage'
+import ApplicationPage from '../pages/ApplicationPage'
+import MyApplicationsPage from '../pages/MyApplicationsPage'
+import OrganizerGuestsPage from '../pages/OrganizerGuestsPage'
+import OrganizerHistoryPage from '../pages/OrganizerHistoryPage'
+import OrganizerEventPage from '../pages/OrganizerEventPage'
+import OrganizerTicketTypesPage from '../pages/OrganizerTicketTypesPage'
+import OrganizerSeatingPage from '../pages/OrganizerSeatingPage'
+import OrganizerPaidSalesPage from '../pages/OrganizerPaidSalesPage'
+import FeeSimulatorPage from '../pages/FeeSimulatorPage'
+import OrganizerChangeRequestsPage from '../pages/OrganizerChangeRequestsPage'
+import OrganizerTeamPage from '../pages/OrganizerTeamPage'
+import OrganizerSupportPage from '../pages/OrganizerSupportPage'
+import OrganizerSupportCasePage from '../pages/OrganizerSupportCasePage'
+import OrganizerPromoCodesPage from '../pages/OrganizerPromoCodesPage'
+import OrganizerOrdersPage from '../pages/OrganizerOrdersPage'
+import OrganizerAnalyticsPage from '../pages/OrganizerAnalyticsPage'
+import OrganizerOrderDetailPage from '../pages/OrganizerOrderDetailPage'
+import OrganizerRefundDetailPage from '../pages/OrganizerRefundDetailPage'
+import OrganizerRefundsPage from '../pages/OrganizerRefundsPage'
+import OrganizerEventLayout from '../features/organizer/components/OrganizerEventLayout'
+import RequireAuth from '../features/auth/requireAuth'
+import RequireAdmin from '../features/auth/requireAdmin'
+import AdminLayout from '../features/admin/components/AdminLayout'
+import AdminApplicationsPage from '../pages/AdminApplicationsPage'
+import AdminApplicationPage from '../pages/AdminApplicationPage'
+import AdminChangeRequestsPage from '../pages/AdminChangeRequestsPage'
+import AdminChangeRequestPage from '../pages/AdminChangeRequestPage'
+import AdminPaymentsPage from '../pages/AdminPaymentsPage'
+import AdminPaymentPage from '../pages/AdminPaymentPage'
+import AdminUsersPage from '../pages/AdminUsersPage'
+import AdminVenuesPage from '../pages/AdminVenuesPage'
+import AdminEventsPage from '../pages/AdminEventsPage'
+import AdminEventPage from '../pages/AdminEventPage'
+import AdminAuditPage from '../pages/AdminAuditPage'
+import AdminCancellationsPage from '../pages/AdminCancellationsPage'
+import AdminCancellationPage from '../pages/AdminCancellationPage'
+import AdminSupportPage from '../pages/AdminSupportPage'
+import AdminSupportCasePage from '../pages/AdminSupportCasePage'
+import AdminRefundsPage from '../pages/AdminRefundsPage'
+import AdminRefundPage from '../pages/AdminRefundPage'
+import AdminUserPage from '../pages/AdminUserPage'
+import AdminActivationsPage from '../pages/AdminActivationsPage'
+import AdminActivationPage from '../pages/AdminActivationPage'
+import AdminActivationEventPage from '../pages/AdminActivationEventPage'
+import { verifyEmail } from '../features/auth/auth'
+import { ApiError } from '../shared/api/client'
 
 export const router = createBrowserRouter([
     {
+        path: '/admin',
+        element: <RequireAuth />,
+        errorElement: <ErrorPage />,
+        children: [
+            {
+                element: <RequireAdmin />,
+                children: [
+                    {
+                        element: <AdminLayout />,
+                        children: [
+                            { index: true, loader: () => redirect('/admin/applications') },
+                            { path: 'applications', element: <AdminApplicationsPage /> },
+                            { path: 'applications/:applicationId', element: <AdminApplicationPage /> },
+                            { path: 'change-requests', element: <AdminChangeRequestsPage /> },
+                            { path: 'change-requests/:requestId', element: <AdminChangeRequestPage /> },
+                            { path: 'paid-sales', element: <AdminActivationsPage /> },
+                            { path: 'paid-sales/events/:eventId', element: <AdminActivationEventPage /> },
+                            { path: 'paid-sales/:requestId', element: <AdminActivationPage /> },
+                            { path: 'payments', element: <AdminPaymentsPage /> },
+                            { path: 'payments/:paymentId', element: <AdminPaymentPage /> },
+                            { path: 'refunds', element: <AdminRefundsPage /> },
+                            { path: 'refunds/:requestId', element: <AdminRefundPage /> },
+                            { path: 'support', element: <AdminSupportPage /> },
+                            { path: 'support/:caseId', element: <AdminSupportCasePage /> },
+                            { path: 'cancellations', element: <AdminCancellationsPage /> },
+                            { path: 'cancellations/:requestId', element: <AdminCancellationPage /> },
+                            { path: 'events', element: <AdminEventsPage /> },
+                            { path: 'events/:publicId', element: <AdminEventPage /> },
+                            { path: 'audit', element: <AdminAuditPage /> },
+                            { path: 'venues', element: <AdminVenuesPage /> },
+                            { path: 'users', element: <AdminUsersPage /> },
+                            { path: 'users/:publicId', element: <AdminUserPage /> },
+                        ],
+                    },
+                ],
+            },
+        ],
+    },
+    {
         path: '/',
-		element: <AppLayout />,
-		children: [
-			{
-				index: true,
-				element: <EventsPage />,
-			},
+        element: <AppLayout />,
+        errorElement: <ErrorPage />,
+        children: [
             {
-                path: 'events/:eventId',
-                element: <EventDetailsPage />,
+                errorElement: <ErrorPage />,
+                children: [
+                    {
+                        index: true,
+                        element: <EventsPage />,
+                    },
+                    {
+                        path: 'events/:eventId',
+                        element: <EventDetailsPage />,
+                    },
+                    {
+                        path: 'invitations/:token',
+                        element: <InvitationPage />,
+                    },
+                    {
+                        path: 'events/:eventId/paid-sales',
+                        loader: ({ params }) => redirect(`/organizer/events/${params.eventId}/paid-sales`),
+                    },
+                    {
+                        path: 'events/:eventId/refunds',
+                        loader: ({ params }) => redirect(`/organizer/events/${params.eventId}/refunds`),
+                    },
+                    {
+                        path: 'applications/:applicationId',
+                        loader: ({ params }) => redirect(`/organizer/applications/${params.applicationId}`),
+                    },
+                    {
+                        path: 'orders',
+                        loader: () => redirect('/tickets'),
+                    },
+                    {
+                        path: 'events/:eventId/tickets',
+                        element: <TicketSelectionPage />,
+                    },
+                    {
+                        path: '/auth/token',
+                        element: <LoginPage />,
+                    },
+                    {
+                        path: '/auth/register',
+                        element: <RegisterPage />
+                    },
+                    {
+                        path: '/auth/verify-email',
+                        element: <VerifyEmailPage />,
+                        loader: async ({ request }) => {
+                            const token = new URL(request.url).searchParams.get('token')
+                            if (!token) return 'invalid'
+
+                            try {
+                                await verifyEmail(token)
+                                return 'verified'
+                            } catch (error) {
+                                if (error instanceof ApiError) {
+                                    if (error.status === 400) return 'invalid'
+                                    if (error.status === 409) return 'verified'
+                                }
+
+                                return 'unavailable'
+                            }
+                        },
+                    },
+                    {
+                        path: '/auth/forgot-password',
+                        element: <ForgotPasswordPage />,
+                    },
+                    {
+                        path: '/auth/reset-password',
+                        element: <ResetPasswordPage />,
+                    },
+                    {
+                        element: <RequireAuth />,
+                        children: [
+                            {
+                                path: 'tickets',
+                                element: <MyTicketsPage />,
+                            },
+                            {
+                                path: 'checkout/:reservationId',
+                                element: <CheckoutPage />,
+                            },
+                            {
+                                path: 'orders/:orderId',
+                                element: <OrderPage />,
+                            },
+                            {
+                                path: 'account',
+                                element: <AccountPage />,
+                            },
+                            {
+                                path: 'staff-invitations',
+                                element: <StaffInvitationsPage />,
+                            },
+                            {
+                                path: 'support',
+                                element: <BuyerSupportPage />,
+                            },
+                            {
+                                path: 'support/new',
+                                element: <BuyerSupportNewPage />,
+                            },
+                            {
+                                path: 'support/:caseId',
+                                element: <BuyerSupportCasePage />,
+                            },
+                            {
+                                path: 'organizer/events',
+                                element: <MyApplicationsPage />,
+                            },
+                            {
+                                path: 'paid-sales/fee-payments/:paymentId/simulator',
+                                element: <FeeSimulatorPage />,
+                            },
+                            {
+                                path: 'organizer/events/new',
+                                element: <ApplicationPage />,
+                            },
+                            {
+                                path: 'organizer/applications/:applicationId',
+                                element: <ApplicationPage />,
+                            },
+                            {
+                                path: 'organizer/events/:eventId',
+                                element: <OrganizerEventLayout />,
+                                children: [
+                                    {
+                                        index: true,
+                                        element: <OrganizerEventPage />,
+                                    },
+                                    {
+                                        path: 'ticket-types',
+                                        element: <OrganizerTicketTypesPage />,
+                                    },
+                                    {
+                                        path: 'seating',
+                                        element: <OrganizerSeatingPage />,
+                                    },
+                                    {
+                                        path: 'paid-sales',
+                                        element: <OrganizerPaidSalesPage />,
+                                    },
+                                    {
+                                        path: 'change-requests',
+                                        element: <OrganizerChangeRequestsPage />,
+                                    },
+                                    {
+                                        path: 'promo-codes',
+                                        element: <OrganizerPromoCodesPage />,
+                                    },
+                                    {
+                                        path: 'orders',
+                                        element: <OrganizerOrdersPage />,
+                                    },
+                                    {
+                                        path: 'refunds',
+                                        element: <OrganizerRefundsPage />,
+                                    },
+                                    {
+                                        path: 'refunds/:requestId',
+                                        element: <OrganizerRefundDetailPage />,
+                                    },
+                                    {
+                                        path: 'analytics',
+                                        element: <OrganizerAnalyticsPage />,
+                                    },
+                                    {
+                                        path: 'orders/:orderId',
+                                        element: <OrganizerOrderDetailPage />,
+                                    },
+                                    {
+                                        path: 'team',
+                                        element: <OrganizerTeamPage />,
+                                    },
+                                    {
+                                        path: 'history',
+                                        element: <OrganizerHistoryPage />,
+                                    },
+                                    {
+                                        path: 'guests',
+                                        element: <OrganizerGuestsPage />,
+                                    },
+                                    {
+                                        path: 'support',
+                                        element: <OrganizerSupportPage />,
+                                    },
+                                    {
+                                        path: 'support/:caseId',
+                                        element: <OrganizerSupportCasePage />,
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                    {
+                        path: 'organizer/help',
+                        element: <ComingSoonPage titleKey="organizerHelp" />,
+                    },
+                    {
+                        path: 'help',
+                        element: <ComingSoonPage titleKey="help" />,
+                    },
+                    {
+                        path: '*',
+                        element: <NotFoundPage />,
+                    },
+                ],
             },
-            {
-                path: 'events/:eventId/tickets',
-                element: <TicketSelectionPage />,
-            },
-			{
-				path: '/auth/token',
-				element: <LoginPage />,
-			},
-			{
-				path: '/auth/register',
-				element: <RegisterPage />
-			},
-            {
-                path: '/auth/forgot-password',
-                element: <ForgotPasswordPage />,
-            },
-            {
-                path: '/auth/reset-password',
-                element: <ResetPasswordPage />,
-            },
-            {
-                path: 'tickets',
-                element: <MyTicketsPage />,
-            },
-            {
-                path: '*',
-                element: <NotFoundPage />,
-            },
-		],
+        ],
     },
 ])

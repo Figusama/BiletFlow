@@ -1,98 +1,69 @@
-interface OrderSummaryProps {
-	ticketTypes: {
-		id: string
-		name: string
-		price: number
-	}[]
-	quantities: Record<string, number>
+import Button from '../../../components/ui/Button'
+import { useLanguage } from '../../../shared/i18n/language'
+import { formatKzt } from '../../../shared/lib/money'
+export interface SummaryItem {
+    key: string
+    label: string
+    price: number
 }
 
-const OrderSummary = ({
-	ticketTypes,
-	quantities,
-}: OrderSummaryProps) => {
-	const selectedTickets = ticketTypes.filter(
-		(ticketType) => (quantities[ticketType.id] ?? 0) > 0,
-	)
+interface OrderSummaryProps {
+    items: SummaryItem[]
+    isSignedIn: boolean
+    isSubmitting: boolean
+    error: string
+    onContinue: () => void
+}
 
-	const total = selectedTickets.reduce((sum, ticketType) => {
-		const quantity = quantities[ticketType.id] ?? 0
+const OrderSummary = ({ items, isSignedIn, isSubmitting, error, onContinue }: OrderSummaryProps) => {
+    const { t } = useLanguage()
+    const total = items.reduce((sum, item) => sum + item.price, 0)
+    const formatPrice = (minor: number) => (minor === 0 ? t.discover.free : formatKzt(minor))
 
-		return sum + ticketType.price * quantity
-	}, 0)
+    return (
+        <section aria-labelledby="summary-title" className="rounded-2xl border border-border bg-surface p-5">
+            <h2 id="summary-title" className="text-base font-bold text-foreground">
+                {t.ticketSelection.summary}
+            </h2>
 
-	const hasTickets = selectedTickets.length > 0
+            {items.length === 0 ? (
+                <p className="mt-4 text-sm text-muted">{t.ticketSelection.empty}</p>
+            ) : (
+                <ul className="mt-4 flex flex-col gap-2 text-sm">
+                    {items.map(({ key, label, price }) => (
+                        <li key={key} className="flex justify-between gap-3">
+                            <span className="text-foreground">{label}</span>
+                            <span className="font-semibold whitespace-nowrap text-foreground">{formatPrice(price)}</span>
+                        </li>
+                    ))}
+                </ul>
+            )}
 
-	return (
-		<div className="rounded-xl border border-border bg-surface-raised p-6">
-			<h2 className="text-xl font-semibold text-foreground">
-				Order summary
-			</h2>
+            <div className="mt-5 flex items-baseline justify-between gap-3 border-t border-border pt-5">
+                <span className="text-sm text-muted">{t.tickets.total}</span>
+                <span className="text-2xl font-bold text-foreground">{items.length > 0 ? formatPrice(total) : '—'}</span>
+            </div>
 
-			{hasTickets ? (
-				<div className="mt-5">
-					<div className="space-y-3">
-                        {selectedTickets.map((ticketType) => {
-                            const quantity = quantities[ticketType.id] ?? 0
-                            const itemTotal = ticketType.price * quantity
+            {error && (
+                <p role="alert" className="mt-4 text-sm font-medium text-error">
+                    {error}
+                </p>
+            )}
 
-                            return (
-                                <div
-                                    key={ticketType.id}
-                                    className="flex justify-between gap-4 text-sm"
-                                >
-                                    <p className="text-muted">
-                                        {ticketType.name} × {quantity}
-                                    </p>
+            <Button
+                type="button"
+                fullWidth
+                shape="pill"
+                disabled={items.length === 0 || isSubmitting}
+                onClick={onContinue}
+                className="mt-5 min-h-11"
+            >
+                {isSubmitting ? t.tickets.reserving : isSignedIn ? t.ticketSelection.continue : t.tickets.signInToBuy}
+            </Button>
 
-                                    <p className="font-medium text-foreground">
-                                        {itemTotal.toLocaleString('en-US')} ₸
-                                    </p>
-                                </div>
-                            )
-                        })}
-					</div>
-
-					<div className="mt-5 border-t border-border pt-5">
-						<div className="flex items-center justify-between gap-4">
-							<p className="font-medium text-foreground">
-								Total
-							</p>
-
-							<p className="text-lg font-semibold text-foreground">
-								{total.toLocaleString('en-US')} ₸
-							</p>
-						</div>
-					</div>
-				</div>
-			) : (
-				<p className="mt-3 text-sm text-muted">
-					Select tickets to continue.
-				</p>
-			)}
-
-			<button
-				type="button"
-				disabled={!hasTickets}
-				className="
-					mt-6 w-full rounded-lg bg-accent
-					px-4 py-3 text-sm font-semibold
-					text-accent-foreground
-					transition-opacity
-					hover:opacity-90
-					disabled:cursor-not-allowed
-					disabled:opacity-40
-					focus-visible:outline-none
-					focus-visible:ring-2
-					focus-visible:ring-accent
-					focus-visible:ring-offset-2
-					focus-visible:ring-offset-surface-raised
-				"
-			>
-				Continue
-			</button>
-		</div>
-	)
+            <p className="mt-3 text-center text-xs text-muted">{t.tickets.holdNote}</p>
+        </section>
+    )
 }
 
 export default OrderSummary

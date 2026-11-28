@@ -1,146 +1,81 @@
 import { useState } from 'react'
-import TicketStatusBadge, {
-	type TicketStatus,
-} from './TicketStatusBadge'
+import Icon from '../../../components/ui/Icon'
+import { useLanguage } from '../../../shared/i18n/language'
+import { fetchTicketFile, type Ticket } from '../api'
+import TicketQr from './TicketQr'
+import TicketStatusBadge from './TicketStatusBadge'
 
-interface TicketCardProps {
-	eventTitle: string
-	eventDate: string
-	venueName: string
-	ticketType: string
-	attendeeName: string
-	ticketCode: string
-	status: TicketStatus
-}
+const Fact = ({ label, value }: { label: string; value: string }) => (
+    <div>
+        <dt className="text-[11px] font-bold tracking-widest text-muted uppercase">{label}</dt>
+        <dd className="mt-0.5 font-bold text-accent">{value}</dd>
+    </div>
+)
 
-const TicketCard = ({
-	eventTitle,
-	eventDate,
-	venueName,
-	ticketType,
-	attendeeName,
-	ticketCode,
-	status,
-}: TicketCardProps) => {
-	const [isExpanded, setIsExpanded] = useState(false)
+const TicketCard = ({ ticket }: { ticket: Ticket }) => {
+    const { t } = useLanguage()
+    const [isDownloading, setIsDownloading] = useState(false)
+    const [downloadFailed, setDownloadFailed] = useState(false)
+    const isValid = ticket.status === 'VALID'
 
-	return (
-		<article className="overflow-hidden rounded-xl border border-border bg-surface">
-			<div className="p-5">
-				<div className="flex items-start justify-between gap-4">
-					<div className="min-w-0">
-						<h2 className="text-lg font-semibold text-foreground">
-							{eventTitle}
-						</h2>
+    const handleDownload = async () => {
+        setIsDownloading(true)
+        setDownloadFailed(false)
+        try {
+            const blob = await fetchTicketFile(ticket.id, 'pdf')
+            const url = URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = url
+            link.download = `ticket-${ticket.public_id}.pdf`
+            link.click()
+            window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+        } catch {
+            setDownloadFailed(true)
+        } finally {
+            setIsDownloading(false)
+        }
+    }
 
-						<p className="mt-2 text-sm text-muted">
-							{eventDate}
-						</p>
+    return (
+        <article className="flex overflow-hidden rounded-2xl border border-border bg-surface">
+            <div className="flex min-w-0 flex-1 flex-col gap-3 p-5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <TicketStatusBadge status={ticket.status} />
+                    <span className="font-mono text-xs text-muted">{ticket.public_id}</span>
+                </div>
 
-						<p className="mt-1 text-sm text-muted">
-							{venueName}
-						</p>
-					</div>
+                <p className="text-lg font-bold break-words text-foreground">{ticket.attendee_name}</p>
 
-					<div className="flex shrink-0 items-center gap-3">
-						<TicketStatusBadge status={status} />
+                <dl className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+                    <Fact label={t.ticketsPage.type} value={ticket.ticket_type_name} />
+                    {ticket.seat_label && <Fact label={t.ticketsPage.seat} value={ticket.seat_label} />}
+                </dl>
 
-						<button
-							type="button"
-							onClick={() => setIsExpanded((current) => !current)}
-							aria-expanded={isExpanded}
-							aria-label={
-								isExpanded
-									? 'Hide ticket details'
-									: 'Show ticket details'
-							}
-							className="
-								flex h-8 w-8 items-center justify-center
-								rounded-lg border border-border
-								text-foreground transition
-								hover:border-accent hover:text-accent
-								focus-visible:outline-none
-								focus-visible:ring-2
-								focus-visible:ring-accent
-							"
-						>
-							<span
-								aria-hidden="true"
-								className={`transition-transform ${
-									isExpanded ? 'rotate-180' : ''
-								}`}
-							>
-								⌄
-							</span>
-						</button>
-					</div>
-				</div>
+                {isValid && (
+                    <button
+                        type="button"
+                        onClick={handleDownload}
+                        disabled={isDownloading}
+                        className="mt-auto inline-flex items-center gap-2 self-start text-sm font-semibold text-accent hover:underline disabled:opacity-60"
+                    >
+                        <Icon name="download" className="size-4" />
+                        {isDownloading ? t.ticketsPage.downloading : t.ticketsPage.downloadPdf}
+                    </button>
+                )}
+                {downloadFailed && (
+                    <p role="alert" className="text-sm text-error">
+                        {t.ticketsPage.downloadFailed}
+                    </p>
+                )}
+            </div>
 
-				<div className="mt-5 border-t border-border pt-4">
-					<p className="text-xs text-muted">
-						Ticket type
-					</p>
-
-					<p className="mt-1 text-sm font-medium text-foreground">
-						{ticketType}
-					</p>
-				</div>
-			</div>
-
-			{isExpanded && (
-				<div className="border-t border-dashed border-border bg-surface-raised p-5">
-					<div className="flex flex-col items-center">
-						{/* TODO(API): Replace this placeholder with the issued ticket QR data from the backend. */}
-						<div
-							className="
-								flex aspect-square w-40 items-center justify-center
-								rounded-lg border border-border bg-background
-								text-sm text-muted
-							"
-						>
-							QR code
-						</div>
-
-						<div className="mt-5 w-full">
-							<div className="flex justify-between gap-4 text-sm">
-								<span className="text-muted">
-									Attendee
-								</span>
-
-								<span className="text-right font-medium text-foreground">
-									{attendeeName}
-								</span>
-							</div>
-
-							<div className="mt-3 flex justify-between gap-4 text-sm">
-								<span className="text-muted">
-									Ticket
-								</span>
-
-								<span className="text-right font-medium text-foreground">
-									{ticketCode}
-								</span>
-							</div>
-						</div>
-
-						{/* TODO(API): Connect this action to the ticket PDF download endpoint. */}
-						<button
-							type="button"
-							disabled
-							className="
-								mt-6 w-full rounded-lg border border-border
-								px-4 py-3 text-sm font-semibold text-muted
-								disabled:cursor-not-allowed
-								disabled:opacity-50
-							"
-						>
-							Download PDF
-						</button>
-					</div>
-				</div>
-			)}
-		</article>
-	)
+            {isValid && (
+                <div className="flex w-32 shrink-0 items-center border-l-2 border-dashed border-on-night/30 bg-night p-4 sm:w-40">
+                    <TicketQr ticketId={ticket.id} />
+                </div>
+            )}
+        </article>
+    )
 }
 
 export default TicketCard

@@ -1,48 +1,21 @@
-type TicketStatus = 'valid' | 'checked_in' | 'cancelled'
+import StatusBadge, { type BadgeIcon, type BadgeTone } from '../../../components/ui/StatusBadge'
+import { useLanguage } from '../../../shared/i18n/language'
+import type { TicketStatus } from '../api'
 
-interface TicketStatusBadgeProps {
-	status: TicketStatus
+const statusBadge: Record<TicketStatus, { tone: BadgeTone; icon: BadgeIcon }> = {
+    VALID: { tone: 'success', icon: 'check-circle' },
+    CHECKED_IN: { tone: 'neutral', icon: 'check-circle' },
+    CANCELLED: { tone: 'danger', icon: 'x-circle' },
+    REFUNDED: { tone: 'neutral', icon: 'ban' },
 }
 
-const statusConfig: Record<
-	TicketStatus,
-	{
-		label: string
-		className: string
-	}
-> = {
-	valid: {
-		label: 'Valid',
-		className: 'border-green-600/30 bg-green-600/10 text-green-700 dark:text-green-400',
-	},
-	checked_in: {
-		label: 'Checked in',
-		className: 'border-border bg-background text-muted',
-	},
-	cancelled: {
-		label: 'Cancelled',
-		className: 'border-error/30 bg-error/10 text-error',
-	},
-}
-
-const TicketStatusBadge = ({
-	status,
-}: TicketStatusBadgeProps) => {
-	const config = statusConfig[status]
-
-	return (
-		<span
-			className={`
-				inline-flex items-center rounded-full border
-				px-3 py-1 text-xs font-medium
-				${config.className}
-			`}
-		>
-			{config.label}
-		</span>
-	)
+const TicketStatusBadge = ({ status }: { status: TicketStatus }) => {
+    const { t } = useLanguage()
+    return (
+        <StatusBadge {...statusBadge[status]}>
+            {t.ticketsPage.statuses[status]}
+        </StatusBadge>
+    )
 }
 
 export default TicketStatusBadge
-
-export type { TicketStatus }
